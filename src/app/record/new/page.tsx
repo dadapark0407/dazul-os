@@ -1,577 +1,381 @@
-"use client";
+'use client'
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import type { VisitRecord } from '@/types/visit'
 
 type Guardian = {
-  id: string;
-  name: string;
-  phone: string | null;
-  memo: string | null;
-  created_at: string;
-};
+  id: string
+  name: string
+  phone: string | null
+}
 
 type Pet = {
-  id: string;
-  guardian_id: string;
-  name: string;
-  breed: string | null;
-  gender: string | null;
-  birthdate: string | null;
-  memo: string | null;
-  created_at: string;
-};
-
-const staffOptions = ["소영", "직원1", "직원2", "직원3", "직원4"];
-
-const serviceOptions = [
-  "목욕",
-  "부분미용",
-  "전체미용",
-  "스파",
-  "팩",
-  "스파+팩",
-];
-
-const noteTemplates: Record<string, string> = {
-  목욕: `목욕 진행
-피부 상태:
-특이사항:
-다음 방문 추천:`,
-
-  부분미용: `부분미용 진행
-정리 부위:
-아이 반응:
-특이사항:`,
-
-  전체미용: `전체미용 진행
-스타일:
-길이:
-아이 반응:
-특이사항:`,
-
-  스파: `스파 진행
-사용 제품:
-피부/모질 상태:
-아이 반응:
-다음 추천:`,
-
-  팩: `팩 진행
-사용 제품:
-피부 상태:
-아이 반응:
-다음 추천:`,
-
-  "스파+팩": `스파+팩 진행
-사용 제품:
-피부/모질 상태:
-아이 반응:
-다음 추천:`,
-};
-
-function normalizePhone(value: string) {
-  return value.replace(/[^0-9]/g, "");
+  id: string
+  guardian_id: string
+  name: string
+  breed: string | null
 }
 
-function formatPhone(value: string | null) {
-  if (!value) return "-";
+const CONDITION_OPTIONS = ['안정', '예민', '피곤', '활발']
+const STRESS_OPTIONS = ['낮음', '보통', '높음', '초반 긴장 후 안정']
 
-  if (value.length === 11) {
-    return `${value.slice(0, 3)}-${value.slice(3, 7)}-${value.slice(7)}`;
-  }
+export default function NewVisitPage() {
+  const router = useRouter()
 
-  if (value.length === 10) {
-    return `${value.slice(0, 3)}-${value.slice(3, 6)}-${value.slice(6)}`;
-  }
+  const [guardians, setGuardians] = useState<Guardian[]>([])
+  const [pets, setPets] = useState<Pet[]>([])
+  const [filteredPets, setFilteredPets] = useState<Pet[]>([])
 
-  return value;
-}
+  const [guardianId, setGuardianId] = useState('')
+  const [petId, setPetId] = useState('')
+  const [visitDate, setVisitDate] = useState(new Date().toISOString().slice(0, 10))
+  const [serviceType, setServiceType] = useState('')
+  const [note, setNote] = useState('')
+  const [careSummary, setCareSummary] = useState('')
+  const [careActions, setCareActions] = useState('')
+  const [careNotes, setCareNotes] = useState('')
+  const [nextCareGuide, setNextCareGuide] = useState('')
 
-export default function NewRecordPage() {
-  const router = useRouter();
+  const [skinStatus, setSkinStatus] = useState('')
+  const [coatStatus, setCoatStatus] = useState('')
+  const [conditionStatus, setConditionStatus] = useState('')
+  const [stressStatus, setStressStatus] = useState('')
+  const [specialNotes, setSpecialNotes] = useState('')
+  const [nextVisitRecommendation, setNextVisitRecommendation] = useState('')
 
-  const [visitDate, setVisitDate] = useState("");
-  const [guardianName, setGuardianName] = useState("");
-  const [guardianPhone, setGuardianPhone] = useState("");
-  const [petName, setPetName] = useState("");
-  const [staffName, setStaffName] = useState("");
-  const [service, setService] = useState("");
-  const [note, setNote] = useState("");
-
-  const [guardians, setGuardians] = useState<Guardian[]>([]);
-  const [pets, setPets] = useState<Pet[]>([]);
-  const [guardianPets, setGuardianPets] = useState<Pet[]>([]);
-
-  const [selectedGuardianId, setSelectedGuardianId] = useState<string | null>(null);
-  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      setErrorMessage("");
+    async function fetchInitialData() {
+      const { data: guardiansData } = await supabase
+        .from('guardians')
+        .select('id, name, phone')
+        .order('name')
 
-      const [guardiansRes, petsRes] = await Promise.all([
-        supabase.from("guardians").select("*").order("name", { ascending: true }),
-        supabase.from("pets").select("*").order("name", { ascending: true }),
-      ]);
+      const { data: petsData } = await supabase
+        .from('pets')
+        .select('id, guardian_id, name, breed')
+        .order('name')
 
-      if (guardiansRes.error) {
-        setErrorMessage(`보호자 목록을 불러오지 못했어요: ${guardiansRes.error.message}`);
-        setLoading(false);
-        return;
-      }
+      setGuardians(guardiansData || [])
+      setPets(petsData || [])
+    }
 
-      if (petsRes.error) {
-        setErrorMessage(`반려견 목록을 불러오지 못했어요: ${petsRes.error.message}`);
-        setLoading(false);
-        return;
-      }
-
-      setGuardians((guardiansRes.data ?? []) as Guardian[]);
-      setPets((petsRes.data ?? []) as Pet[]);
-      setLoading(false);
-    };
-
-    init();
-  }, []);
+    fetchInitialData()
+  }, [])
 
   useEffect(() => {
-    if (!selectedGuardianId) {
-      setGuardianPets([]);
-      return;
+    if (!guardianId) {
+      setFilteredPets([])
+      setPetId('')
+      return
     }
 
-    const sameHousePets = pets.filter((pet) => pet.guardian_id === selectedGuardianId);
-    setGuardianPets(sameHousePets);
-  }, [selectedGuardianId, pets]);
+    const nextPets = pets.filter((pet) => pet.guardian_id === guardianId)
+    setFilteredPets(nextPets)
 
-  const guardianSuggestions = useMemo(() => {
-    const keywordName = guardianName.trim().toLowerCase();
-    const keywordPhone = normalizePhone(guardianPhone);
-
-    if (!keywordName && !keywordPhone) return [];
-
-    return guardians
-      .filter((guardian) => {
-        const matchName = keywordName
-          ? guardian.name.toLowerCase().includes(keywordName)
-          : true;
-
-        const matchPhone = keywordPhone
-          ? (guardian.phone ?? "").includes(keywordPhone)
-          : true;
-
-        return matchName && matchPhone;
-      })
-      .slice(0, 8);
-  }, [guardianName, guardianPhone, guardians]);
-
-  const petSuggestions = useMemo(() => {
-    const keyword = petName.trim().toLowerCase();
-    if (!keyword) return [];
-
-    const source = selectedGuardianId ? guardianPets : pets;
-
-    return source
-      .filter((pet) => pet.name.toLowerCase().includes(keyword))
-      .slice(0, 8);
-  }, [petName, selectedGuardianId, guardianPets, pets]);
-
-  const handleGuardianInputChange = (value: string) => {
-    setGuardianName(value);
-    setSelectedGuardianId(null);
-    setSelectedPetId(null);
-    setPetName("");
-    setGuardianPets([]);
-  };
-
-  const handleGuardianPhoneChange = (value: string) => {
-    setGuardianPhone(normalizePhone(value));
-    setSelectedGuardianId(null);
-    setSelectedPetId(null);
-    setPetName("");
-    setGuardianPets([]);
-  };
-
-  const handleGuardianSelect = (guardian: Guardian) => {
-    setGuardianName(guardian.name);
-    setGuardianPhone(guardian.phone ?? "");
-    setSelectedGuardianId(guardian.id);
-    setSelectedPetId(null);
-    setPetName("");
-  };
-
-  const handlePetInputChange = (value: string) => {
-    setPetName(value);
-    setSelectedPetId(null);
-  };
-
-  const handlePetSelect = (pet: Pet) => {
-    setPetName(pet.name);
-    setSelectedPetId(pet.id);
-  };
-
-  const handleSiblingPetClick = (pet: Pet) => {
-    setPetName(pet.name);
-    setSelectedPetId(pet.id);
-  };
-
-  const handleApplyTemplate = () => {
-    if (!service) {
-      alert("먼저 서비스를 선택해주세요.");
-      return;
+    if (!nextPets.find((pet) => pet.id === petId)) {
+      setPetId('')
     }
+  }, [guardianId, pets, petId])
 
-    const template = noteTemplates[service];
-    if (!template) return;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
 
-    const ok = confirm("현재 노트를 템플릿으로 바꿀까요?");
-    if (!ok) return;
-
-    setNote(template);
-  };
-
-  const getOrCreateGuardian = async () => {
-    if (selectedGuardianId) {
-      return {
-        guardianId: selectedGuardianId,
-        guardianName: guardianName.trim(),
-        guardianPhone: normalizePhone(guardianPhone),
-      };
+    if (!guardianId || !petId || !visitDate) {
+      alert('보호자, 반려견, 방문일은 필수입니다.')
+      return
     }
-
-    const trimmedName = guardianName.trim();
-    const normalizedPhone = normalizePhone(guardianPhone);
-
-    const existingGuardian = guardians.find(
-      (guardian) =>
-        guardian.name === trimmedName &&
-        (guardian.phone ?? "") === normalizedPhone
-    );
-
-    if (existingGuardian) {
-      return {
-        guardianId: existingGuardian.id,
-        guardianName: existingGuardian.name,
-        guardianPhone: existingGuardian.phone ?? "",
-      };
-    }
-
-    const { data, error } = await supabase
-      .from("guardians")
-      .insert([
-        {
-          name: trimmedName,
-          phone: normalizedPhone || null,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error || !data) {
-      throw new Error(error?.message || "보호자 생성에 실패했어요.");
-    }
-
-    const newGuardian = data as Guardian;
-    setGuardians((prev) => [...prev, newGuardian]);
-
-    return {
-      guardianId: newGuardian.id,
-      guardianName: newGuardian.name,
-      guardianPhone: newGuardian.phone ?? "",
-    };
-  };
-
-  const getOrCreatePet = async (guardianId: string) => {
-    if (selectedPetId) {
-      return {
-        petId: selectedPetId,
-        petName: petName.trim(),
-      };
-    }
-
-    const trimmedPetName = petName.trim();
-
-    const existingPet = pets.find(
-      (pet) => pet.guardian_id === guardianId && pet.name === trimmedPetName
-    );
-
-    if (existingPet) {
-      return {
-        petId: existingPet.id,
-        petName: existingPet.name,
-      };
-    }
-
-    const { data, error } = await supabase
-      .from("pets")
-      .insert([
-        {
-          guardian_id: guardianId,
-          name: trimmedPetName,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error || !data) {
-      throw new Error(error?.message || "반려견 생성에 실패했어요.");
-    }
-
-    const newPet = data as Pet;
-    setPets((prev) => [...prev, newPet]);
-
-    return {
-      petId: newPet.id,
-      petName: newPet.name,
-    };
-  };
-
-  const handleSave = async () => {
-    if (!visitDate || !guardianName.trim() || !petName.trim() || !staffName || !service) {
-      alert("방문일, 보호자 이름, 반려견 이름, 담당자, 서비스를 입력해주세요.");
-      return;
-    }
-
-    setSaving(true);
-    setErrorMessage("");
 
     try {
-      const guardianResult = await getOrCreateGuardian();
-      const petResult = await getOrCreatePet(guardianResult.guardianId);
+      setLoading(true)
 
-      const { error } = await supabase.from("visit_records").insert([
-        {
-          visit_date: visitDate,
-          guardian_name: guardianResult.guardianName,
-          pet_name: petResult.petName,
-          staff_name: staffName,
-          service,
-          note,
-          guardian_id: guardianResult.guardianId,
-          pet_id: petResult.petId,
-        },
-      ]);
-
-      if (error) {
-        throw new Error(error.message);
+      const payload: Partial<VisitRecord> = {
+        guardian_id: guardianId,
+        pet_id: petId,
+        visit_date: visitDate,
+        service_type: serviceType || null,
+        note: note || null,
+        skin_status: skinStatus || null,
+        coat_status: coatStatus || null,
+        condition_status: conditionStatus || null,
+        stress_status: stressStatus || null,
+        special_notes: specialNotes || null,
+        next_visit_recommendation: nextVisitRecommendation || null,
+        care_summary: careSummary || null,
+        care_actions: careActions || null,
+        care_notes: careNotes || null,
+        next_care_guide: nextCareGuide || null,
       }
 
-      alert("저장이 완료되었어요.");
-      router.push("/record");
-      router.refresh();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "저장 중 오류가 발생했어요.";
-      setErrorMessage(message);
-      alert(`저장 실패: ${message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
+      const { error } = await supabase.from('visit_records').insert(payload)
 
-  if (loading) {
-    return (
-      <main className="mx-auto max-w-2xl p-6">
-        <h1 className="mb-4 text-2xl font-bold">방문 기록 작성</h1>
-        <p>불러오는 중...</p>
-      </main>
-    );
+      if (error) {
+        console.error(error)
+        alert(`저장 중 오류가 발생했어요: ${error.message}`)
+        return
+      }
+
+      alert('방문 기록이 저장되었습니다.')
+      router.push(`/pet/${petId}`)
+    } catch (error) {
+      console.error(error)
+      alert('저장 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-6 text-2xl font-bold">방문 기록 작성</h1>
+    <main style={{ maxWidth: 900, margin: '40px auto', padding: 20 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24 }}>방문 기록 작성</h1>
 
-      <div className="space-y-5">
-        <div>
-          <label className="mb-2 block text-sm font-medium">방문일</label>
-          <input
-            type="date"
-            value={visitDate}
-            onChange={(e) => setVisitDate(e.target.value)}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 16 }}>
+        <section style={sectionStyle}>
+          <h2 style={sectionTitleStyle}>기본 정보</h2>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium">보호자 이름</label>
-          <input
-            value={guardianName}
-            onChange={(e) => handleGuardianInputChange(e.target.value)}
-            placeholder="예: 김소영"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
+          <label style={labelStyle}>
+            보호자
+            <select value={guardianId} onChange={(e) => setGuardianId(e.target.value)} style={inputStyle}>
+              <option value="">보호자를 선택하세요</option>
+              {guardians.map((guardian) => (
+                <option key={guardian.id} value={guardian.id}>
+                  {guardian.name} {guardian.phone ? `(${guardian.phone})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium">전화번호</label>
-          <input
-            value={guardianPhone}
-            onChange={(e) => handleGuardianPhoneChange(e.target.value)}
-            placeholder="숫자만 입력"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
+          <label style={labelStyle}>
+            반려견
+            <select value={petId} onChange={(e) => setPetId(e.target.value)} style={inputStyle}>
+              <option value="">반려견을 선택하세요</option>
+              {filteredPets.map((pet) => (
+                <option key={pet.id} value={pet.id}>
+                  {pet.name} {pet.breed ? `(${pet.breed})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        {guardianSuggestions.length > 0 && (
-          <div className="rounded border bg-white">
-            {guardianSuggestions.map((guardian) => (
-              <button
-                key={guardian.id}
-                type="button"
-                onClick={() => handleGuardianSelect(guardian)}
-                className="block w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-gray-50"
-              >
-                <div className="font-medium">{guardian.name}</div>
-                <div className="text-sm text-gray-500">
-                  {formatPhone(guardian.phone)}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+          <label style={labelStyle}>
+            방문일
+            <input
+              type="date"
+              value={visitDate}
+              onChange={(e) => setVisitDate(e.target.value)}
+              style={inputStyle}
+            />
+          </label>
 
-        {selectedGuardianId && (
-          <p className="text-sm text-gray-500">
-            기존 보호자를 선택했어요.
-          </p>
-        )}
+          <label style={labelStyle}>
+            서비스
+            <input
+              value={serviceType}
+              onChange={(e) => setServiceType(e.target.value)}
+              placeholder="예: 미용, 목욕관리, 스파, 팩"
+              style={inputStyle}
+            />
+          </label>
+        </section>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium">반려견 이름</label>
-          <input
-            value={petName}
-            onChange={(e) => handlePetInputChange(e.target.value)}
-            placeholder="기존 반려견 선택 또는 새 반려견 입력"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
+        <section style={sectionStyle}>
+          <h2 style={sectionTitleStyle}>웰니스 기록</h2>
 
-        {petSuggestions.length > 0 && (
-          <div className="rounded border bg-white">
-            {petSuggestions.map((pet) => (
-              <button
-                key={pet.id}
-                type="button"
-                onClick={() => handlePetSelect(pet)}
-                className="block w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-gray-50"
-              >
-                {pet.name}
-              </button>
-            ))}
-          </div>
-        )}
+          <label style={labelStyle}>
+            피부 상태
+            <input
+              value={skinStatus}
+              onChange={(e) => setSkinStatus(e.target.value)}
+              placeholder="예: 건조, 민감, 각질 있음, 붉음 완화"
+              style={inputStyle}
+            />
+          </label>
 
-        {selectedGuardianId && guardianPets.length > 0 && (
-          <div className="rounded-lg bg-gray-50 p-4">
-            <p className="mb-2 text-sm font-medium">같은 집 등록 아이들</p>
-            <div className="flex flex-wrap gap-2">
-              {guardianPets.map((pet) => (
+          <label style={labelStyle}>
+            모질 상태
+            <input
+              value={coatStatus}
+              onChange={(e) => setCoatStatus(e.target.value)}
+              placeholder="예: 엉킴 있음, 윤기 개선, 정전기 있음"
+              style={inputStyle}
+            />
+          </label>
+
+          <div style={labelStyle}>
+            <span>컨디션</span>
+            <div style={chipWrapStyle}>
+              {CONDITION_OPTIONS.map((item) => (
                 <button
-                  key={pet.id}
+                  key={item}
                   type="button"
-                  onClick={() => handleSiblingPetClick(pet)}
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    selectedPetId === pet.id ? "bg-black text-white" : "bg-white"
-                  }`}
+                  onClick={() => setConditionStatus(item)}
+                  style={getChipStyle(conditionStatus === item)}
                 >
-                  {pet.name}
+                  {item}
                 </button>
               ))}
             </div>
           </div>
-        )}
 
-        <div>
-          <label className="mb-2 block text-sm font-medium">담당자</label>
-          <div className="flex flex-wrap gap-2">
-            {staffOptions.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setStaffName(item)}
-                className={`rounded-full border px-4 py-2 text-sm ${
-                  staffName === item ? "bg-black text-white" : "bg-white"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-sm text-gray-500">
-            선택된 담당자: {staffName || "-"}
-          </p>
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium">서비스</label>
-          <div className="flex flex-wrap gap-2">
-            {serviceOptions.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setService(item)}
-                className={`rounded-full border px-4 py-2 text-sm ${
-                  service === item ? "bg-black text-white" : "bg-white"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-sm text-gray-500">
-            선택된 서비스: {service || "-"}
-          </p>
-        </div>
-
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <label className="block text-sm font-medium">노트</label>
-            <button
-              type="button"
-              onClick={handleApplyTemplate}
-              className="rounded border px-3 py-1 text-sm"
-            >
-              템플릿 적용
-            </button>
+          <div style={labelStyle}>
+            <span>스트레스</span>
+            <div style={chipWrapStyle}>
+              {STRESS_OPTIONS.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setStressStatus(item)}
+                  style={getChipStyle(stressStatus === item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={12}
-            placeholder="노트를 입력해주세요."
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
+          <label style={labelStyle}>
+            특이사항
+            <textarea
+              value={specialNotes}
+              onChange={(e) => setSpecialNotes(e.target.value)}
+              placeholder="예: 귀 청소 민감, 뒷다리 터치 예민, 피부 붉은 부위 체크"
+              style={textareaStyle}
+            />
+          </label>
 
-        {errorMessage && <p className="text-sm text-red-500">{errorMessage}</p>}
+          <label style={labelStyle}>
+            다음 방문 추천
+            <textarea
+              value={nextVisitRecommendation}
+              onChange={(e) => setNextVisitRecommendation(e.target.value)}
+              placeholder="예: 3주 뒤 목욕관리 + 보습 케어 추천"
+              style={textareaStyle}
+            />
+          </label>
 
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => router.push("/record")}
-            className="rounded border px-4 py-2"
-          >
-            취소
-          </button>
+          <label style={labelStyle}>
+            오늘 케어 요약
+            <textarea
+              value={careSummary}
+              onChange={(e) => setCareSummary(e.target.value)}
+              placeholder="예: 목욕 + 손질, 피부 보습 집중 케어"
+              style={textareaStyle}
+            />
+          </label>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-          >
-            {saving ? "저장 중..." : "저장"}
-          </button>
-        </div>
-      </div>
+          <label style={labelStyle}>
+            진행한 케어 내용
+            <textarea
+              value={careActions}
+              onChange={(e) => setCareActions(e.target.value)}
+              placeholder="예: 샴푸, 트리트먼트, 발 마사지"
+              style={textareaStyle}
+            />
+          </label>
+
+          <label style={labelStyle}>
+            문제 → 조치
+            <textarea
+              value={careNotes}
+              onChange={(e) => setCareNotes(e.target.value)}
+              placeholder="예: 털 엉킴 → 브러시 제거, 피부 건조 → 보습제 적용"
+              style={textareaStyle}
+            />
+          </label>
+
+          <label style={labelStyle}>
+            다음 케어 가이드
+            <textarea
+              value={nextCareGuide}
+              onChange={(e) => setNextCareGuide(e.target.value)}
+              placeholder="예: 2주 뒤 재방문 시 물광 케어 추천"
+              style={textareaStyle}
+            />
+          </label>
+
+          <label style={labelStyle}>
+            자유 메모
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="기존 note 자유 입력"
+              style={textareaStyle}
+            />
+          </label>
+        </section>
+
+        <button type="submit" disabled={loading} style={buttonStyle}>
+          {loading ? '저장 중...' : '저장하기'}
+        </button>
+      </form>
     </main>
-  );
+  )
+}
+
+function getChipStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '10px 14px',
+    borderRadius: 999,
+    border: active ? '1px solid #111827' : '1px solid #d1d5db',
+    background: active ? '#111827' : '#ffffff',
+    color: active ? '#ffffff' : '#111827',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 600,
+  }
+}
+
+const sectionStyle: React.CSSProperties = {
+  border: '1px solid #e5e7eb',
+  borderRadius: 12,
+  padding: 20,
+  display: 'grid',
+  gap: 14,
+}
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 20,
+  fontWeight: 700,
+  marginBottom: 8,
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  fontWeight: 600,
+}
+
+const chipWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap',
+}
+
+const inputStyle: React.CSSProperties = {
+  height: 44,
+  border: '1px solid #d1d5db',
+  borderRadius: 10,
+  padding: '0 12px',
+  fontSize: 14,
+}
+
+const textareaStyle: React.CSSProperties = {
+  minHeight: 100,
+  border: '1px solid #d1d5db',
+  borderRadius: 10,
+  padding: 12,
+  fontSize: 14,
+}
+
+const buttonStyle: React.CSSProperties = {
+  height: 48,
+  border: 'none',
+  borderRadius: 10,
+  background: '#111827',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer',
 }

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { buildSiteUrl } from '@/lib/siteUrl'
+import CopyTextButton from '@/components/CopyTextButton'
 
 const CONDITION_OPTIONS = ['안정', '예민', '피곤', '활발']
 const STRESS_OPTIONS = ['낮음', '보통', '높음', '초반 긴장 후 안정']
@@ -20,6 +22,8 @@ export default function EditVisitPage() {
   const [visitDate, setVisitDate] = useState('')
   const [serviceType, setServiceType] = useState('')
   const [note, setNote] = useState('')
+  const [shareUrl, setShareUrl] = useState('')
+  const [shareLoading, setShareLoading] = useState(false)
 
   const [skinStatus, setSkinStatus] = useState('')
   const [coatStatus, setCoatStatus] = useState('')
@@ -104,6 +108,70 @@ export default function EditVisitPage() {
   return (
     <main style={{ maxWidth: 900, margin: '40px auto', padding: 20 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24 }}>방문 기록 수정</h1>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              setShareLoading(true)
+              const response = await fetch('/api/report-token', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ visitRecordId: id }),
+              })
+
+              const payload = await response.json()
+
+              if (!response.ok || payload.error) {
+                throw new Error(payload.error || '알 수 없는 오류')
+              }
+
+              const url = buildSiteUrl(`/report/${payload.token}`)
+              setShareUrl(url)
+            } catch (error) {
+              console.error(error)
+              alert('공유 링크를 생성하지 못했습니다.')
+            } finally {
+              setShareLoading(false)
+            }
+          }}
+          disabled={shareLoading}
+          style={{
+            ...buttonStyle,
+            background: '#374151',
+            minWidth: 150,
+          }}
+        >
+          {shareLoading ? '링크 생성 중...' : '공유 링크 생성'}
+        </button>
+
+        {shareUrl ? <CopyTextButton text={shareUrl} label="링크 복사" /> : null}
+      </div>
+
+      {shareUrl ? (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0, color: '#111827', fontSize: 14, fontWeight: 600 }}>
+            공유 링크가 생성되었습니다.
+          </p>
+          <div
+            style={{
+              marginTop: 8,
+              padding: '10px 12px',
+              borderRadius: 12,
+              border: '1px solid #d1d5db',
+              background: '#f8fafc',
+              wordBreak: 'break-all',
+              fontSize: 14,
+              color: '#1f2937',
+            }}
+          >
+            {shareUrl}
+          </div>
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 16 }}>
         <section style={sectionStyle}>

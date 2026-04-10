@@ -12,6 +12,10 @@ export type VisitRecord = {
   stress_status: string | null
   special_notes: string | null
   next_visit_recommendation: string | null
+  care_summary: string | null
+  care_actions: string | null
+  care_notes: string | null
+  next_care_guide: string | null
 
   created_at?: string
 }
