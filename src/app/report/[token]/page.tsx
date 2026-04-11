@@ -1,6 +1,4 @@
 import { createClient } from '@/utils/supabase/server'
-import type { VisitRecord } from '@/types/visit'
-import type { ReportToken } from '@/types/report'
 
 type PageProps = {
   params: {
@@ -34,7 +32,7 @@ async function fetchReportData(token: string) {
   const supabase = await createClient()
 
   const { data: reportToken, error: tokenError } = await supabase
-    .from<ReportToken>('report_tokens')
+    .from('report_tokens')
     .select('*')
     .eq('token', token)
     .maybeSingle()
@@ -44,7 +42,7 @@ async function fetchReportData(token: string) {
   }
 
   const { data: visitRecord, error: visitError } = await supabase
-    .from<VisitRecord>('visit_records')
+    .from('visit_records')
     .select('*')
     .eq('id', reportToken.visit_record_id)
     .maybeSingle()
