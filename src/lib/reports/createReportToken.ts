@@ -1,11 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
-import type { ReportToken } from '@/types/report'
 
 export async function getReportToken(token: string) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from<ReportToken>('report_tokens')
+    .from('report_tokens')
     .select('*')
     .eq('token', token)
     .maybeSingle()
@@ -21,7 +20,7 @@ export async function getOrCreateReportToken(visitRecordId: string) {
   const supabase = await createClient()
 
   const { data: existingToken, error: lookupError } = await supabase
-    .from<ReportToken>('report_tokens')
+    .from('report_tokens')
     .select('*')
     .eq('visit_record_id', visitRecordId)
     .maybeSingle()
@@ -37,7 +36,7 @@ export async function getOrCreateReportToken(visitRecordId: string) {
   const token = crypto.randomUUID()
 
   const { data, error: insertError } = await supabase
-    .from<ReportToken>('report_tokens')
+    .from('report_tokens')
     .insert({
       token,
       visit_record_id: visitRecordId,
