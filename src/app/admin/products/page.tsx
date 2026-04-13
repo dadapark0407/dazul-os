@@ -133,14 +133,12 @@ export default function AdminProductsPage() {
           <h1 className="text-2xl font-bold text-neutral-900">제품 관리</h1>
           <p className="mt-1 text-sm text-neutral-500">총 {filtered.length}개</p>
         </div>
-        {/* TODO: 제품 추가 라우트 연결 */}
-        <button
-          type="button"
-          disabled
-          className="shrink-0 cursor-not-allowed rounded-xl bg-neutral-200 px-4 py-2.5 text-sm font-semibold text-neutral-400"
+        <Link
+          href="/admin/products/new"
+          className="shrink-0 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700"
         >
-          제품 추가 (준비 중)
-        </button>
+          + 제품 추가
+        </Link>
       </div>
 
       {/* 검색 + 필터 */}

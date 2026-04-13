@@ -22,6 +22,7 @@ export default function AdminProductEditPage() {
   const [productName, setProductName] = useState('')
   const [brand, setBrand] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [oldCategory, setOldCategory] = useState('') // 기존 enum 값 (읽기 전용 표시용)
   const [categories, setCategories] = useState<{ id: string; name: string; parent_id: string | null; is_active: boolean }[]>([])
   const [description, setDescription] = useState('')
   const [aiSummary, setAiSummary] = useState('')
@@ -67,6 +68,7 @@ export default function AdminProductEditPage() {
       setProductName(data.product_name ?? '')
       setBrand(data.brand ?? '')
       setCategoryId(data.category_id ?? '')
+      setOldCategory(data.category ?? '')
       setDescription(data.description ?? '')
       setAiSummary(data.ai_summary ?? '')
       setTargetSkinType(data.target_skin_type ?? '')
@@ -87,10 +89,15 @@ export default function AdminProductEditPage() {
     setSaving(true)
     setErrorMessage('')
 
+    // category_id 선택 시 기존 category 텍스트도 동기화 (하위 호환)
+    const selectedCat = categories.find((c) => c.id === categoryId)
+
     const payload: Record<string, unknown> = {
       product_name: productName.trim(),
       brand: brand.trim() || null,
       category_id: categoryId || null,
+      // 기존 category enum도 함께 업데이트 — 아직 이 컬럼을 읽는 코드가 있을 수 있음
+      category: selectedCat?.name ?? (categoryId ? null : oldCategory || null),
       description: description.trim() || null,
       ai_summary: aiSummary.trim() || null,
       target_skin_type: targetSkinType.trim() || null,
@@ -112,6 +119,16 @@ export default function AdminProductEditPage() {
 
     router.push(`/admin/products/${id}`)
   }
+
+  // 카테고리 드롭다운에서 현재 표시할 이름 (안내용)
+  const currentCategoryLabel = (() => {
+    if (categoryId) {
+      const cat = categories.find((c) => c.id === categoryId)
+      if (cat) return cat.name
+    }
+    if (oldCategory) return `${oldCategory} (기존)`
+    return '미분류'
+  })()
 
   if (loading) {
     return (
@@ -238,9 +255,19 @@ export default function AdminProductEditPage() {
                   )
                 })}
             </select>
-            {categories.length === 0 && (
+            {categories.length === 0 && oldCategory && (
+              <p className="mt-1.5 text-xs text-neutral-400">
+                현재 값: {oldCategory} (기존 분류). 카테고리 관리에서 새 카테고리를 추가하면 여기에 표시됩니다.
+              </p>
+            )}
+            {categories.length === 0 && !oldCategory && (
               <p className="mt-1.5 text-xs text-neutral-400">
                 카테고리가 아직 등록되지 않았습니다. 관리 &gt; 카테고리에서 추가하세요.
+              </p>
+            )}
+            {categories.length > 0 && !categoryId && oldCategory && (
+              <p className="mt-1.5 text-xs text-amber-500">
+                기존 분류: {oldCategory} — 위에서 새 카테고리를 선택하면 자동 전환됩니다.
               </p>
             )}
           </div>
