@@ -38,7 +38,12 @@ export default async function AdminProductDetailPage({ params }: PageProps) {
 
   const { data: product, error } = await supabase
     .from('products')
-    .select('*')
+    .select(`
+      *,
+      product_categories (
+        name
+      )
+    `)
     .eq('id', id)
     .maybeSingle()
 
@@ -47,6 +52,10 @@ export default async function AdminProductDetailPage({ params }: PageProps) {
   }
 
   const isActive = resolveActiveState(product)
+
+  // 카테고리명 — join 결과에서 직접 읽음
+  const categoryDisplay =
+    (product.product_categories as { name: string } | null)?.name ?? '미분류'
 
   return (
     <div className="space-y-6">
@@ -90,7 +99,7 @@ export default async function AdminProductDetailPage({ params }: PageProps) {
           </h2>
           <InfoRow label="제품명" value={str(product, 'product_name')} />
           <InfoRow label="브랜드" value={str(product, 'brand')} />
-          <InfoRow label="카테고리" value={str(product, 'category')} />
+          <InfoRow label="카테고리" value={categoryDisplay} />
         </section>
 
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">

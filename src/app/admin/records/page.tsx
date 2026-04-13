@@ -266,7 +266,19 @@ export default function AdminRecordsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl bg-white px-6 py-10 text-center shadow-sm ring-1 ring-neutral-200">
-          <p className="text-sm text-neutral-600">검색 결과가 없습니다.</p>
+          <p className="text-sm text-neutral-600">
+            {hasActiveFilters
+              ? '검색 조건에 맞는 방문 기록이 없습니다.'
+              : '등록된 방문 기록이 없습니다.'}
+          </p>
+          {!hasActiveFilters && (
+            <Link
+              href="/record/new"
+              className="mt-3 inline-block text-sm font-medium text-neutral-500 hover:text-neutral-700"
+            >
+              첫 방문 기록 작성하기 →
+            </Link>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200">

@@ -21,7 +21,8 @@ export default function AdminProductEditPage() {
 
   const [productName, setProductName] = useState('')
   const [brand, setBrand] = useState('')
-  const [category, setCategory] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [categories, setCategories] = useState<{ id: string; name: string; parent_id: string | null; is_active: boolean }[]>([])
   const [description, setDescription] = useState('')
   const [aiSummary, setAiSummary] = useState('')
   const [targetSkinType, setTargetSkinType] = useState('')
@@ -33,11 +34,20 @@ export default function AdminProductEditPage() {
       setLoading(true)
       setErrorMessage('')
 
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .single()
+      // 제품 + 카테고리 목록 병렬 로드
+      const [productResult, categoriesResult] = await Promise.all([
+        supabase.from('products').select('*').eq('id', id).single(),
+        supabase
+          .from('product_categories')
+          .select('id, name, parent_id, is_active')
+          .order('sort_order')
+          .order('name'),
+      ])
+
+      // 카테고리 테이블이 없어도 제품 편집은 가능하도록 안전 처리
+      setCategories(categoriesResult.data ?? [])
+
+      const { data, error } = productResult
 
       if (error) {
         if (error.message.includes('does not exist')) {
@@ -56,7 +66,7 @@ export default function AdminProductEditPage() {
 
       setProductName(data.product_name ?? '')
       setBrand(data.brand ?? '')
-      setCategory(data.category ?? '')
+      setCategoryId(data.category_id ?? '')
       setDescription(data.description ?? '')
       setAiSummary(data.ai_summary ?? '')
       setTargetSkinType(data.target_skin_type ?? '')
@@ -80,7 +90,7 @@ export default function AdminProductEditPage() {
     const payload: Record<string, unknown> = {
       product_name: productName.trim(),
       brand: brand.trim() || null,
-      category: category.trim() || null,
+      category_id: categoryId || null,
       description: description.trim() || null,
       ai_summary: aiSummary.trim() || null,
       target_skin_type: targetSkinType.trim() || null,
@@ -208,13 +218,31 @@ export default function AdminProductEditPage() {
             <label className="mb-1.5 block text-sm font-medium text-neutral-700">
               카테고리
             </label>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="예: 샴푸, 트리트먼트, 보습제"
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            />
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm outline-none focus:border-neutral-500"
+            >
+              <option value="">미분류</option>
+              {categories
+                .filter((c) => {
+                  // 활성 카테고리 표시 + 현재 제품에 할당된 비활성 카테고리도 유지
+                  return c.is_active || c.id === categoryId
+                })
+                .map((c) => {
+                  const parent = categories.find((p) => p.id === c.parent_id)
+                  const label = parent ? `${parent.name} > ${c.name}` : c.name
+                  const suffix = !c.is_active ? ' (비활성)' : ''
+                  return (
+                    <option key={c.id} value={c.id}>{label}{suffix}</option>
+                  )
+                })}
+            </select>
+            {categories.length === 0 && (
+              <p className="mt-1.5 text-xs text-neutral-400">
+                카테고리가 아직 등록되지 않았습니다. 관리 &gt; 카테고리에서 추가하세요.
+              </p>
+            )}
           </div>
 
           {/* 대상 피부 타입 */}

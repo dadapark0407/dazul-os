@@ -170,7 +170,16 @@ export default function AdminGuardiansPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl bg-white px-6 py-10 text-center shadow-sm ring-1 ring-neutral-200">
-          <p className="text-sm text-neutral-600">검색 결과가 없습니다.</p>
+          <p className="text-sm text-neutral-600">
+            {search
+              ? '검색 조건에 맞는 보호자가 없습니다.'
+              : '등록된 보호자가 없습니다.'}
+          </p>
+          {!search && (
+            <p className="mt-2 text-xs text-neutral-400">
+              방문 기록 작성 시 보호자가 자동으로 등록됩니다.
+            </p>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200">

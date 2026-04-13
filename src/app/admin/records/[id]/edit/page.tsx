@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -147,14 +147,14 @@ export default function AdminRecordEditPage() {
       .update(payload)
       .eq('id', id)
 
-    setSaving(false)
-
     if (error) {
+      setSaving(false)
       setErrorMessage(`저장 중 오류가 발생했습니다: ${error.message}`)
       return
     }
 
     // 자동 팔로업 생성/갱신 (실패해도 저장 성공에는 영향 없음)
+    // 저장 버튼은 리디렉션까지 비활성 상태 유지
     try {
       await createAutoFollowups({
         visitRecordId: id,
@@ -174,6 +174,7 @@ export default function AdminRecordEditPage() {
       console.warn('자동 팔로업 생성 중 오류 (무시됨):', e)
     }
 
+    // setSaving(false) 생략 — router.push가 페이지를 교체하므로 불필요
     router.push(`/admin/records/${id}`)
   }
 

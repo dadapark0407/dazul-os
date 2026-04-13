@@ -7,19 +7,12 @@ import { supabase } from '@/lib/supabase'
 // TODO: 역할 기반 인증 추가 필요
 // TODO: 제품 추가 기능 연동 예정
 
-type Product = {
-  id: string
-  product_name: string | null
-  brand: string | null
-  category: string | null
-  active?: boolean | null
-  created_at?: string | null
-}
-
 type ActiveFilter = '전체' | '활성' | '비활성'
 
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<Product[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [products, setProducts] = useState<Record<string, any>[]>([])
+  const [categoryMap, setCategoryMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -33,9 +26,11 @@ export default function AdminProductsPage() {
       setLoading(true)
       setError('')
 
-      const { data, error: fetchError } = await supabase
+      // 1) 제품: select('*')로 모든 컬럼 안전하게 가져옴
+      //    — category (old enum), category_id (new FK) 모두 포함
+      const { data: rows, error: fetchError } = await supabase
         .from('products')
-        .select('id, product_name, brand, category, active, created_at')
+        .select('*')
         .order('product_name')
 
       if (fetchError) {
@@ -49,38 +44,75 @@ export default function AdminProductsPage() {
         return
       }
 
-      setProducts(data ?? [])
+      setProducts(rows ?? [])
+
+      // 2) 카테고리 이름 맵 — 테이블이 없으면 무시
+      const { data: cats } = await supabase
+        .from('product_categories')
+        .select('id, name, parent_id')
+        .order('sort_order')
+        .order('name')
+
+      const cMap: Record<string, string> = {}
+      if (cats) {
+        for (const c of cats) {
+          const parent = cats.find((p) => p.id === c.parent_id)
+          cMap[c.id] = parent ? `${parent.name} > ${c.name}` : c.name
+        }
+      }
+      setCategoryMap(cMap)
+
       setLoading(false)
     }
 
     fetchData()
   }, [])
 
-  // 카테고리 목록 추출
+  // 카테고리명 해석: category_id → old category → 미분류
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function getCategoryName(p: Record<string, any>): string {
+    // 1. 새 FK 관계가 있으면 우선
+    if (p.category_id && categoryMap[p.category_id]) {
+      return categoryMap[p.category_id]
+    }
+    // 2. 기존 category enum 텍스트
+    if (typeof p.category === 'string' && p.category.trim()) {
+      return p.category
+    }
+    // 3. 둘 다 없음
+    return '미분류'
+  }
+
+  // 카테고리 필터 옵션
   const categoryOptions = useMemo(() => {
-    const cats = products
-      .map((p) => p.category)
-      .filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
-    return ['전체', ...Array.from(new Set(cats)).sort()]
-  }, [products])
+    const names = new Set<string>()
+    for (const p of products) {
+      const name = getCategoryName(p)
+      if (name !== '미분류') names.add(name)
+    }
+    return ['전체', ...Array.from(names).sort()]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, categoryMap])
 
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase()
 
     return products.filter((p) => {
+      const catName = getCategoryName(p)
+
       // 텍스트 검색
       if (keyword) {
-        const name = (p.product_name ?? '').toLowerCase()
-        const brand = (p.brand ?? '').toLowerCase()
-        const category = (p.category ?? '').toLowerCase()
-        if (!name.includes(keyword) && !brand.includes(keyword) && !category.includes(keyword)) {
+        const name = ((p.product_name as string) ?? '').toLowerCase()
+        const brand = ((p.brand as string) ?? '').toLowerCase()
+        const catLower = catName.toLowerCase()
+        if (!name.includes(keyword) && !brand.includes(keyword) && !catLower.includes(keyword)) {
           return false
         }
       }
 
       // 카테고리 필터
       if (categoryFilter !== '전체') {
-        if ((p.category ?? '') !== categoryFilter) return false
+        if (catName !== categoryFilter) return false
       }
 
       // 활성 상태 필터
@@ -89,7 +121,8 @@ export default function AdminProductsPage() {
 
       return true
     })
-  }, [products, search, categoryFilter, activeFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, search, categoryFilter, activeFilter, categoryMap])
 
   const hasActiveFilters = search || categoryFilter !== '전체' || activeFilter !== '전체'
 
@@ -104,7 +137,7 @@ export default function AdminProductsPage() {
         <button
           type="button"
           disabled
-          className="shrink-0 rounded-xl bg-neutral-200 px-4 py-2.5 text-sm font-semibold text-neutral-400 cursor-not-allowed"
+          className="shrink-0 cursor-not-allowed rounded-xl bg-neutral-200 px-4 py-2.5 text-sm font-semibold text-neutral-400"
         >
           제품 추가 (준비 중)
         </button>
@@ -170,7 +203,9 @@ export default function AdminProductsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl bg-white px-6 py-10 text-center shadow-sm ring-1 ring-neutral-200">
-          <p className="text-sm text-neutral-600">검색 결과가 없습니다.</p>
+          <p className="text-sm text-neutral-600">
+            {products.length === 0 ? '등록된 제품이 없습니다.' : '검색 결과가 없습니다.'}
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200">
@@ -199,7 +234,7 @@ export default function AdminProductsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-neutral-700">{p.brand ?? '-'}</td>
-                  <td className="px-4 py-3 text-neutral-500">{p.category ?? '-'}</td>
+                  <td className="px-4 py-3 text-neutral-500">{getCategoryName(p)}</td>
                   <td className="px-4 py-3">
                     {p.active === false ? (
                       <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">

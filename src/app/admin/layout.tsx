@@ -3,7 +3,9 @@ import Link from 'next/link'
 // =============================================================
 // DAZUL OS Admin Layout — 역할 기반 접근 제어 준비 완료
 //
-// TODO: Supabase Auth 연동 후 아래 가드 로직 활성화
+// ── 프로덕션 체크리스트 ──────────────────────────────
+//
+// TODO [AUTH]: Supabase Auth 연동 후 아래 가드 로직 활성화
 //
 // import { getCurrentUserRole, hasMinRole, ADMIN_ROUTE_MIN_ROLE } from '@/lib/roles'
 // import { redirect } from 'next/navigation'
@@ -20,6 +22,28 @@ import Link from 'next/link'
 //    NAV_ITEMS.filter(item => hasMinRole(role, item.minRole))
 //
 // 현재는 인증 없이 접근 가능 — 운영 초기 내부 전용
+//
+// TODO [RLS]: Supabase RLS 정책 검증 필요
+//   - pets, guardians, visit_records, followups, products 테이블
+//   - 현재 anon key로 전체 접근 가능 — 운영 전 반드시 제한 필요
+//   - INSERT/UPDATE/DELETE 정책은 authenticated + role 기반으로 전환
+//
+// TODO [ERROR_BOUNDARY]: 전역 에러 바운더리 추가
+//   - /admin/error.tsx 생성 → Supabase 연결 실패, 네트워크 오류 시 안전한 폴백
+//   - 현재는 개별 페이지에서 try/catch로 처리 중
+//
+// TODO [ANALYTICS]: 운영 분석 도구 연동
+//   - 일별 방문 건수, 팔로업 완료율, 인기 서비스 추적
+//   - Vercel Analytics 또는 자체 집계 테이블
+//
+// TODO [MESSAGING]: 카카오 알림톡 / SMS 연동
+//   - 리포트 공유 시 자동 메시지 발송
+//   - 팔로업 리마인더 자동 발송
+//
+// TODO [RATE_LIMITING]: API 남용 방지
+//   - 리포트 토큰 생성 API에 rate limit 적용
+//   - Supabase Edge Functions 또는 Vercel middleware 활용
+//
 // =============================================================
 
 const NAV_ITEMS = [
@@ -28,6 +52,7 @@ const NAV_ITEMS = [
   { href: '/admin/guardians', label: '보호자', minRole: 'staff' as const },
   { href: '/admin/records', label: '방문 기록', minRole: 'staff' as const },
   { href: '/admin/products', label: '제품', minRole: 'manager' as const },
+  { href: '/admin/categories', label: '카테고리', minRole: 'manager' as const },
   { href: '/admin/followups', label: '후속 관리', minRole: 'staff' as const },
   { href: '/admin/templates', label: '템플릿', minRole: 'manager' as const },
   { href: '/admin/staff', label: '스태프', minRole: 'owner' as const },

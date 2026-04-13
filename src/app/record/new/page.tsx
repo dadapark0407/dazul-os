@@ -1,10 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { VisitRecord } from '@/types/visit'
 import { createAutoFollowups } from '@/lib/autoFollowup'
+
+// TODO: 역할 기반 인증 — staff 이상만 접근 가능하도록 제한
+// TODO: Supabase RLS — visit_records INSERT 정책 확인 필요
+// TODO: 에러 바운더리 래핑 — 네트워크 오류 시 전체 페이지 크래시 방지
 
 type Guardian = {
   id: string
@@ -47,6 +51,9 @@ export default function NewVisitPage() {
   const [nextVisitRecommendation, setNextVisitRecommendation] = useState('')
 
   const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [formSuccess, setFormSuccess] = useState('')
+  const savingRef = useRef(false) // 이중 제출 방지
 
   useEffect(() => {
     async function fetchInitialData() {
@@ -84,9 +91,16 @@ export default function NewVisitPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setFormError('')
+    setFormSuccess('')
+
+    // 이중 제출 방지
+    if (savingRef.current) return
+    savingRef.current = true
 
     if (!guardianId || !petId || !visitDate) {
-      alert('보호자, 반려견, 방문일은 필수입니다.')
+      setFormError('보호자, 반려견, 방문일은 필수입니다.')
+      savingRef.current = false
       return
     }
 
@@ -118,7 +132,7 @@ export default function NewVisitPage() {
 
       if (error) {
         console.error(error)
-        alert(`저장 중 오류가 발생했어요: ${error.message}`)
+        setFormError(`저장 중 오류가 발생했어요: ${error.message}`)
         return
       }
 
@@ -148,13 +162,14 @@ export default function NewVisitPage() {
         }
       }
 
-      alert('방문 기록이 저장되었습니다.')
+      setFormSuccess('방문 기록이 저장되었습니다. 이동 중...')
       router.push(`/pet/${petId}`)
     } catch (error) {
       console.error(error)
-      alert('저장 중 오류가 발생했습니다.')
+      setFormError('저장 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.')
     } finally {
       setLoading(false)
+      savingRef.current = false
     }
   }
 
@@ -336,6 +351,17 @@ export default function NewVisitPage() {
             />
           </label>
         </section>
+
+        {formError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 16px', fontSize: 14, color: '#dc2626' }}>
+            {formError}
+          </div>
+        )}
+        {formSuccess && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px', fontSize: 14, color: '#16a34a' }}>
+            {formSuccess}
+          </div>
+        )}
 
         <button type="submit" disabled={loading} style={buttonStyle}>
           {loading ? '저장 중...' : '저장하기'}
