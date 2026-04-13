@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { VisitRecord } from '@/types/visit'
+import { createAutoFollowups } from '@/lib/autoFollowup'
 
 type Guardian = {
   id: string
@@ -110,12 +111,41 @@ export default function NewVisitPage() {
         next_care_guide: nextCareGuide || null,
       }
 
-      const { error } = await supabase.from('visit_records').insert(payload)
+      const { data: insertedRows, error } = await supabase
+        .from('visit_records')
+        .insert(payload)
+        .select('id')
 
       if (error) {
         console.error(error)
         alert(`저장 중 오류가 발생했어요: ${error.message}`)
         return
+      }
+
+      // 자동 팔로업 생성 (실패해도 방문 기록 저장에는 영향 없음)
+      const newRecordId = insertedRows?.[0]?.id
+      if (newRecordId) {
+        try {
+          const followupResult = await createAutoFollowups({
+            visitRecordId: newRecordId,
+            petId,
+            guardianId,
+            visitDate,
+            serviceType,
+            skinStatus,
+            coatStatus,
+            conditionStatus,
+            stressStatus,
+            specialNotes,
+            nextVisitRecommendation,
+            careNotes,
+          })
+          if (followupResult.created > 0) {
+            console.log(`자동 팔로업 ${followupResult.created}건 생성됨`)
+          }
+        } catch (e) {
+          console.warn('자동 팔로업 생성 중 오류 (무시됨):', e)
+        }
       }
 
       alert('방문 기록이 저장되었습니다.')
