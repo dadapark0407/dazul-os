@@ -79,7 +79,7 @@ export default async function AdminProductDetailPage({ params }: PageProps) {
               ← 제품 목록
             </Link>
             <h1 className="mt-1 text-2xl font-bold text-neutral-900">
-              {str(product, 'product_name') ?? '제품명 없음'}
+              {str(product, 'name') ?? str(product, 'product_name') ?? '제품명 없음'}
             </h1>
           </div>
           {isActive ? (
@@ -107,7 +107,7 @@ export default async function AdminProductDetailPage({ params }: PageProps) {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
             기본 정보
           </h2>
-          <InfoRow label="제품명" value={str(product, 'product_name')} />
+          <InfoRow label="제품명" value={str(product, 'name') ?? str(product, 'product_name')} />
           <InfoRow label="브랜드" value={str(product, 'brand')} />
           <InfoRow label="카테고리" value={categoryDisplay} />
         </section>

@@ -63,7 +63,7 @@ export default function AdminProductNewPage() {
 
     const payload: Record<string, unknown> = {
       branch_id: branchId,
-      product_name: productName.trim(),
+      name: productName.trim(),
       brand: brand.trim() || null,
       category_id: categoryId || null,
       category: selectedCat?.name ?? null,

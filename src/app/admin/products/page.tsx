@@ -31,7 +31,7 @@ export default function AdminProductsPage() {
       const { data: rows, error: fetchError } = await supabase
         .from('products')
         .select('*')
-        .order('product_name')
+        .order('name')
 
       if (fetchError) {
         console.error('products fetch error:', fetchError)
@@ -102,7 +102,7 @@ export default function AdminProductsPage() {
 
       // 텍스트 검색
       if (keyword) {
-        const name = ((p.product_name as string) ?? '').toLowerCase()
+        const name = ((p.name as string) ?? (p.product_name as string) ?? '').toLowerCase()
         const brand = ((p.brand as string) ?? '').toLowerCase()
         const catLower = catName.toLowerCase()
         if (!name.includes(keyword) && !brand.includes(keyword) && !catLower.includes(keyword)) {
@@ -228,7 +228,7 @@ export default function AdminProductsPage() {
                       href={`/admin/products/${p.id}`}
                       className="font-medium text-neutral-900 underline-offset-4 hover:underline"
                     >
-                      {p.product_name ?? '-'}
+                      {p.name ?? p.product_name ?? '-'}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-neutral-700">{p.brand ?? '-'}</td>

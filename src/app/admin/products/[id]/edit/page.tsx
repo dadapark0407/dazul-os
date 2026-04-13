@@ -65,7 +65,7 @@ export default function AdminProductEditPage() {
         return
       }
 
-      setProductName(data.product_name ?? '')
+      setProductName(data.name ?? data.product_name ?? '')
       setBrand(data.brand ?? '')
       setCategoryId(data.category_id ?? '')
       setOldCategory(data.category ?? '')
@@ -93,7 +93,7 @@ export default function AdminProductEditPage() {
     const selectedCat = categories.find((c) => c.id === categoryId)
 
     const payload: Record<string, unknown> = {
-      product_name: productName.trim(),
+      name: productName.trim(),
       brand: brand.trim() || null,
       category_id: categoryId || null,
       // 기존 category enum도 함께 업데이트 — 아직 이 컬럼을 읽는 코드가 있을 수 있음

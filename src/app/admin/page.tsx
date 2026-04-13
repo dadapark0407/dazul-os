@@ -127,7 +127,7 @@ export default async function AdminDashboardPage() {
   // ─── 최근 업데이트 제품 (5건) ───
   const { data: recentProducts } = await supabase
     .from('products')
-    .select('id, product_name, brand, category, is_active, updated_at')
+    .select('id, name, brand, category_id, is_active, updated_at')
     .order('updated_at', { ascending: false })
     .limit(5)
 
@@ -455,18 +455,14 @@ export default async function AdminDashboardPage() {
                     >
                       <div className="min-w-0">
                         <span className={`font-medium ${active ? 'text-neutral-800' : 'text-neutral-400'}`}>
-                          {product.product_name ?? '이름 없음'}
+                          {product.name ?? '이름 없음'}
                         </span>
                         {product.brand && (
                           <span className="ml-2 text-neutral-500">{product.brand}</span>
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        {product.category && (
-                          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">
-                            {product.category}
-                          </span>
-                        )}
+                        {/* 카테고리명은 제품 상세에서 확인 */}
                         {!active && (
                           <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-400">
                             비활성
