@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { VisitRecord } from '@/types/visit'
 import { createAutoFollowups } from '@/lib/autoFollowup'
+import DynamicRecordFields from '@/components/DynamicRecordFields'
 
 // TODO: 역할 기반 인증 — staff 이상만 접근 가능하도록 제한
 // TODO: Supabase RLS — visit_records INSERT 정책 확인 필요
@@ -54,6 +55,15 @@ export default function NewVisitPage() {
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
   const savingRef = useRef(false) // 이중 제출 방지
+
+  // 동적 필드 값
+  const dynamicValuesRef = useRef<Record<string, unknown>>({})
+  const handleDynamicChange = useCallback(
+    (values: Record<string, string | string[] | boolean | number | null>) => {
+      dynamicValuesRef.current = values
+    },
+    []
+  )
 
   useEffect(() => {
     async function fetchInitialData() {
@@ -136,8 +146,43 @@ export default function NewVisitPage() {
         return
       }
 
-      // 자동 팔로업 생성 (실패해도 방문 기록 저장에는 영향 없음)
       const newRecordId = insertedRows?.[0]?.id
+
+      // 동적 필드 값 저장 (실패해도 방문 기록 저장에는 영향 없음)
+      if (newRecordId && Object.keys(dynamicValuesRef.current).length > 0) {
+        try {
+          // field_key → field_id 매핑을 위해 필드 목록 조회
+          const { data: allFields } = await supabase
+            .from('record_fields')
+            .select('id, field_key, field_type')
+          if (allFields && allFields.length > 0) {
+            const keyToField = new Map(allFields.map((f) => [f.field_key, f]))
+            const rows = []
+            for (const [key, val] of Object.entries(dynamicValuesRef.current)) {
+              const field = keyToField.get(key)
+              if (!field) continue
+              // 빈 값은 저장하지 않음
+              if (val === '' || val === null || val === undefined) continue
+              if (Array.isArray(val) && val.length === 0) continue
+
+              const isJson = Array.isArray(val) || typeof val === 'boolean'
+              rows.push({
+                visit_record_id: newRecordId,
+                field_id: field.id,
+                value_text: isJson ? null : String(val),
+                value_json: isJson ? val : null,
+              })
+            }
+            if (rows.length > 0) {
+              await supabase.from('record_values').insert(rows)
+            }
+          }
+        } catch (e) {
+          console.warn('동적 필드 값 저장 중 오류 (무시됨):', e)
+        }
+      }
+
+      // 자동 팔로업 생성 (실패해도 방문 기록 저장에는 영향 없음)
       if (newRecordId) {
         try {
           const followupResult = await createAutoFollowups({
@@ -351,6 +396,9 @@ export default function NewVisitPage() {
             />
           </label>
         </section>
+
+        {/* 동적 필드 (기본 양식이 있을 때만 렌더링) */}
+        <DynamicRecordFields onChange={handleDynamicChange} />
 
         {formError && (
           <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 16px', fontSize: 14, color: '#dc2626' }}>
