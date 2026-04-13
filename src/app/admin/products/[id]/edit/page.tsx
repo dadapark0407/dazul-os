@@ -28,7 +28,7 @@ export default function AdminProductEditPage() {
   const [aiSummary, setAiSummary] = useState('')
   const [targetSkinType, setTargetSkinType] = useState('')
   const [targetCoatType, setTargetCoatType] = useState('')
-  const [active, setActive] = useState(true)
+  const [isActive, setIsActive] = useState(true)
 
   useEffect(() => {
     async function fetchProduct() {
@@ -73,7 +73,7 @@ export default function AdminProductEditPage() {
       setAiSummary(data.ai_summary ?? '')
       setTargetSkinType(data.target_skin_type ?? '')
       setTargetCoatType(data.target_coat_type ?? '')
-      setActive(data.active !== false)
+      setIsActive(data.is_active !== false)
       setLoading(false)
     }
 
@@ -102,7 +102,7 @@ export default function AdminProductEditPage() {
       ai_summary: aiSummary.trim() || null,
       target_skin_type: targetSkinType.trim() || null,
       target_coat_type: targetCoatType.trim() || null,
-      active,
+      is_active: isActive,
     }
 
     const { error } = await supabase
@@ -333,12 +333,12 @@ export default function AdminProductEditPage() {
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
                 className="h-4 w-4 rounded border-neutral-300"
               />
               <span className="text-sm font-medium text-neutral-700">
-                활성 상태 {active ? '(사용 중)' : '(비활성)'}
+                활성 상태 {isActive ? '(사용 중)' : '(비활성)'}
               </span>
             </label>
           </div>

@@ -24,10 +24,10 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
   )
 }
 
-/** active / is_active / archived_at 중 어떤 패턴이든 안전하게 판정 */
+/** is_active / active / archived_at 중 어떤 패턴이든 안전하게 판정 */
 function resolveActiveState(record: Record<string, unknown>): boolean {
-  if ('active' in record) return record.active !== false
   if ('is_active' in record) return record.is_active !== false
+  if ('active' in record) return record.active !== false
   if ('archived_at' in record) return record.archived_at == null
   return true
 }

@@ -116,8 +116,8 @@ export default function AdminProductsPage() {
       }
 
       // 활성 상태 필터
-      if (activeFilter === '활성' && p.active === false) return false
-      if (activeFilter === '비활성' && p.active !== false) return false
+      if (activeFilter === '활성' && p.is_active === false) return false
+      if (activeFilter === '비활성' && p.is_active !== false) return false
 
       return true
     })
@@ -234,7 +234,7 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-3 text-neutral-700">{p.brand ?? '-'}</td>
                   <td className="px-4 py-3 text-neutral-500">{getCategoryName(p)}</td>
                   <td className="px-4 py-3">
-                    {p.active === false ? (
+                    {p.is_active === false ? (
                       <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
                         비활성
                       </span>

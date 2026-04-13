@@ -26,7 +26,7 @@ export default function AdminProductNewPage() {
   const [brand, setBrand] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
-  const [active, setActive] = useState(true)
+  const [isActive, setIsActive] = useState(true)
 
   useEffect(() => {
     async function fetchCategories() {
@@ -58,7 +58,7 @@ export default function AdminProductNewPage() {
       category_id: categoryId || null,
       category: selectedCat?.name ?? null,
       description: description.trim() || null,
-      active,
+      is_active: isActive,
     }
 
     const { error } = await supabase.from('products').insert(payload)
@@ -163,12 +163,12 @@ export default function AdminProductNewPage() {
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
                 className="h-4 w-4 rounded border-neutral-300"
               />
               <span className="text-sm font-medium text-neutral-700">
-                활성 상태 {active ? '(사용 중)' : '(비활성)'}
+                활성 상태 {isActive ? '(사용 중)' : '(비활성)'}
               </span>
             </label>
           </div>
