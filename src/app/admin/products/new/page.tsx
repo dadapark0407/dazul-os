@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { getDefaultBranchId } from '@/lib/branch'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -50,9 +51,18 @@ export default function AdminProductNewPage() {
     setSaving(true)
     setErrorMessage('')
 
+    // branch_id 조회 (NOT NULL 컬럼)
+    const branchId = await getDefaultBranchId()
+    if (!branchId) {
+      setSaving(false)
+      setErrorMessage('기본 지점 정보를 찾을 수 없습니다. NEXT_PUBLIC_DEFAULT_BRANCH_ID 환경변수 또는 branches 테이블을 확인해주세요.')
+      return
+    }
+
     const selectedCat = categories.find((c) => c.id === categoryId)
 
     const payload: Record<string, unknown> = {
+      branch_id: branchId,
       product_name: productName.trim(),
       brand: brand.trim() || null,
       category_id: categoryId || null,
