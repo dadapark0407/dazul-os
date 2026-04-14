@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { VisitRecord } from '@/types/visit'
@@ -29,15 +29,24 @@ type Pet = {
 const CONDITION_OPTIONS = ['안정', '예민', '피곤', '활발']
 const STRESS_OPTIONS = ['낮음', '보통', '높음', '초반 긴장 후 안정']
 
-export default function AdminNewRecordPage() {
+export default function AdminNewRecordPageWrapper() {
+  return (
+    <Suspense fallback={<div className="py-10 text-center text-sm text-neutral-500">불러오는 중...</div>}>
+      <AdminNewRecordPage />
+    </Suspense>
+  )
+}
+
+function AdminNewRecordPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [guardians, setGuardians] = useState<Guardian[]>([])
   const [pets, setPets] = useState<Pet[]>([])
   const [filteredPets, setFilteredPets] = useState<Pet[]>([])
 
-  const [guardianId, setGuardianId] = useState('')
-  const [petId, setPetId] = useState('')
+  const [guardianId, setGuardianId] = useState(searchParams.get('guardianId') ?? '')
+  const [petId, setPetId] = useState(searchParams.get('petId') ?? '')
   const [visitDate, setVisitDate] = useState(new Date().toISOString().slice(0, 10))
   const [serviceType, setServiceType] = useState('')
   const [note, setNote] = useState('')
