@@ -251,38 +251,45 @@ function CalendarView({
   return (
     <div>
       {/* 월 네비게이션 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-center gap-8">
         <button
           type="button"
           onClick={prevMonth}
-          className="px-3 py-1 text-sm text-dz-muted transition-all duration-400 hover:text-dz-primary"
+          className="flex h-8 w-8 items-center justify-center text-dz-muted transition-all duration-400 hover:text-dz-primary"
         >
-          ←
+          ‹
         </button>
-        <p className="text-[13px] font-medium tracking-[0.1em] text-dz-primary">{monthLabel}</p>
+        <p className="min-w-[120px] text-center text-[14px] font-medium tracking-[0.1em] text-dz-primary">
+          {monthLabel}
+        </p>
         <button
           type="button"
           onClick={nextMonth}
-          className="px-3 py-1 text-sm text-dz-muted transition-all duration-400 hover:text-dz-primary"
+          className="flex h-8 w-8 items-center justify-center text-dz-muted transition-all duration-400 hover:text-dz-primary"
         >
-          →
+          ›
         </button>
       </div>
 
       {/* 요일 헤더 */}
-      <div className="mt-4 grid grid-cols-7 text-center">
-        {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-          <div key={d} className="py-1 text-[9px] font-medium uppercase tracking-[0.15em] text-dz-muted/50">
+      <div className="mx-auto mt-6 grid max-w-[320px] grid-cols-7">
+        {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+          <div
+            key={d}
+            className={`pb-3 text-center text-[10px] font-medium tracking-[0.1em] ${
+              i === 0 ? 'text-dz-accent/60' : 'text-dz-muted/40'
+            }`}
+          >
             {d}
           </div>
         ))}
       </div>
 
-      {/* 날짜 그리드 */}
-      <div className="mt-1 grid grid-cols-7">
+      {/* 날짜 그리드 — 정사각형 셀 */}
+      <div className="mx-auto grid max-w-[320px] grid-cols-7">
         {/* 빈 칸 */}
         {Array.from({ length: firstDay }).map((_, i) => (
-          <div key={`e-${i}`} className="py-2" />
+          <div key={`e-${i}`} className="aspect-square" />
         ))}
         {/* 날짜 */}
         {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -292,30 +299,40 @@ function CalendarView({
           const isSelected = selectedDate === dateStr
 
           return (
-            <button
-              key={day}
-              type="button"
-              onClick={() => hasVisit && handleDateClick(day)}
-              className={`relative py-2 text-center text-[12px] transition-all duration-300 ${
-                hasVisit
-                  ? isSelected
-                    ? 'font-semibold text-dz-accent'
-                    : 'font-medium text-dz-primary hover:text-dz-accent'
-                  : 'text-dz-border cursor-default'
-              }`}
-            >
-              {day}
-              {hasVisit && (
-                <span className={`absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${isSelected ? 'bg-dz-accent' : 'bg-dz-accent/50'}`} />
-              )}
-            </button>
+            <div key={day} className="flex aspect-square items-center justify-center">
+              <button
+                type="button"
+                onClick={() => hasVisit && handleDateClick(day)}
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-all duration-400 ${
+                  hasVisit
+                    ? isSelected
+                      ? 'bg-dz-accent font-semibold text-white shadow-sm'
+                      : 'bg-dz-accent/15 font-medium text-dz-primary hover:bg-dz-accent/30'
+                    : 'cursor-default text-dz-border/60'
+                }`}
+              >
+                {day}
+              </button>
+            </div>
           )
         })}
       </div>
 
+      {/* 범례 */}
+      <div className="mx-auto mt-4 flex max-w-[320px] items-center justify-center gap-4 text-[10px] text-dz-muted/40">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-dz-accent/15" />
+          방문일
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-dz-accent" />
+          선택됨
+        </span>
+      </div>
+
       {/* 선택된 날짜의 기록 */}
       {selectedRecords.length > 0 && (
-        <div className="mt-6 space-y-6">
+        <div className="mt-8 space-y-6 border-t border-dz-border/30 pt-6">
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-dz-accent">
             {formatDate(selectedDate)} 방문 기록
           </p>
@@ -423,14 +440,14 @@ export default function ReportClient({ guardianName, pets, records, salon, petMa
 
         {/* ─── 반려견 필터 탭 ─── */}
         {pets.length > 1 && (
-          <div className="mt-6 flex flex-wrap justify-center gap-4">
+          <div className="mt-8 flex flex-wrap justify-center gap-6">
             <button
               type="button"
               onClick={() => setSelectedPet(null)}
-              className={`pb-1 text-[11px] tracking-[0.1em] transition-all duration-400 ${
+              className={`pb-2 text-[14px] tracking-[0.08em] transition-all duration-400 ${
                 !selectedPet
-                  ? 'border-b border-dz-accent text-dz-primary'
-                  : 'text-dz-muted/50 hover:text-dz-muted'
+                  ? 'border-b-2 border-dz-accent font-semibold text-dz-primary'
+                  : 'font-light text-dz-muted/40 hover:text-dz-muted'
               }`}
             >
               전체
@@ -440,10 +457,10 @@ export default function ReportClient({ guardianName, pets, records, salon, petMa
                 key={p.id}
                 type="button"
                 onClick={() => setSelectedPet(p.id)}
-                className={`pb-1 text-[11px] tracking-[0.1em] transition-all duration-400 ${
+                className={`pb-2 text-[14px] tracking-[0.08em] transition-all duration-400 ${
                   selectedPet === p.id
-                    ? 'border-b border-dz-accent text-dz-primary'
-                    : 'text-dz-muted/50 hover:text-dz-muted'
+                    ? 'border-b-2 border-dz-accent font-semibold text-dz-primary'
+                    : 'font-light text-dz-muted/40 hover:text-dz-muted'
                 }`}
               >
                 {p.name ?? '이름 없음'}
