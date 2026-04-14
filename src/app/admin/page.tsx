@@ -174,7 +174,7 @@ export default async function AdminDashboardPage() {
 
   // ─── 빠른 액션 ───
   const primaryActions = [
-    { label: '+ 방문 기록 작성', href: '/record/new', primary: true },
+    { label: '+ 방문 기록 작성', href: '/admin/records/new', primary: true },
     { label: '+ 새 팔로업', href: '/admin/followups/new', primary: true },
   ]
 

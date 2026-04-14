@@ -129,7 +129,7 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
             통합 페이지 보기
           </Link>
           <Link
-            href={`/record/new?petId=${id}${pet.guardian_id ? `&guardianId=${pet.guardian_id}` : ''}`}
+            href={`/admin/records/new?petId=${id}${pet.guardian_id ? `&guardianId=${pet.guardian_id}` : ''}`}
             className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
           >
             기록 작성

@@ -203,7 +203,7 @@ export default async function GuardianHistoryPage({ params }: PageProps) {
         </Link>
 
         <Link
-          href={`/record/new?guardianId=${guardian.id}`}
+          href={`/admin/records/new?guardianId=${guardian.id}`}
           className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
         >
           + 새 방문 기록 작성
@@ -435,7 +435,7 @@ export default async function GuardianHistoryPage({ params }: PageProps) {
                     반려견 상세 보기
                   </Link>
                   <Link
-                    href={`/record/new?guardianId=${guardian.id}&petId=${item.pet.id}`}
+                    href={`/admin/records/new?guardianId=${guardian.id}&petId=${item.pet.id}`}
                     className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
                   >
                     이 아이 기록 작성

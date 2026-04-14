@@ -26,7 +26,7 @@ export default function Home() {
               관리자 대시보드
             </Link>
             <Link
-              href="/record/new"
+              href="/admin/records/new"
               className="flex h-12 w-full items-center justify-center rounded-2xl border border-neutral-300 bg-white text-sm font-semibold text-neutral-800 transition-colors hover:bg-neutral-50"
             >
               방문 기록 작성

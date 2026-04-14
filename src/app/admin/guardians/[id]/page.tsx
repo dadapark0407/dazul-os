@@ -136,7 +136,7 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
             통합 페이지 보기
           </Link>
           <Link
-            href={`/record/new?guardianId=${id}`}
+            href={`/admin/records/new?guardianId=${id}`}
             className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
           >
             기록 작성

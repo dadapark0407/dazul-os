@@ -184,7 +184,7 @@ export default function AdminRecordsPage() {
           </p>
         </div>
         <Link
-          href="/record/new"
+          href="/admin/records/new"
           className="shrink-0 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700"
         >
           새 기록 작성
@@ -273,7 +273,7 @@ export default function AdminRecordsPage() {
           </p>
           {!hasActiveFilters && (
             <Link
-              href="/record/new"
+              href="/admin/records/new"
               className="mt-3 inline-block text-sm font-medium text-neutral-500 hover:text-neutral-700"
             >
               첫 방문 기록 작성하기 →

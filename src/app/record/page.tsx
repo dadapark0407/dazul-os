@@ -107,7 +107,7 @@ export default function RecordPage() {
 
           <div className="flex gap-3">
             <Link
-              href="/record/new"
+              href="/admin/records/new"
               className="rounded-2xl bg-neutral-900 px-5 py-3 text-sm font-semibold text-white"
             >
               새 기록 작성

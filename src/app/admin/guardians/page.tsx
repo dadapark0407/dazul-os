@@ -218,7 +218,7 @@ export default function AdminGuardiansPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      href={`/record/new?guardianId=${g.id}`}
+                      href={`/admin/records/new?guardianId=${g.id}`}
                       className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
                     >
                       기록 작성
