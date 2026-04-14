@@ -52,11 +52,7 @@ const NAV_ITEMS = [
   { href: '/admin/guardians', label: '보호자', minRole: 'staff' as const },
   { href: '/admin/records', label: '방문 기록', minRole: 'staff' as const },
   { href: '/admin/products', label: '제품', minRole: 'manager' as const },
-  { href: '/admin/categories', label: '카테고리', minRole: 'manager' as const },
   { href: '/admin/followups', label: '후속 관리', minRole: 'staff' as const },
-  { href: '/admin/templates', label: '메시지 템플릿', minRole: 'manager' as const },
-  { href: '/admin/record-templates', label: '기록 양식', minRole: 'manager' as const },
-  { href: '/admin/staff', label: '스태프', minRole: 'owner' as const },
   { href: '/admin/settings', label: '설정', minRole: 'director' as const },
 ]
 

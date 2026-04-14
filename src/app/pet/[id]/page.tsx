@@ -284,11 +284,7 @@ export default async function PetTimelinePage({ params }: PageProps) {
               { href: '/admin/guardians', label: '보호자' },
               { href: '/admin/records', label: '방문 기록' },
               { href: '/admin/products', label: '제품' },
-              { href: '/admin/categories', label: '카테고리' },
               { href: '/admin/followups', label: '후속 관리' },
-              { href: '/admin/templates', label: '메시지 템플릿' },
-              { href: '/admin/record-templates', label: '기록 양식' },
-              { href: '/admin/staff', label: '스태프' },
               { href: '/admin/settings', label: '설정' },
             ].map((item) => (
               <Link
