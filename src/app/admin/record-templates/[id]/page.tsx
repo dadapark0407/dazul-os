@@ -22,19 +22,31 @@ type Template = {
   description: string | null
   is_default: boolean
   is_active: boolean
-  sort_order: number
 }
+
+// DB 컬럼: id, template_id, label, type, options, sort_order, is_required
+type RawField = Record<string, unknown>
 
 type Field = {
   id: string
   template_id: string
   label: string
-  field_key: string
-  field_type: string
+  type: string       // DB 컬럼은 "type"
   options: string[]
-  placeholder: string | null
   is_required: boolean
   sort_order: number
+}
+
+function toField(raw: RawField): Field {
+  return {
+    id: String(raw.id ?? ''),
+    template_id: String(raw.template_id ?? ''),
+    label: String(raw.label ?? ''),
+    type: String(raw.field_type ?? raw.type ?? 'text'),
+    options: Array.isArray(raw.options) ? raw.options : [],
+    is_required: raw.is_required === true,
+    sort_order: typeof raw.sort_order === 'number' ? raw.sort_order : 0,
+  }
 }
 
 export default function RecordTemplateDetailPage() {
@@ -58,10 +70,8 @@ export default function RecordTemplateDetailPage() {
   const [fieldFormOpen, setFieldFormOpen] = useState(false)
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
   const [fieldLabel, setFieldLabel] = useState('')
-  const [fieldKey, setFieldKey] = useState('')
   const [fieldType, setFieldType] = useState('text')
   const [fieldOptions, setFieldOptions] = useState('')
-  const [fieldPlaceholder, setFieldPlaceholder] = useState('')
   const [fieldRequired, setFieldRequired] = useState(false)
   const [fieldSaving, setFieldSaving] = useState(false)
   const [fieldError, setFieldError] = useState('')
@@ -91,11 +101,8 @@ export default function RecordTemplateDetailPage() {
     setMetaDesc(t.description ?? '')
     setMetaDefault(t.is_default)
 
-    // options가 jsonb이므로 안전하게 배열로 변환
-    const safeFields: Field[] = (fieldsResult.data ?? []).map((f) => ({
-      ...f,
-      options: Array.isArray(f.options) ? f.options : [],
-    }))
+    // DB 컬럼명을 안전하게 변환
+    const safeFields = (fieldsResult.data ?? []).map((f) => toField(f as RawField))
     setFields(safeFields)
 
     setLoading(false)
@@ -145,22 +152,11 @@ export default function RecordTemplateDetailPage() {
 
   // ─── 필드 폼 헬퍼 ───
 
-  function autoKey(label: string): string {
-    return label
-      .toLowerCase()
-      .replace(/[^a-z0-9가-힣\s]/g, '')
-      .replace(/\s+/g, '_')
-      .replace(/_+/g, '_')
-      .trim()
-  }
-
   function openAddField() {
     setEditingFieldId(null)
     setFieldLabel('')
-    setFieldKey('')
     setFieldType('text')
     setFieldOptions('')
-    setFieldPlaceholder('')
     setFieldRequired(false)
     setFieldError('')
     setFieldFormOpen(true)
@@ -169,10 +165,8 @@ export default function RecordTemplateDetailPage() {
   function openEditField(f: Field) {
     setEditingFieldId(f.id)
     setFieldLabel(f.label)
-    setFieldKey(f.field_key)
-    setFieldType(f.field_type)
+    setFieldType(f.type)
     setFieldOptions(f.options.join(', '))
-    setFieldPlaceholder(f.placeholder ?? '')
     setFieldRequired(f.is_required)
     setFieldError('')
     setFieldFormOpen(true)
@@ -190,12 +184,6 @@ export default function RecordTemplateDetailPage() {
       return
     }
 
-    const key = fieldKey.trim() || autoKey(fieldLabel)
-    if (!key) {
-      setFieldError('필드 키를 입력하세요.')
-      return
-    }
-
     setFieldSaving(true)
     setFieldError('')
 
@@ -203,13 +191,12 @@ export default function RecordTemplateDetailPage() {
       ? fieldOptions.split(',').map((o) => o.trim()).filter(Boolean)
       : []
 
+    // DB 실제 컬럼: template_id, label, type, options, is_required, sort_order
     const payload = {
       template_id: id,
       label: fieldLabel.trim(),
-      field_key: key,
-      field_type: fieldType,
+      type: fieldType,
       options: optionsArray,
-      placeholder: fieldPlaceholder.trim() || null,
       is_required: fieldRequired,
       sort_order: editingFieldId
         ? fields.find((f) => f.id === editingFieldId)?.sort_order ?? 0
@@ -431,11 +418,11 @@ export default function RecordTemplateDetailPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-neutral-800">{f.label}</span>
-                    <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
-                      {f.field_key}
-                    </code>
+                    <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
+                      {f.type}
+                    </span>
                     <span className="rounded bg-neutral-50 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">
-                      {FIELD_TYPES.find((t) => t.value === f.field_type)?.label ?? f.field_type}
+                      {FIELD_TYPES.find((t) => t.value === f.type)?.label ?? f.type}
                     </span>
                     {f.is_required && (
                       <span className="text-[10px] font-bold text-red-400">필수</span>
@@ -501,24 +488,9 @@ export default function RecordTemplateDetailPage() {
               <input
                 type="text"
                 value={fieldLabel}
-                onChange={(e) => {
-                  setFieldLabel(e.target.value)
-                  if (!editingFieldId) setFieldKey(autoKey(e.target.value))
-                }}
+                onChange={(e) => setFieldLabel(e.target.value)}
                 placeholder="예: 발바닥 상태"
                 className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-                필드 키
-              </label>
-              <input
-                type="text"
-                value={fieldKey}
-                onChange={(e) => setFieldKey(e.target.value)}
-                placeholder="자동 생성됨"
-                className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm font-mono outline-none focus:border-neutral-500"
               />
             </div>
             <div>
@@ -533,19 +505,6 @@ export default function RecordTemplateDetailPage() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-                플레이스홀더
-              </label>
-              <input
-                type="text"
-                value={fieldPlaceholder}
-                onChange={(e) => setFieldPlaceholder(e.target.value)}
-                placeholder="입력 힌트 (선택)"
-                className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-              />
-            </div>
-
             {(fieldType === 'select' || fieldType === 'multi') && (
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-sm font-medium text-neutral-700">

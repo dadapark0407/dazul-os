@@ -12,7 +12,6 @@ type Template = {
   description: string | null
   is_default: boolean
   is_active: boolean
-  sort_order: number
   created_at: string
 }
 
@@ -28,7 +27,6 @@ export default function AdminRecordTemplatesPage() {
     const { data, error } = await supabase
       .from('record_templates')
       .select('*')
-      .order('sort_order')
       .order('name')
 
     if (error) {
@@ -150,7 +148,6 @@ export default function AdminRecordTemplatesPage() {
 
               <div className="mt-4 flex items-center gap-3 text-xs text-neutral-400">
                 <span>{fieldCounts[t.id] ?? 0}개 필드</span>
-                <span>순서 {t.sort_order}</span>
               </div>
             </Link>
           ))}

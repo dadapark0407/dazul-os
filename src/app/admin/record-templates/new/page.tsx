@@ -13,7 +13,6 @@ export default function NewRecordTemplatePage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [isDefault, setIsDefault] = useState(false)
-  const [sortOrder, setSortOrder] = useState('0')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -40,7 +39,6 @@ export default function NewRecordTemplatePage() {
         name: name.trim(),
         description: description.trim() || null,
         is_default: isDefault,
-        sort_order: parseInt(sortOrder, 10) || 0,
         is_active: true,
       })
       .select('id')
@@ -96,18 +94,6 @@ export default function NewRecordTemplatePage() {
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="이 양식의 용도를 간단히 설명하세요"
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              정렬 순서
-            </label>
-            <input
-              type="number"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
             />
           </div>

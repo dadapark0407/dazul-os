@@ -9,19 +9,35 @@ import { supabase } from '@/lib/supabase'
 // record_templates에서 기본 양식의 필드를 로드하여 렌더링합니다.
 // 테이블이 없거나 필드가 없으면 아무것도 렌더링하지 않습니다.
 //
-// TODO: 특정 template_id를 prop으로 받아 양식 선택 지원
-// TODO: record_values 기존 값 로드 (편집 모드)
+// DB 컬럼: id, template_id, label, type, options, sort_order, is_required
+// (field_key, field_type, placeholder 컬럼이 없을 수 있으므로 안전 처리)
 // =============================================================
+
+type RawField = Record<string, unknown>
 
 type Field = {
   id: string
   label: string
-  field_key: string
-  field_type: string
+  key: string        // field_key ?? id (DB에 field_key가 없을 수 있음)
+  fieldType: string  // field_type ?? type (DB 컬럼명이 type일 수 있음)
   options: string[]
   placeholder: string | null
   is_required: boolean
   sort_order: number
+}
+
+function toField(raw: RawField): Field {
+  const id = String(raw.id ?? '')
+  return {
+    id,
+    label: String(raw.label ?? ''),
+    key: String(raw.field_key ?? raw.id ?? ''),
+    fieldType: String(raw.field_type ?? raw.type ?? 'text'),
+    options: Array.isArray(raw.options) ? raw.options : [],
+    placeholder: typeof raw.placeholder === 'string' ? raw.placeholder : null,
+    is_required: raw.is_required === true,
+    sort_order: typeof raw.sort_order === 'number' ? raw.sort_order : 0,
+  }
 }
 
 type Props = {
@@ -44,13 +60,13 @@ export default function DynamicRecordFields({ onChange, initialValues, templateI
       // 1) 템플릿 결정
       let tId = templateId
       if (!tId) {
-        const { data: defaultTemplate } = await supabase
+        const { data: defaultTemplate, error: tErr } = await supabase
           .from('record_templates')
           .select('id, name')
           .eq('is_default', true)
           .eq('is_active', true)
           .maybeSingle()
-        if (!defaultTemplate) {
+        if (tErr || !defaultTemplate) {
           setLoaded(true)
           return
         }
@@ -71,24 +87,22 @@ export default function DynamicRecordFields({ onChange, initialValues, templateI
         return
       }
 
-      const safeFields: Field[] = fieldData.map((f) => ({
-        ...f,
-        options: Array.isArray(f.options) ? f.options : [],
-      }))
+      // DB 컬럼명이 코드와 다를 수 있으므로 안전 변환
+      const safeFields = fieldData.map((f) => toField(f as RawField))
       setFields(safeFields)
 
       // 3) 초기값 설정
       const init: Record<string, string | string[] | boolean | number | null> = {}
       for (const f of safeFields) {
-        const existing = initialValues?.[f.field_key]
+        const existing = initialValues?.[f.key]
         if (existing !== undefined && existing !== null) {
-          init[f.field_key] = existing as string
-        } else if (f.field_type === 'boolean') {
-          init[f.field_key] = false
-        } else if (f.field_type === 'multi') {
-          init[f.field_key] = []
+          init[f.key] = existing as string
+        } else if (f.fieldType === 'boolean') {
+          init[f.key] = false
+        } else if (f.fieldType === 'multi') {
+          init[f.key] = []
         } else {
-          init[f.field_key] = ''
+          init[f.key] = ''
         }
       }
       setValues(init)
@@ -128,142 +142,114 @@ export default function DynamicRecordFields({ onChange, initialValues, templateI
   if (!loaded || fields.length === 0) return null
 
   return (
-    <section
-      style={{
-        border: '1px solid #e5e7eb',
-        borderRadius: 12,
-        padding: 20,
-        display: 'grid',
-        gap: 14,
-      }}
-    >
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-neutral-500">
         {templateName || '추가 기록 항목'}
       </h2>
 
-      {fields.map((f) => {
-        const val = values[f.field_key]
+      <div className="grid gap-5 sm:grid-cols-2">
+        {fields.map((f) => {
+          const val = values[f.key]
 
-        return (
-          <div key={f.id} style={{ display: 'grid', gap: 8, fontWeight: 600 }}>
-            <span>
-              {f.label}
-              {f.is_required && <span style={{ color: '#f87171', marginLeft: 4 }}>*</span>}
-            </span>
-
-            {/* 텍스트 */}
-            {f.field_type === 'text' && (
-              <input
-                type="text"
-                value={(val as string) ?? ''}
-                onChange={(e) => updateValue(f.field_key, e.target.value)}
-                placeholder={f.placeholder ?? undefined}
-                style={inputStyle}
-              />
-            )}
-
-            {/* 긴 텍스트 */}
-            {f.field_type === 'textarea' && (
-              <textarea
-                value={(val as string) ?? ''}
-                onChange={(e) => updateValue(f.field_key, e.target.value)}
-                placeholder={f.placeholder ?? undefined}
-                style={textareaStyle}
-              />
-            )}
-
-            {/* 숫자 */}
-            {f.field_type === 'number' && (
-              <input
-                type="number"
-                value={(val as string) ?? ''}
-                onChange={(e) => updateValue(f.field_key, e.target.value)}
-                placeholder={f.placeholder ?? undefined}
-                style={inputStyle}
-              />
-            )}
-
-            {/* 예/아니오 */}
-            {f.field_type === 'boolean' && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
-                <input
-                  type="checkbox"
-                  checked={val === true}
-                  onChange={(e) => updateValue(f.field_key, e.target.checked)}
-                  style={{ width: 18, height: 18 }}
-                />
-                <span style={{ fontSize: 14 }}>{f.placeholder ?? '해당됨'}</span>
+          return (
+            <div key={f.id} className={f.fieldType === 'textarea' ? 'sm:col-span-2' : ''}>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700">
+                {f.label}
+                {f.is_required && <span className="ml-1 text-red-400">*</span>}
               </label>
-            )}
 
-            {/* 단일 선택 */}
-            {f.field_type === 'select' && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {f.options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => updateValue(f.field_key, val === opt ? '' : opt)}
-                    style={chipStyle(val === opt)}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            )}
+              {/* 텍스트 */}
+              {f.fieldType === 'text' && (
+                <input
+                  type="text"
+                  value={(val as string) ?? ''}
+                  onChange={(e) => updateValue(f.key, e.target.value)}
+                  placeholder={f.placeholder ?? undefined}
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              )}
 
-            {/* 복수 선택 */}
-            {f.field_type === 'multi' && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {f.options.map((opt) => {
-                  const selected = Array.isArray(val) && val.includes(opt)
-                  return (
+              {/* 긴 텍스트 */}
+              {f.fieldType === 'textarea' && (
+                <textarea
+                  value={(val as string) ?? ''}
+                  onChange={(e) => updateValue(f.key, e.target.value)}
+                  placeholder={f.placeholder ?? undefined}
+                  rows={3}
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              )}
+
+              {/* 숫자 */}
+              {f.fieldType === 'number' && (
+                <input
+                  type="number"
+                  value={(val as string) ?? ''}
+                  onChange={(e) => updateValue(f.key, e.target.value)}
+                  placeholder={f.placeholder ?? undefined}
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              )}
+
+              {/* 예/아니오 */}
+              {f.fieldType === 'boolean' && (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={val === true}
+                    onChange={(e) => updateValue(f.key, e.target.checked)}
+                    className="h-4 w-4 rounded border-neutral-300"
+                  />
+                  <span className="text-sm text-neutral-600">{f.placeholder ?? '해당됨'}</span>
+                </label>
+              )}
+
+              {/* 단일 선택 */}
+              {f.fieldType === 'select' && (
+                <div className="flex flex-wrap gap-2">
+                  {f.options.map((opt) => (
                     <button
                       key={opt}
                       type="button"
-                      onClick={() => toggleMulti(f.field_key, opt)}
-                      style={chipStyle(selected)}
+                      onClick={() => updateValue(f.key, val === opt ? '' : opt)}
+                      className={`rounded-full border px-3.5 py-2 text-sm font-medium transition ${
+                        val === opt
+                          ? 'border-neutral-900 bg-neutral-900 text-white'
+                          : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
+                      }`}
                     >
                       {opt}
                     </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )
-      })}
+                  ))}
+                </div>
+              )}
+
+              {/* 복수 선택 */}
+              {f.fieldType === 'multi' && (
+                <div className="flex flex-wrap gap-2">
+                  {f.options.map((opt) => {
+                    const selected = Array.isArray(val) && val.includes(opt)
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggleMulti(f.key, opt)}
+                        className={`rounded-full border px-3.5 py-2 text-sm font-medium transition ${
+                          selected
+                            ? 'border-neutral-900 bg-neutral-900 text-white'
+                            : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </section>
   )
-}
-
-function chipStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: '10px 14px',
-    borderRadius: 999,
-    border: active ? '1px solid #111827' : '1px solid #d1d5db',
-    background: active ? '#111827' : '#ffffff',
-    color: active ? '#ffffff' : '#111827',
-    cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: 600,
-  }
-}
-
-const inputStyle: React.CSSProperties = {
-  height: 44,
-  border: '1px solid #d1d5db',
-  borderRadius: 10,
-  padding: '0 12px',
-  fontSize: 14,
-  fontWeight: 400,
-}
-
-const textareaStyle: React.CSSProperties = {
-  minHeight: 100,
-  border: '1px solid #d1d5db',
-  borderRadius: 10,
-  padding: 12,
-  fontSize: 14,
-  fontWeight: 400,
 }
