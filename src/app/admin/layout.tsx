@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
+import GlobalSearch from '@/components/admin/GlobalSearch'
 
 const NAV_ITEMS = [
   { href: '/admin', label: '대시보드' },
@@ -31,6 +32,11 @@ export default function AdminLayout({
               Management
             </p>
           </Link>
+        </div>
+
+        {/* 글로벌 검색 */}
+        <div className="px-4 pb-4">
+          <GlobalSearch />
         </div>
 
         {/* 네비게이션 */}

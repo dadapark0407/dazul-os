@@ -67,6 +67,12 @@ function AdminNewRecordPage() {
   const [formSuccess, setFormSuccess] = useState('')
   const savingRef = useRef(false)
 
+  // 저장 완료 모달
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [savedShareUrl, setSavedShareUrl] = useState('')
+  const [savedPetId, setSavedPetId] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
+
   // 동적 필드 값
   const dynamicValuesRef = useRef<Record<string, unknown>>({})
   const handleDynamicChange = useCallback(
@@ -200,8 +206,25 @@ function AdminNewRecordPage() {
         }
       }
 
-      setFormSuccess('방문 기록이 저장되었습니다. 이동 중...')
-      router.push(`/pet/${petId}`)
+      // 보호자 share_token 조회 (공유 링크용)
+      let shareUrl = ''
+      if (guardianId) {
+        try {
+          const { data: gData } = await supabase
+            .from('guardians')
+            .select('share_token')
+            .eq('id', guardianId)
+            .maybeSingle()
+          if (gData?.share_token) {
+            const origin = typeof window !== 'undefined' ? window.location.origin : ''
+            shareUrl = `${origin}/report/${gData.share_token}`
+          }
+        } catch { /* ignore */ }
+      }
+
+      setSavedShareUrl(shareUrl)
+      setSavedPetId(petId)
+      setShowCompleteModal(true)
     } catch {
       setFormError('저장 중 예상치 못한 오류가 발생했습니다.')
     } finally {
@@ -508,6 +531,94 @@ function AdminNewRecordPage() {
           {saving ? '저장 중...' : '저장하기'}
         </button>
       </div>
+
+      {/* ─── 저장 완료 모달 ─── */}
+      {showCompleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm bg-white p-8 shadow-xl">
+            <div className="text-center">
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-dz-accent">
+                Complete
+              </p>
+              <h2 className="mt-3 text-lg font-semibold text-dz-primary">
+                기록이 저장되었습니다
+              </h2>
+            </div>
+
+            {savedShareUrl && (
+              <div className="mt-6 space-y-3">
+                <p className="text-center text-[11px] text-dz-muted">
+                  보호자에게 케어 리포트를 공유하세요
+                </p>
+
+                {/* 링크 복사 */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(savedShareUrl)
+                      setLinkCopied(true)
+                      setTimeout(() => setLinkCopied(false), 2000)
+                    } catch {
+                      alert('복사에 실패했어요.')
+                    }
+                  }}
+                  className="w-full border border-dz-border py-3 text-[12px] font-medium text-dz-primary transition-all duration-400 hover:border-dz-primary"
+                >
+                  {linkCopied ? '✓ 링크 복사됨' : '공유 링크 복사'}
+                </button>
+
+                {/* 카카오톡 공유 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const kakaoKey = process.env.NEXT_PUBLIC_KAKAO_APP_KEY
+                    if (typeof window !== 'undefined' && kakaoKey && (window as unknown as Record<string, unknown>).Kakao) {
+                      const Kakao = (window as unknown as Record<string, unknown>).Kakao as {
+                        isInitialized: () => boolean
+                        init: (key: string) => void
+                        Share: { sendDefault: (options: unknown) => void }
+                      }
+                      if (!Kakao.isInitialized()) Kakao.init(kakaoKey)
+                      Kakao.Share.sendDefault({
+                        objectType: 'feed',
+                        content: {
+                          title: 'DAZUL 케어 리포트',
+                          description: '케어 리포트가 업데이트되었습니다. 확인해보세요.',
+                          imageUrl: '',
+                          link: { mobileWebUrl: savedShareUrl, webUrl: savedShareUrl },
+                        },
+                        buttons: [
+                          { title: '리포트 보기', link: { mobileWebUrl: savedShareUrl, webUrl: savedShareUrl } },
+                        ],
+                      })
+                    } else {
+                      // SDK 없으면 링크 복사로 대체
+                      navigator.clipboard.writeText(savedShareUrl).then(() => {
+                        setLinkCopied(true)
+                        setTimeout(() => setLinkCopied(false), 2000)
+                        alert('카카오톡 SDK가 설정되지 않아 링크가 복사되었습니다. 카카오톡에 붙여넣기 해주세요.')
+                      })
+                    }
+                  }}
+                  className="w-full bg-[#FEE500] py-3 text-[12px] font-semibold text-[#3C1E1E] transition-all duration-400 hover:bg-[#FDD835]"
+                >
+                  카카오톡으로 공유
+                </button>
+              </div>
+            )}
+
+            {/* 확인 버튼 */}
+            <button
+              type="button"
+              onClick={() => router.push(`/admin/pets/${savedPetId}`)}
+              className="mt-6 w-full bg-dz-primary py-3 text-[12px] font-medium uppercase tracking-[0.15em] text-white transition-all duration-400 hover:bg-dz-primary/85"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
