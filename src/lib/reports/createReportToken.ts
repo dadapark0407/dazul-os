@@ -1,3 +1,4 @@
+// @deprecated — guardian.share_token 기반으로 전환됨. 이 파일은 하위 호환용으로 유지.
 import { createClient } from '@/utils/supabase/server'
 
 // report_tokens 실제 DB 컬럼:

@@ -94,16 +94,9 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
     guardian = data
   }
 
-  // 리포트 토큰 확인
-  const { data: reportToken } = await supabase
-    .from('report_tokens')
-    .select('token, created_at')
-    .eq('visit_record_id', id)
-    .maybeSingle()
-
-  const reportUrl = reportToken?.token
-    ? buildSiteUrl(`/report/${reportToken.token}`)
-    : null
+  // 보호자 공유 링크 (guardian.share_token 기반)
+  const shareToken = str(guardian, 'share_token')
+  const reportUrl = shareToken ? buildSiteUrl(`/report/${shareToken}`) : null
 
   // 연결된 팔로업 (안전 — 테이블이 없으면 빈 배열)
   const { data: linkedFollowups } = await supabase
@@ -216,25 +209,18 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
         {/* 리포트 공유 상태 */}
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-            리포트 공유
+            보호자 공유 링크
           </h2>
-          {reportToken ? (
+          {reportUrl ? (
             <>
-              <div className="flex items-center gap-2">
-                <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                  공유됨
-                </span>
-                <span className="text-xs text-neutral-400">
-                  {formatDate(reportToken.created_at)}
-                </span>
-              </div>
-              {reportUrl && (
-                <p className="mt-3 break-all rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
-                  {reportUrl}
-                </p>
-              )}
+              <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                공유 가능
+              </span>
+              <p className="mt-3 break-all rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+                {reportUrl}
+              </p>
               <Link
-                href={`/report/${reportToken.token}`}
+                href={`/report/${shareToken}`}
                 className="mt-3 inline-block text-sm font-medium text-neutral-500 hover:text-neutral-700"
               >
                 리포트 보기 →
@@ -243,10 +229,10 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
           ) : (
             <>
               <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
-                미공유
+                보호자 미연결
               </span>
               <p className="mt-2 text-xs text-neutral-400">
-                수정 페이지에서 공유 링크를 생성할 수 있습니다.
+                보호자가 연결되면 자동으로 공유 링크가 생성됩니다.
               </p>
             </>
           )}

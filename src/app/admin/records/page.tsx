@@ -47,7 +47,7 @@ export default function AdminRecordsPage() {
   const [records, setRecords] = useState<VisitRecord[]>([])
   const [petMap, setPetMap] = useState<Record<string, string>>({})
   const [guardianMap, setGuardianMap] = useState<Record<string, string>>({})
-  const [reportTokenMap, setReportTokenMap] = useState<Record<string, boolean>>({})
+  // report_tokens 미사용 — guardian.share_token 기반으로 전환됨
   const [loading, setLoading] = useState(true)
 
   // 필터 상태
@@ -105,24 +105,6 @@ export default function AdminRecordsPage() {
         setGuardianMap(gMap)
       }
 
-      // 리포트 토큰 존재 여부 매핑
-      const recordIds = safeRecords.map((r) => r.id)
-      if (recordIds.length > 0) {
-        const { data: tokens } = await supabase
-          .from('report_tokens')
-          .select('visit_record_id')
-          .in('visit_record_id', recordIds)
-
-        const tMap: Record<string, boolean> = {}
-        for (const t of tokens ?? []) {
-          const vid = (t as Record<string, unknown>).visit_record_id
-          if (vid !== null && vid !== undefined) {
-            tMap[String(vid)] = true
-          }
-        }
-        setReportTokenMap(tMap)
-      }
-
       setLoading(false)
     }
 
@@ -153,13 +135,12 @@ export default function AdminRecordsPage() {
       // 날짜 없는 기록은 범위 필터 시 제외
       if ((dateFrom || dateTo) && !r.visit_date) return false
 
-      // 리포트 상태
-      if (reportFilter === '공유됨' && !reportTokenMap[r.id]) return false
-      if (reportFilter === '미공유' && reportTokenMap[r.id]) return false
+      // 리포트 필터 — guardian.share_token 기반 전환 후 비활성
+      // TODO: guardian 연결 여부로 필터 전환
 
       return true
     })
-  }, [records, search, dateFrom, dateTo, reportFilter, petMap, guardianMap, reportTokenMap])
+  }, [records, search, dateFrom, dateTo, reportFilter, petMap, guardianMap])
 
   const hasActiveFilters = search || dateFrom || dateTo || reportFilter !== '전체'
 
@@ -335,17 +316,14 @@ export default function AdminRecordsPage() {
                     {r.service_type ?? '-'}
                   </td>
                   <td className="px-4 py-3">
-                    {reportTokenMap[r.id] ? (
+                    {r.guardian_id && guardianMap[r.guardian_id] ? (
                       <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                        공유됨
+                        공유 가능
                       </span>
                     ) : (
-                      <Link
-                        href={`/record/${r.id}/edit`}
-                        className="text-xs font-medium text-neutral-400 hover:text-neutral-600"
-                      >
-                        링크 생성
-                      </Link>
+                      <span className="text-xs text-neutral-400">
+                        보호자 미연결
+                      </span>
                     )}
                   </td>
                 </tr>

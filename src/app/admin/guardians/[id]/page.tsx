@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { buildSiteUrl } from '@/lib/siteUrl'
 import StatusAction from '@/components/admin/StatusAction'
+import CopyTextButton from '@/components/CopyTextButton'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -170,6 +172,30 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
               <p className="mt-1 text-2xl font-bold text-neutral-900">{totalVisits}+</p>
             </div>
           </div>
+        </section>
+
+        {/* 보호자 공유 링크 */}
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+            보호자 공유 링크
+          </h2>
+          {guardian.share_token ? (
+            <>
+              <p className="break-all rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+                {buildSiteUrl(`/report/${guardian.share_token}`)}
+              </p>
+              <div className="mt-3">
+                <CopyTextButton text={buildSiteUrl(`/report/${guardian.share_token}`)} />
+              </div>
+              <p className="mt-2 text-xs text-neutral-400">
+                이 링크를 보호자에게 공유하면 모든 방문 기록을 볼 수 있습니다.
+              </p>
+            </>
+          ) : (
+            <p className="py-2 text-sm text-neutral-400">
+              공유 토큰이 없습니다. 보호자 정보를 저장하면 자동 생성됩니다.
+            </p>
+          )}
         </section>
 
         {/* 반려견 목록 */}
