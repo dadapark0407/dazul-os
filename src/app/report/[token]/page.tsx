@@ -5,25 +5,20 @@ type PageProps = {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return '-'
-
+  if (!value) return null
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-
+  if (Number.isNaN(date.getTime())) return null
   return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+    month: 'long',
+    day: 'numeric',
   }).format(date)
 }
 
-function renderField(label: string, value: string | null | undefined) {
-  return (
-    <div className="space-y-1 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">{label}</p>
-      <p className="text-sm text-gray-800">{value || '-'}</p>
-    </div>
-  )
+function hasValue(v: unknown): v is string {
+  if (typeof v !== 'string') return false
+  const trimmed = v.trim()
+  return trimmed !== '' && trimmed !== '-'
 }
 
 async function fetchReportData(token: string) {
@@ -36,7 +31,7 @@ async function fetchReportData(token: string) {
     .maybeSingle()
 
   if (tokenError || !reportToken) {
-    return { reportToken: null, visitRecord: null }
+    return { reportToken: null, visitRecord: null, petName: null, petBreed: null }
   }
 
   const { data: visitRecord, error: visitError } = await supabase
@@ -46,65 +41,226 @@ async function fetchReportData(token: string) {
     .maybeSingle()
 
   if (visitError || !visitRecord) {
-    return { reportToken: null, visitRecord: null }
+    return { reportToken: null, visitRecord: null, petName: null, petBreed: null }
   }
 
-  return { reportToken, visitRecord }
+  // 반려견 이름: visit_records.pet_name 우선, 없으면 pets 테이블 조인
+  let petName = hasValue(visitRecord.pet_name) ? visitRecord.pet_name : null
+  let petBreed: string | null = null
+
+  if (visitRecord.pet_id) {
+    const { data: pet } = await supabase
+      .from('pets')
+      .select('name, breed')
+      .eq('id', visitRecord.pet_id)
+      .maybeSingle()
+    if (pet) {
+      if (!petName && hasValue(pet.name)) petName = pet.name
+      if (hasValue(pet.breed)) petBreed = pet.breed
+    }
+  }
+
+  return { reportToken, visitRecord, petName, petBreed }
 }
 
 export default async function ReportPage({ params }: PageProps) {
   const { token: rawToken } = await params
   const token = rawToken?.trim()
-  const { reportToken, visitRecord } = token
+  const { reportToken, visitRecord, petName, petBreed } = token
     ? await fetchReportData(token)
-    : { reportToken: null, visitRecord: null }
+    : { reportToken: null, visitRecord: null, petName: null, petBreed: null }
 
   if (!reportToken || !visitRecord) {
     return (
-      <main className="min-h-screen bg-neutral-50 px-4 py-10">
-        <div className="mx-auto max-w-2xl rounded-3xl border border-red-100 bg-white p-10 text-center shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-red-500">공유 링크 오류</p>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">유효하지 않은 공유 보고서입니다.</h1>
-          <p className="mt-3 text-sm leading-7 text-gray-600">
-            링크가 잘못되었거나 만료되었을 수 있어요. 기록 작성자에게 다시 공유를 요청해주세요.
+      <main className="min-h-screen bg-[#faf9f7] px-4 py-10">
+        <div className="mx-auto max-w-lg rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-stone-200/60">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-stone-400">
+            DAZUL
+          </p>
+          <h1 className="mt-4 text-xl font-bold text-stone-900">
+            유효하지 않은 공유 보고서입니다.
+          </h1>
+          <p className="mt-3 text-sm leading-7 text-stone-500">
+            링크가 잘못되었거나 만료되었을 수 있어요.
+            <br />
+            살롱에 다시 공유를 요청해주세요.
           </p>
         </div>
       </main>
     )
   }
 
-  return (
-    <main className="min-h-screen bg-neutral-50 px-4 py-10">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-200">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500">방문 기록 공유 보고서</p>
-          <h1 className="mt-4 text-3xl font-bold text-gray-900">방문 기록</h1>
-          <p className="mt-3 text-sm leading-7 text-gray-600">
-            아래 기록은 공유용 공개 링크를 통해 열람된 내용입니다.
-          </p>
-        </div>
+  const visitDate = formatDate(visitRecord.visit_date)
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          {renderField('방문일', formatDate(visitRecord.visit_date))}
-          {renderField('서비스', visitRecord.service_type)}
-          {renderField('오늘 케어 요약', visitRecord.care_summary)}
-          {renderField('진행한 케어 내용', visitRecord.care_actions)}
-          {renderField('문제 → 조치', visitRecord.care_notes)}
-          {renderField('다음 케어 가이드', visitRecord.next_care_guide)}
-          {renderField('다음 방문 추천', visitRecord.next_visit_recommendation)}
-          {renderField('특이사항', visitRecord.special_notes)}
-          {renderField('피부 상태', visitRecord.skin_status)}
-          {renderField('모질 상태', visitRecord.coat_status)}
-          {renderField('컨디션', visitRecord.condition_status)}
-          {renderField('스트레스', visitRecord.stress_status)}
+  // 케어 태그 수집 (비어있지 않은 것만)
+  const careTags = [
+    visitRecord.service_type,
+    visitRecord.service,
+    visitRecord.care_summary,
+  ].filter(hasValue)
+
+  // 상태 필드
+  const statusFields = [
+    { label: '피부', value: visitRecord.skin_status },
+    { label: '모질', value: visitRecord.coat_status },
+    { label: '컨디션', value: visitRecord.condition_status },
+    { label: '스트레스', value: visitRecord.stress_status },
+  ].filter((f) => hasValue(f.value))
+
+  // 케어 상세 필드
+  const careDetails = [
+    { label: '오늘 케어 요약', value: visitRecord.care_summary },
+    { label: '진행한 케어 내용', value: visitRecord.care_actions },
+    { label: '문제 → 조치', value: visitRecord.care_notes },
+    { label: '다음 케어 가이드', value: visitRecord.next_care_guide },
+  ].filter((f) => hasValue(f.value))
+
+  // 추가 필드
+  const extraFields = [
+    { label: '특이사항', value: visitRecord.special_notes },
+    { label: '메모', value: visitRecord.note },
+  ].filter((f) => hasValue(f.value))
+
+  const nextVisit = hasValue(visitRecord.next_visit_recommendation)
+    ? visitRecord.next_visit_recommendation
+    : null
+
+  return (
+    <main className="min-h-screen bg-[#faf9f7]">
+      {/* ─── 브랜드 헤더 ─── */}
+      <div className="bg-gradient-to-b from-[#f5f0ea] to-[#faf9f7] px-4 pb-8 pt-10">
+        <div className="mx-auto max-w-lg">
+          <p className="text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-stone-400">
+            DAZUL
+          </p>
+          <p className="mt-1 text-center text-[10px] tracking-[0.15em] text-stone-300">
+            Premium Pet Care
+          </p>
+
+          {/* 메인 카드 */}
+          <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200/60 md:p-8">
+            {/* 반려견 이름 + 방문일 */}
+            <div className="text-center">
+              {petName && (
+                <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+                  {petName}
+                  {petBreed && (
+                    <span className="ml-2 text-base font-normal text-stone-400">{petBreed}</span>
+                  )}
+                </h1>
+              )}
+              {visitDate && (
+                <p className="mt-2 text-sm text-stone-500">{visitDate} 방문 기록</p>
+              )}
+            </div>
+
+            {/* 서비스/케어 뱃지 */}
+            {careTags.length > 0 && (
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {careTags.map((tag, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full border border-stone-200 bg-stone-50 px-3.5 py-1.5 text-xs font-medium text-stone-700"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* 상태 요약 */}
+            {statusFields.length > 0 && (
+              <div className="mt-6 grid grid-cols-2 gap-2.5">
+                {statusFields.map((f) => (
+                  <div
+                    key={f.label}
+                    className="rounded-2xl bg-[#faf9f7] p-3.5 text-center"
+                  >
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                      {f.label}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-stone-800">{f.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-lg px-4 pb-12">
+        {/* ─── 다음 방문 강조 ─── */}
+        {nextVisit && (
+          <section className="mt-6 rounded-2xl bg-stone-900 p-5 text-center shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+              다음 방문 안내
+            </p>
+            <p className="mt-2 text-base font-bold leading-7 text-white">{nextVisit}</p>
+          </section>
+        )}
+
+        {/* ─── 케어 상세 ─── */}
+        {careDetails.length > 0 && (
+          <section className="mt-6 space-y-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+              케어 기록
+            </p>
+            {careDetails.map((f) => (
+              <div
+                key={f.label}
+                className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200/60"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                  {f.label}
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-7 text-stone-700">
+                  {f.value}
+                </p>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* ─── 특이사항 / 메모 ─── */}
+        {extraFields.length > 0 && (
+          <section className="mt-6 space-y-3">
+            {extraFields.map((f) => (
+              <div
+                key={f.label}
+                className="rounded-2xl bg-amber-50/60 p-5 ring-1 ring-amber-100/80"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700/60">
+                  {f.label}
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-7 text-stone-700">
+                  {f.value}
+                </p>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* ─── 살롱 연락처 ─── */}
+        <section className="mt-10 rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-stone-200/60">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+            살롱 안내
+          </p>
+          <p className="mt-3 text-sm font-semibold text-stone-800">DAZUL</p>
+          <div className="mt-2 space-y-1 text-xs text-stone-500">
+            <p>전화: 010-1234-5678</p>
+            <p>Instagram: @dazul_pet</p>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-stone-400">
+            궁금한 점이 있으시면 언제든 연락 주세요.
+          </p>
         </section>
 
-        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-200">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500">기록 메모</p>
-          <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm leading-7 text-gray-700">
-            {visitRecord.note || '메모가 없습니다.'}
-          </div>
-        </div>
+        {/* ─── 푸터 ─── */}
+        <footer className="mt-10 text-center">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-stone-300">
+            DAZUL · Premium Pet Care
+          </p>
+        </footer>
       </div>
     </main>
   )
