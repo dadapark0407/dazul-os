@@ -262,11 +262,52 @@ export default async function PetTimelinePage({ params }: PageProps) {
   ].join('\n')
 
   return (
-    <main className="min-h-screen bg-[#faf9f7]">
+    <div className="min-h-screen bg-[#faf9f7]">
+      {/* ─── 관리자 헤더 + 네비게이션 (admin/layout.tsx와 동일) ─── */}
+      <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+          <Link href="/admin" className="text-lg font-bold tracking-tight text-neutral-900">
+            DAZUL 관리
+          </Link>
+          <Link
+            href="/"
+            className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+          >
+            홈으로
+          </Link>
+        </div>
+        <nav className="scrollbar-hide overflow-x-auto border-t border-neutral-100">
+          <div className="mx-auto flex max-w-7xl gap-1 px-4 py-2">
+            {[
+              { href: '/admin', label: '대시보드' },
+              { href: '/admin/pets', label: '반려견' },
+              { href: '/admin/guardians', label: '보호자' },
+              { href: '/admin/records', label: '방문 기록' },
+              { href: '/admin/products', label: '제품' },
+              { href: '/admin/categories', label: '카테고리' },
+              { href: '/admin/followups', label: '후속 관리' },
+              { href: '/admin/templates', label: '메시지 템플릿' },
+              { href: '/admin/record-templates', label: '기록 양식' },
+              { href: '/admin/staff', label: '스태프' },
+              { href: '/admin/settings', label: '설정' },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      </header>
+
+      <main>
       {/* ─── 프로필 헤더 ─── */}
       <div className="bg-gradient-to-b from-[#f5f0ea] to-[#faf9f7] px-4 pb-6 pt-8 md:px-6">
         <div className="mx-auto max-w-3xl">
-          {/* 네비게이션 */}
+          {/* 페이지 내 네비게이션 */}
           <div className="mb-6 flex flex-wrap items-center gap-2">
             <Link
               href="/admin/pets"
@@ -597,6 +638,7 @@ export default async function PetTimelinePage({ params }: PageProps) {
           </p>
         </footer>
       </div>
-    </main>
+      </main>
+    </div>
   )
 }
