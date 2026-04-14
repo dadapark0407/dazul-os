@@ -3,6 +3,7 @@ import LogoutButton from '@/components/LogoutButton'
 
 const NAV_ITEMS = [
   { href: '/admin', label: '대시보드' },
+  { href: '/admin/customers/new', label: '신규 고객' },
   { href: '/admin/pets', label: '반려견' },
   { href: '/admin/guardians', label: '보호자' },
   { href: '/admin/records', label: '방문 기록' },
