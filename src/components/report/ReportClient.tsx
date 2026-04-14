@@ -272,7 +272,7 @@ function CalendarView({
       </div>
 
       {/* 요일 헤더 */}
-      <div className="mx-auto mt-6 grid max-w-[320px] grid-cols-7">
+      <div className="mx-auto mt-6 max-w-[320px]" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0 }}>
         {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
           <div
             key={d}
@@ -285,11 +285,11 @@ function CalendarView({
         ))}
       </div>
 
-      {/* 날짜 그리드 — 정사각형 셀 */}
-      <div className="mx-auto grid max-w-[320px] grid-cols-7">
+      {/* 날짜 그리드 */}
+      <div className="mx-auto max-w-[320px]" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0 }}>
         {/* 빈 칸 */}
         {Array.from({ length: firstDay }).map((_, i) => (
-          <div key={`e-${i}`} className="aspect-square" />
+          <div key={`e-${i}`} style={{ height: 44 }} />
         ))}
         {/* 날짜 */}
         {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -299,17 +299,18 @@ function CalendarView({
           const isSelected = selectedDate === dateStr
 
           return (
-            <div key={day} className="flex aspect-square items-center justify-center">
+            <div key={day} className="flex items-center justify-center" style={{ height: 44 }}>
               <button
                 type="button"
                 onClick={() => hasVisit && handleDateClick(day)}
-                className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-all duration-400 ${
+                className={`flex items-center justify-center rounded-full text-[13px] transition-all duration-400 ${
                   hasVisit
                     ? isSelected
                       ? 'bg-dz-accent font-semibold text-white shadow-sm'
                       : 'bg-dz-accent/15 font-medium text-dz-primary hover:bg-dz-accent/30'
                     : 'cursor-default text-dz-border/60'
                 }`}
+                style={{ width: 36, height: 36 }}
               >
                 {day}
               </button>
