@@ -1,26 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import {
   isAutoFollowupEnabled,
   setAutoFollowupEnabled,
 } from '@/lib/autoFollowup'
 
 // TODO: 역할 기반 인증 추가 필요 (director 이상)
-// TODO: 설정 값 저장 — settings 테이블 또는 KV 스토어 연동 예정
-// TODO: 현재 자동 팔로업 설정만 localStorage 기반 — 나머지는 DB 연동 대기
 
-const SETTINGS_SECTIONS = [
-  {
-    title: '살롱 프로필',
-    description: '살롱 기본 정보와 운영 설정',
-    items: [
-      { label: '살롱 이름', value: 'DAZUL', placeholder: '살롱 이름 입력' },
-      { label: '대표 연락처', value: '', placeholder: '전화번호 입력' },
-      { label: '주소', value: '', placeholder: '살롱 주소 입력' },
-      { label: '운영 시간', value: '', placeholder: '예: 10:00 - 19:00' },
-    ],
-  },
+const FOLLOWUP_RULES = [
+  { trigger: '모든 방문', type: '재방문', timing: '4주 뒤 (서비스별 조정)' },
+  { trigger: '피부 이슈 감지', type: '피부 체크', timing: '2주 뒤' },
+  { trigger: '높은 스트레스 / 예민', type: '컨디션 체크', timing: '1주 뒤' },
+  { trigger: '모질 문제 감지', type: '모질 체크', timing: '3주 뒤' },
+]
+
+const PLACEHOLDER_SECTIONS = [
   {
     title: '리포트 설정',
     description: '보호자에게 공유하는 리포트 관련 설정',
@@ -41,26 +37,106 @@ const SETTINGS_SECTIONS = [
   },
 ]
 
-const FOLLOWUP_RULES = [
-  { trigger: '모든 방문', type: '재방문', timing: '4주 뒤 (서비스별 조정)' },
-  { trigger: '피부 이슈 감지', type: '피부 체크', timing: '2주 뒤' },
-  { trigger: '높은 스트레스 / 예민', type: '컨디션 체크', timing: '1주 뒤' },
-  { trigger: '모질 문제 감지', type: '모질 체크', timing: '3주 뒤' },
-]
-
 export default function AdminSettingsPage() {
   const [autoFollowup, setAutoFollowup] = useState(true)
   const [loaded, setLoaded] = useState(false)
 
+  // 살롱 설정 상태
+  const [salonId, setSalonId] = useState<string | null>(null)
+  const [salonName, setSalonName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [instagram, setInstagram] = useState('')
+  const [address, setAddress] = useState('')
+  const [description, setDescription] = useState('')
+  const [salonLoading, setSalonLoading] = useState(true)
+  const [salonSaving, setSalonSaving] = useState(false)
+  const [salonMessage, setSalonMessage] = useState('')
+  const [salonError, setSalonError] = useState('')
+  const [tableExists, setTableExists] = useState(true)
+
   useEffect(() => {
     setAutoFollowup(isAutoFollowupEnabled())
     setLoaded(true)
+
+    // salon_settings 로드
+    async function loadSalon() {
+      setSalonLoading(true)
+      const { data, error } = await supabase
+        .from('salon_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        console.warn('salon_settings 조회 실패:', error.message)
+        setTableExists(false)
+        setSalonLoading(false)
+        return
+      }
+
+      if (data) {
+        setSalonId(data.id)
+        setSalonName(data.salon_name ?? '')
+        setPhone(data.phone ?? '')
+        setInstagram(data.instagram ?? '')
+        setAddress(data.address ?? '')
+        setDescription(data.description ?? '')
+      }
+      setSalonLoading(false)
+    }
+
+    loadSalon()
   }, [])
 
   function handleToggleAutoFollowup() {
     const next = !autoFollowup
     setAutoFollowup(next)
     setAutoFollowupEnabled(next)
+  }
+
+  async function handleSaveSalon() {
+    setSalonSaving(true)
+    setSalonMessage('')
+    setSalonError('')
+
+    const payload = {
+      salon_name: salonName.trim() || 'DAZUL',
+      phone: phone.trim() || null,
+      instagram: instagram.trim() || null,
+      address: address.trim() || null,
+      description: description.trim() || null,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (salonId) {
+      const { error } = await supabase
+        .from('salon_settings')
+        .update(payload)
+        .eq('id', salonId)
+
+      if (error) {
+        setSalonError(`저장 실패: ${error.message}`)
+        setSalonSaving(false)
+        return
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('salon_settings')
+        .insert(payload)
+        .select('id')
+        .single()
+
+      if (error) {
+        setSalonError(`저장 실패: ${error.message}`)
+        setSalonSaving(false)
+        return
+      }
+      setSalonId(data.id)
+    }
+
+    setSalonMessage('저장되었습니다.')
+    setSalonSaving(false)
+    setTimeout(() => setSalonMessage(''), 3000)
   }
 
   return (
@@ -72,7 +148,113 @@ export default function AdminSettingsPage() {
         </p>
       </div>
 
-      {/* 자동 팔로업 설정 — 활성 기능 */}
+      {/* ─── 살롱 프로필 (DB 연동) ─── */}
+      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+        <h2 className="text-lg font-bold text-neutral-900">살롱 프로필</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          살롱 기본 정보 · 리포트 공유 페이지에 표시됩니다
+        </p>
+
+        {!tableExists ? (
+          <div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4">
+            <p className="text-sm text-amber-800">
+              salon_settings 테이블이 아직 없습니다.
+            </p>
+            <p className="mt-1 text-xs text-amber-600">
+              Supabase SQL Editor에서 salon_settings 테이블을 생성하세요.
+            </p>
+          </div>
+        ) : salonLoading ? (
+          <div className="mt-4 rounded-xl bg-neutral-50 p-6 text-center">
+            <p className="text-sm text-neutral-500">불러오는 중...</p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-neutral-700">
+                  살롱 이름 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={salonName}
+                  onChange={(e) => setSalonName(e.target.value)}
+                  placeholder="살롱 이름 입력"
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-neutral-700">
+                  대표 연락처
+                </label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="예: 010-1234-5678"
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-neutral-700">
+                  Instagram
+                </label>
+                <input
+                  type="text"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                  placeholder="예: @dazul_pet"
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-neutral-700">
+                  주소
+                </label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="살롱 주소 입력"
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-neutral-700">
+                  소개글
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  placeholder="살롱 소개글을 입력하세요"
+                  className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+                />
+              </div>
+            </div>
+
+            {salonError && (
+              <p className="mt-3 text-sm text-red-600">{salonError}</p>
+            )}
+            {salonMessage && (
+              <p className="mt-3 text-sm text-green-600">{salonMessage}</p>
+            )}
+
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={handleSaveSalon}
+                disabled={salonSaving}
+                className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {salonSaving ? '저장 중...' : '살롱 정보 저장'}
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* ─── 자동 팔로업 설정 ─── */}
       <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -150,7 +332,7 @@ export default function AdminSettingsPage() {
         </div>
       </section>
 
-      {/* 기존 설정 섹션들 (준비 중) */}
+      {/* ─── 나머지 설정 (준비 중) ─── */}
       <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 px-5 py-4">
         <p className="text-sm font-medium text-amber-800">
           아래 설정 항목은 현재 준비 중입니다.
@@ -161,7 +343,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="space-y-6">
-        {SETTINGS_SECTIONS.map((section) => (
+        {PLACEHOLDER_SECTIONS.map((section) => (
           <section
             key={section.title}
             className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200"
@@ -187,16 +369,6 @@ export default function AdminSettingsPage() {
             </div>
           </section>
         ))}
-      </div>
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          disabled
-          className="cursor-not-allowed rounded-xl bg-neutral-200 px-6 py-3 text-sm font-semibold text-neutral-400"
-        >
-          저장 (준비 중)
-        </button>
       </div>
     </div>
   )

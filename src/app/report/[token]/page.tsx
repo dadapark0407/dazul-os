@@ -31,7 +31,7 @@ async function fetchReportData(token: string) {
     .maybeSingle()
 
   if (tokenError || !reportToken) {
-    return { reportToken: null, visitRecord: null, petName: null, petBreed: null }
+    return { reportToken: null, visitRecord: null, petName: null, petBreed: null, salon: null }
   }
 
   const { data: visitRecord, error: visitError } = await supabase
@@ -41,7 +41,7 @@ async function fetchReportData(token: string) {
     .maybeSingle()
 
   if (visitError || !visitRecord) {
-    return { reportToken: null, visitRecord: null, petName: null, petBreed: null }
+    return { reportToken: null, visitRecord: null, petName: null, petBreed: null, salon: null }
   }
 
   // 반려견 이름: visit_records.pet_name 우선, 없으면 pets 테이블 조인
@@ -60,15 +60,32 @@ async function fetchReportData(token: string) {
     }
   }
 
-  return { reportToken, visitRecord, petName, petBreed }
+  // 살롱 설정 로드 (없으면 기본값)
+  const { data: salonData } = await supabase
+    .from('salon_settings')
+    .select('salon_name, phone, instagram, address, description')
+    .limit(1)
+    .maybeSingle()
+
+  const salon = {
+    name: salonData?.salon_name ?? 'DAZUL',
+    phone: salonData?.phone ?? null,
+    instagram: salonData?.instagram ?? null,
+    address: salonData?.address ?? null,
+    description: salonData?.description ?? null,
+  }
+
+  return { reportToken, visitRecord, petName, petBreed, salon }
 }
 
 export default async function ReportPage({ params }: PageProps) {
   const { token: rawToken } = await params
   const token = rawToken?.trim()
-  const { reportToken, visitRecord, petName, petBreed } = token
+  const { reportToken, visitRecord, petName, petBreed, salon } = token
     ? await fetchReportData(token)
-    : { reportToken: null, visitRecord: null, petName: null, petBreed: null }
+    : { reportToken: null, visitRecord: null, petName: null, petBreed: null, salon: null }
+
+  const salonInfo = salon ?? { name: 'DAZUL', phone: null, instagram: null, address: null, description: null }
 
   if (!reportToken || !visitRecord) {
     return (
@@ -131,7 +148,7 @@ export default async function ReportPage({ params }: PageProps) {
       <div className="bg-gradient-to-b from-[#f5f0ea] to-[#faf9f7] px-4 pb-8 pt-10">
         <div className="mx-auto max-w-lg">
           <p className="text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-stone-400">
-            DAZUL
+            {salonInfo.name}
           </p>
           <p className="mt-1 text-center text-[10px] tracking-[0.15em] text-stone-300">
             Premium Pet Care
@@ -241,24 +258,27 @@ export default async function ReportPage({ params }: PageProps) {
         )}
 
         {/* ─── 살롱 연락처 ─── */}
-        <section className="mt-10 rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-stone-200/60">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-            살롱 안내
-          </p>
-          <p className="mt-3 text-sm font-semibold text-stone-800">DAZUL</p>
-          <div className="mt-2 space-y-1 text-xs text-stone-500">
-            <p>전화: 010-1234-5678</p>
-            <p>Instagram: @dazul_pet</p>
-          </div>
-          <p className="mt-3 text-xs leading-5 text-stone-400">
-            궁금한 점이 있으시면 언제든 연락 주세요.
-          </p>
-        </section>
+        {(salonInfo.phone || salonInfo.instagram || salonInfo.address) && (
+          <section className="mt-10 rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-stone-200/60">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+              살롱 안내
+            </p>
+            <p className="mt-3 text-sm font-semibold text-stone-800">{salonInfo.name}</p>
+            <div className="mt-2 space-y-1 text-xs text-stone-500">
+              {salonInfo.phone && <p>전화: {salonInfo.phone}</p>}
+              {salonInfo.instagram && <p>Instagram: {salonInfo.instagram}</p>}
+              {salonInfo.address && <p>{salonInfo.address}</p>}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-stone-400">
+              궁금한 점이 있으시면 언제든 연락 주세요.
+            </p>
+          </section>
+        )}
 
         {/* ─── 푸터 ─── */}
         <footer className="mt-10 text-center">
           <p className="text-[10px] uppercase tracking-[0.3em] text-stone-300">
-            DAZUL · Premium Pet Care
+            {salonInfo.name} · Premium Pet Care
           </p>
         </footer>
       </div>

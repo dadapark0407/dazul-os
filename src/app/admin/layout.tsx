@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import LogoutButton from '@/components/LogoutButton'
 
 // =============================================================
 // DAZUL OS Admin Layout — 역할 기반 접근 제어 준비 완료
@@ -74,12 +75,7 @@ export default function AdminLayout({
           <Link href="/admin" className="text-lg font-bold tracking-tight text-neutral-900">
             DAZUL 관리
           </Link>
-          <Link
-            href="/"
-            className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
-          >
-            홈으로
-          </Link>
+          <LogoutButton />
         </div>
 
         {/* 가로 스크롤 내비게이션 — 모바일 친화 */}
