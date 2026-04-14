@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { buildSiteUrl } from '@/lib/siteUrl'
 import CopyTextButton from '@/components/CopyTextButton'
@@ -101,12 +102,56 @@ export default function EditVisitPage() {
     }
   }
 
+  const adminNav = (
+    <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+        <Link href="/admin" className="text-lg font-bold tracking-tight text-neutral-900">
+          DAZUL 관리
+        </Link>
+        <Link
+          href="/"
+          className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+        >
+          홈으로
+        </Link>
+      </div>
+      <nav className="scrollbar-hide overflow-x-auto border-t border-neutral-100">
+        <div className="mx-auto flex max-w-7xl gap-1 px-4 py-2">
+          {[
+            { href: '/admin', label: '대시보드' },
+            { href: '/admin/pets', label: '반려견' },
+            { href: '/admin/guardians', label: '보호자' },
+            { href: '/admin/records', label: '방문 기록' },
+            { href: '/admin/products', label: '제품' },
+            { href: '/admin/followups', label: '후속 관리' },
+            { href: '/admin/settings', label: '설정' },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      </nav>
+    </header>
+  )
+
   if (loading) {
-    return <main style={{ padding: 20 }}>불러오는 중...</main>
+    return (
+      <div className="min-h-screen bg-neutral-50">
+        {adminNav}
+        <main style={{ padding: 20 }}>불러오는 중...</main>
+      </div>
+    )
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '40px auto', padding: 20 }}>
+    <div className="min-h-screen bg-neutral-50">
+      {adminNav}
+      <main style={{ maxWidth: 900, margin: '40px auto', padding: 20 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24 }}>방문 기록 수정</h1>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
@@ -274,7 +319,8 @@ export default function EditVisitPage() {
           {saving ? '저장 중...' : '수정 저장'}
         </button>
       </form>
-    </main>
+      </main>
+    </div>
   )
 }
 

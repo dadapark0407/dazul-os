@@ -115,8 +115,9 @@ export default function AdminRecordsPage() {
 
         const tMap: Record<string, boolean> = {}
         for (const t of tokens ?? []) {
-          if (t.visit_record_id) {
-            tMap[t.visit_record_id] = true
+          const vid = (t as Record<string, unknown>).visit_record_id
+          if (vid !== null && vid !== undefined) {
+            tMap[String(vid)] = true
           }
         }
         setReportTokenMap(tMap)

@@ -1,5 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 
+// report_tokens 실제 DB 컬럼:
+// id, token, session_id (nullable), visit_record_id (integer), expires_at, is_active, created_at
+
 export async function getReportToken(token: string) {
   const supabase = await createClient()
 
@@ -16,7 +19,7 @@ export async function getReportToken(token: string) {
   return data
 }
 
-export async function getOrCreateReportToken(visitRecordId: string) {
+export async function getOrCreateReportToken(visitRecordId: string | number) {
   const supabase = await createClient()
 
   const { data: existingToken, error: lookupError } = await supabase
@@ -39,7 +42,8 @@ export async function getOrCreateReportToken(visitRecordId: string) {
     .from('report_tokens')
     .insert({
       token,
-      visit_record_id: visitRecordId,
+      visit_record_id: Number(visitRecordId),
+      is_active: true,
     })
     .select()
     .single()
