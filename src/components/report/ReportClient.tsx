@@ -198,10 +198,10 @@ function CalendarView({
   petMap: Record<string, Pet>
 }) {
   const [currentDate, setCurrentDate] = useState(() => {
-    // 가장 최근 방문 월로 시작
+    // 가장 최근 방문 월로 시작 — 문자열 직접 파싱
     if (records.length > 0 && records[0].visit_date) {
-      const d = new Date(records[0].visit_date as string)
-      return new Date(d.getFullYear(), d.getMonth(), 1)
+      const parts = (records[0].visit_date as string).split('-')
+      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1)
     }
     return new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   })
@@ -211,13 +211,18 @@ function CalendarView({
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
 
-  // 이번 달 방문 날짜 세트
+  // 이번 달 방문 날짜 세트 — 문자열 직접 파싱 (타임존 안전)
   const visitDates = useMemo(() => {
     const set = new Set<number>()
+    const yearStr = String(year)
+    const monthStr = String(month + 1).padStart(2, '0')
     for (const r of records) {
-      const d = new Date(r.visit_date as string)
-      if (d.getFullYear() === year && d.getMonth() === month) {
-        set.add(d.getDate())
+      const vd = r.visit_date as string
+      if (!vd) continue
+      // "2026-04-14" → year="2026", month="04", day="14"
+      const parts = vd.split('-')
+      if (parts[0] === yearStr && parts[1] === monthStr) {
+        set.add(parseInt(parts[2], 10))
       }
     }
     return set
@@ -241,9 +246,12 @@ function CalendarView({
     setSelectedDate(selectedDate === dateStr ? null : dateStr)
   }
 
-  // 선택된 날짜의 기록
+  // 선택된 날짜의 기록 — visit_date 문자열 직접 비교
   const selectedRecords = selectedDate
-    ? records.filter((r) => (r.visit_date as string) === selectedDate)
+    ? records.filter((r) => {
+        const vd = r.visit_date as string
+        return vd === selectedDate
+      })
     : []
 
   const monthLabel = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long' }).format(currentDate)
