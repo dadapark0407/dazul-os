@@ -1,9 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 
 type PageProps = {
-  params: {
-    token: string
-  }
+  params: Promise<{ token: string }>
 }
 
 function formatDate(value?: string | null) {
@@ -55,7 +53,8 @@ async function fetchReportData(token: string) {
 }
 
 export default async function ReportPage({ params }: PageProps) {
-  const token = params.token?.trim()
+  const { token: rawToken } = await params
+  const token = rawToken?.trim()
   const { reportToken, visitRecord } = token
     ? await fetchReportData(token)
     : { reportToken: null, visitRecord: null }
