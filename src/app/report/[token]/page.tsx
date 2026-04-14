@@ -27,7 +27,6 @@ type Pet = { id: string; name: string | null; breed: string | null }
 async function fetchGuardianReport(token: string) {
   const supabase = await createClient()
 
-  // 1) share_token으로 보호자 조회
   const { data: guardian, error: gErr } = await supabase
     .from('guardians')
     .select('id, name, phone, share_token')
@@ -36,7 +35,6 @@ async function fetchGuardianReport(token: string) {
 
   if (gErr || !guardian) return null
 
-  // 2) 보호자의 반려견 목록
   const { data: petsData } = await supabase
     .from('pets')
     .select('id, name, breed')
@@ -46,7 +44,6 @@ async function fetchGuardianReport(token: string) {
   const pets: Pet[] = (petsData ?? []) as Pet[]
   const petIds = pets.map((p) => p.id).filter(Boolean)
 
-  // 3) 모든 방문 기록 (최신순)
   let records: VisitRecord[] = []
   if (petIds.length > 0) {
     const { data: recordsData } = await supabase
@@ -54,11 +51,9 @@ async function fetchGuardianReport(token: string) {
       .select('*')
       .in('pet_id', petIds)
       .order('visit_date', { ascending: false })
-
     records = recordsData ?? []
   }
 
-  // 4) 살롱 설정
   const { data: salonData } = await supabase
     .from('salon_settings')
     .select('salon_name, phone, instagram, address')
@@ -72,14 +67,19 @@ async function fetchGuardianReport(token: string) {
     address: salonData?.address ?? null,
   }
 
-  // pet ID → 이름/품종 매핑
   const petMap: Record<string, Pet> = {}
   for (const p of pets) petMap[p.id] = p
 
   return { guardian, pets, records, salon, petMap }
 }
 
-// ─── 방문 카드 컴포넌트 ───
+// ─── 골드 디바이더 ───
+
+function GoldDivider() {
+  return <div className="mx-auto my-8 h-px w-16 bg-dz-accent/40" />
+}
+
+// ─── 방문 카드 ───
 
 function VisitCard({
   record,
@@ -121,28 +121,25 @@ function VisitCard({
     : null
 
   return (
-    <article className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200/60">
-      {/* 헤더: 날짜 + 반려견 */}
-      <div className="flex items-start justify-between gap-3">
+    <article className="border-b border-dz-border/50 pb-10 last:border-b-0">
+      {/* 날짜 + 반려견 */}
+      <div className="flex items-baseline justify-between gap-4">
         <div>
           {pet?.name && (
-            <p className="text-base font-bold text-stone-900">
+            <h3 className="font-heading text-xl font-light tracking-wide text-dz-primary">
               {pet.name}
-              {pet.breed && (
-                <span className="ml-1.5 text-sm font-normal text-stone-400">{pet.breed}</span>
-              )}
-            </p>
+            </h3>
           )}
           {visitDate && (
-            <p className="mt-0.5 text-xs text-stone-400">{visitDate}</p>
+            <p className="mt-1 text-[11px] tracking-[0.1em] text-dz-muted">{visitDate}</p>
           )}
         </div>
         {careTags.length > 0 && (
-          <div className="flex flex-wrap justify-end gap-1.5">
+          <div className="flex flex-wrap justify-end gap-2">
             {careTags.map((tag, i) => (
               <span
                 key={i}
-                className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-medium text-stone-600"
+                className="border-b border-dz-accent/40 pb-0.5 text-[10px] font-medium uppercase tracking-[0.15em] text-dz-muted"
               >
                 {tag}
               </span>
@@ -151,15 +148,15 @@ function VisitCard({
         )}
       </div>
 
-      {/* 상태 그리드 */}
+      {/* 상태 */}
       {statusFields.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {statusFields.map((f) => (
-            <div key={f.label} className="rounded-xl bg-[#faf9f7] p-3 text-center">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+            <div key={f.label} className="text-center">
+              <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-dz-muted/60">
                 {f.label}
               </p>
-              <p className="mt-0.5 text-sm font-semibold text-stone-800">
+              <p className="mt-1.5 text-sm font-medium text-dz-primary">
                 {f.value as string}
               </p>
             </div>
@@ -169,13 +166,13 @@ function VisitCard({
 
       {/* 케어 상세 */}
       {careDetails.length > 0 && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-6 space-y-4">
           {careDetails.map((f) => (
-            <div key={f.label} className="rounded-xl bg-[#faf9f7] p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+            <div key={f.label}>
+              <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-dz-accent">
                 {f.label}
               </p>
-              <p className="mt-1 whitespace-pre-line text-sm leading-6 text-stone-700">
+              <p className="mt-1.5 whitespace-pre-line text-[13px] leading-7 text-dz-primary/80">
                 {f.value as string}
               </p>
             </div>
@@ -185,13 +182,13 @@ function VisitCard({
 
       {/* 특이사항 */}
       {extras.length > 0 && (
-        <div className="mt-3 space-y-2">
+        <div className="mt-6 space-y-3">
           {extras.map((f) => (
-            <div key={f.label} className="rounded-xl bg-amber-50/60 p-3.5 ring-1 ring-amber-100/80">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700/60">
+            <div key={f.label} className="border-l-2 border-dz-accent/30 pl-4">
+              <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-dz-muted/60">
                 {f.label}
               </p>
-              <p className="mt-1 whitespace-pre-line text-sm leading-6 text-stone-700">
+              <p className="mt-1 whitespace-pre-line text-[13px] leading-7 text-dz-primary/70">
                 {f.value as string}
               </p>
             </div>
@@ -201,11 +198,11 @@ function VisitCard({
 
       {/* 다음 방문 */}
       {nextVisit && (
-        <div className="mt-4 rounded-xl bg-stone-900 p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-stone-400">
-            다음 방문
+        <div className="mt-6 border border-dz-accent/30 bg-dz-gold-light/30 px-5 py-4 text-center">
+          <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-dz-accent">
+            Next Visit
           </p>
-          <p className="mt-1 text-sm font-bold text-white">{nextVisit}</p>
+          <p className="mt-1.5 text-sm font-medium text-dz-primary">{nextVisit}</p>
         </div>
       )}
     </article>
@@ -217,22 +214,18 @@ function VisitCard({
 export default async function ReportPage({ params }: PageProps) {
   const { token: rawToken } = await params
   const token = rawToken?.trim()
-
   const data = token ? await fetchGuardianReport(token) : null
 
   if (!data) {
     return (
-      <main className="min-h-screen bg-[#faf9f7] px-4 py-10">
-        <div className="mx-auto max-w-lg rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-stone-200/60">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-stone-400">
+      <main className="flex min-h-screen items-center justify-center bg-white px-4">
+        <div className="max-w-sm text-center">
+          <p className="font-heading text-2xl font-light tracking-[0.4em] text-dz-primary">
             DAZUL
           </p>
-          <h1 className="mt-4 text-xl font-bold text-stone-900">
-            유효하지 않은 공유 링크입니다.
-          </h1>
-          <p className="mt-3 text-sm leading-7 text-stone-500">
-            링크가 잘못되었거나 만료되었을 수 있어요.
-            <br />
+          <div className="mx-auto my-6 h-px w-12 bg-dz-accent/40" />
+          <p className="text-sm text-dz-muted">유효하지 않은 공유 링크입니다.</p>
+          <p className="mt-2 text-xs text-dz-border">
             살롱에 다시 공유를 요청해주세요.
           </p>
         </div>
@@ -243,105 +236,107 @@ export default async function ReportPage({ params }: PageProps) {
   const { guardian, pets, records, salon, petMap } = data
   const guardianName = guardian.name ?? '보호자'
 
-  // 가장 최근 방문의 다음 방문 추천
   const latestNextVisit =
     records.length > 0 && hasValue(records[0].next_visit_recommendation)
       ? (records[0].next_visit_recommendation as string)
       : null
 
   return (
-    <main className="min-h-screen bg-[#faf9f7]">
+    <main className="min-h-screen bg-white">
       {/* ─── 브랜드 헤더 ─── */}
-      <div className="bg-gradient-to-b from-[#f5f0ea] to-[#faf9f7] px-4 pb-6 pt-10">
-        <div className="mx-auto max-w-lg">
-          <p className="text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-stone-400">
-            {salon.name}
+      <header className="border-b border-dz-border/40 bg-white px-4 py-10 text-center">
+        <p className="font-heading text-2xl font-light tracking-[0.5em] text-dz-primary">
+          {salon.name.toUpperCase()}
+        </p>
+        <p className="mt-2 text-[9px] font-medium uppercase tracking-[0.3em] text-dz-muted">
+          Holistic Wellness Care
+        </p>
+        {/* 골드 라인 */}
+        <div className="mx-auto mt-6 h-px w-20 bg-dz-accent/50" />
+      </header>
+
+      <div className="mx-auto max-w-lg px-6 py-10 md:px-8">
+        {/* ─── 보호자 + 반려견 ─── */}
+        <section className="text-center">
+          <p className="text-[10px] font-medium uppercase tracking-[0.25em] text-dz-muted">
+            Care Report
           </p>
-          <p className="mt-1 text-center text-[10px] tracking-[0.15em] text-stone-300">
-            Premium Pet Care
+          <h1 className="mt-4 font-heading text-3xl font-light tracking-wide text-dz-primary">
+            {guardianName}
+          </h1>
+
+          {pets.length > 0 && (
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              {pets.map((p) => (
+                <span
+                  key={p.id}
+                  className="text-[11px] tracking-[0.1em] text-dz-muted"
+                >
+                  {p.name ?? '이름 없음'}
+                  {p.breed && (
+                    <span className="ml-1 text-dz-border">{p.breed}</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-3 text-[10px] text-dz-border">
+            {records.length}건의 케어 기록
           </p>
+        </section>
 
-          {/* 보호자 + 반려견 요약 */}
-          <section className="mt-6 rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-stone-200/60 md:p-8">
-            <h1 className="text-2xl font-bold tracking-tight text-stone-900">
-              {guardianName}님의 케어 기록
-            </h1>
-
-            {/* 반려견 뱃지 */}
-            {pets.length > 0 && (
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {pets.map((p) => (
-                  <span
-                    key={p.id}
-                    className="rounded-full border border-stone-200 bg-stone-50 px-3.5 py-1.5 text-xs font-medium text-stone-700"
-                  >
-                    {p.name ?? '이름 없음'}
-                    {p.breed && (
-                      <span className="ml-1 text-stone-400">{p.breed}</span>
-                    )}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <p className="mt-3 text-xs text-stone-400">
-              총 {records.length}건의 방문 기록
-            </p>
-          </section>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-lg px-4 pb-12">
-        {/* ─── 다음 방문 (최신 기록 기준) ─── */}
+        {/* ─── 다음 방문 강조 ─── */}
         {latestNextVisit && (
-          <section className="mt-6 rounded-2xl bg-stone-900 p-5 text-center shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-              다음 방문 안내
-            </p>
-            <p className="mt-2 text-base font-bold leading-7 text-white">
-              {latestNextVisit}
-            </p>
-          </section>
+          <>
+            <GoldDivider />
+            <section className="border border-dz-accent/30 bg-dz-gold-light/20 px-6 py-6 text-center">
+              <p className="text-[9px] font-medium uppercase tracking-[0.25em] text-dz-accent">
+                Next Appointment
+              </p>
+              <p className="mt-2 text-base font-medium text-dz-primary">
+                {latestNextVisit}
+              </p>
+            </section>
+          </>
         )}
+
+        <GoldDivider />
 
         {/* ─── 방문 기록 타임라인 ─── */}
         {records.length === 0 ? (
-          <div className="mt-8 rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-stone-200/60">
-            <p className="text-sm text-stone-500">아직 방문 기록이 없습니다.</p>
-          </div>
+          <p className="py-12 text-center text-sm text-dz-muted">
+            아직 케어 기록이 없습니다.
+          </p>
         ) : (
-          <div className="mt-6 space-y-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-              방문 기록
-            </p>
+          <div className="space-y-10">
             {records.map((record, i) => (
               <VisitCard key={record.id as string ?? i} record={record} petMap={petMap} />
             ))}
           </div>
         )}
 
-        {/* ─── 살롱 연락처 ─── */}
+        {/* ─── 살롱 정보 ─── */}
         {(salon.phone || salon.instagram || salon.address) && (
-          <section className="mt-10 rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-stone-200/60">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-              살롱 안내
-            </p>
-            <p className="mt-3 text-sm font-semibold text-stone-800">{salon.name}</p>
-            <div className="mt-2 space-y-1 text-xs text-stone-500">
-              {salon.phone && <p>전화: {salon.phone}</p>}
-              {salon.instagram && <p>Instagram: {salon.instagram}</p>}
-              {salon.address && <p>{salon.address}</p>}
-            </div>
-            <p className="mt-3 text-xs leading-5 text-stone-400">
-              궁금한 점이 있으시면 언제든 연락 주세요.
-            </p>
-          </section>
+          <>
+            <GoldDivider />
+            <section className="text-center">
+              <p className="font-heading text-lg font-light tracking-[0.3em] text-dz-primary">
+                {salon.name.toUpperCase()}
+              </p>
+              <div className="mt-3 space-y-1 text-[11px] text-dz-muted">
+                {salon.phone && <p>{salon.phone}</p>}
+                {salon.instagram && <p>{salon.instagram}</p>}
+                {salon.address && <p>{salon.address}</p>}
+              </div>
+            </section>
+          </>
         )}
 
         {/* ─── 푸터 ─── */}
-        <footer className="mt-10 text-center">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-stone-300">
-            {salon.name} · Premium Pet Care
+        <footer className="mt-16 border-t border-dz-border/30 pt-6 text-center">
+          <p className="text-[9px] uppercase tracking-[0.3em] text-dz-border">
+            {salon.name} · Holistic Wellness Care
           </p>
         </footer>
       </div>
