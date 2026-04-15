@@ -1,11 +1,32 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import {
   isAutoFollowupEnabled,
   setAutoFollowupEnabled,
 } from '@/lib/autoFollowup'
+import { ALL_NAV_ITEMS } from '@/lib/navigation'
+import {
+  LayoutDashboard, PawPrint, Calendar, ClipboardList,
+  BarChart2, Package, Users, CreditCard, Megaphone, Bell,
+  Settings, ChevronRight, FileText, MessageSquare, Tag, UserPlus,
+} from 'lucide-react'
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  LayoutDashboard, PawPrint, Calendar, ClipboardList,
+  BarChart2, Package, Users, CreditCard, Megaphone, Bell,
+  Settings, FileText, MessageSquare, Tag, UserPlus,
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  main: '메인',
+  analytics: '분석',
+  management: '운영 관리',
+  marketing: '마케팅',
+  settings: '시스템 설정',
+}
 
 // TODO: 역할 기반 인증 추가 필요 (director 이상)
 
@@ -14,27 +35,6 @@ const FOLLOWUP_RULES = [
   { trigger: '피부 이슈 감지', type: '피부 체크', timing: '2주 뒤' },
   { trigger: '높은 스트레스 / 예민', type: '컨디션 체크', timing: '1주 뒤' },
   { trigger: '모질 문제 감지', type: '모질 체크', timing: '3주 뒤' },
-]
-
-const PLACEHOLDER_SECTIONS = [
-  {
-    title: '리포트 설정',
-    description: '보호자에게 공유하는 리포트 관련 설정',
-    items: [
-      { label: '리포트 만료 기간', value: '', placeholder: '예: 30일' },
-      { label: '리포트 기본 언어', value: '한국어', placeholder: '' },
-      { label: '리포트 하단 안내 문구', value: '', placeholder: '보호자에게 보여질 안내 문구' },
-    ],
-  },
-  {
-    title: '알림 설정',
-    description: '방문 알림 및 후속 관리 알림 설정',
-    items: [
-      { label: '자동 리마인더', value: '비활성', placeholder: '' },
-      { label: '알림 채널', value: '', placeholder: '예: SMS, 카카오톡' },
-      { label: '후속 관리 알림 기한', value: '', placeholder: '예: 방문 후 7일' },
-    ],
-  },
 ]
 
 export default function AdminSettingsPage() {
@@ -332,44 +332,69 @@ export default function AdminSettingsPage() {
         </div>
       </section>
 
-      {/* ─── 나머지 설정 (준비 중) ─── */}
-      <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 px-5 py-4">
-        <p className="text-sm font-medium text-amber-800">
-          아래 설정 항목은 현재 준비 중입니다.
-        </p>
-        <p className="mt-1 text-xs text-amber-600">
-          구조 확인용이며, DB 연동 후 실제 저장이 활성화됩니다.
-        </p>
-      </div>
+      {/* ─── 추가 메뉴 (숨겨진 기능) ─── */}
+      <HiddenNavSection />
+    </div>
+  )
+}
 
-      <div className="space-y-6">
-        {PLACEHOLDER_SECTIONS.map((section) => (
-          <section
-            key={section.title}
-            className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200"
-          >
-            <h2 className="text-lg font-bold text-neutral-900">{section.title}</h2>
-            <p className="mt-1 text-sm text-neutral-500">{section.description}</p>
+// ─── 숨겨진 네비게이션 섹션 ───
 
-            <div className="mt-5 space-y-4">
-              {section.items.map((item) => (
-                <div key={item.label}>
-                  <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-                    {item.label}
-                  </label>
-                  <input
-                    type="text"
-                    defaultValue={item.value}
-                    placeholder={item.placeholder}
-                    disabled
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500"
-                  />
-                </div>
-              ))}
+function HiddenNavSection() {
+  const grouped = useMemo(() => {
+    const hidden = ALL_NAV_ITEMS.filter((item) => item.hidden)
+    const map: Record<string, typeof hidden> = {}
+    for (const item of hidden) {
+      const cat = item.category || 'etc'
+      if (!map[cat]) map[cat] = []
+      map[cat].push(item)
+    }
+    return map
+  }, [])
+
+  if (Object.keys(grouped).length === 0) return null
+
+  return (
+    <section>
+      <h2 className="text-[11px] font-medium uppercase tracking-[0.15em] text-dz-muted">
+        추가 메뉴
+      </h2>
+      <p className="mt-1 text-[12px] text-dz-muted/50">
+        사이드바에서 숨겨진 기능입니다. 아래에서 바로 이동할 수 있습니다.
+      </p>
+
+      <div className="mt-4 space-y-5">
+        {Object.entries(grouped).map(([category, items]) => (
+          <div key={category}>
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-dz-accent/70">
+              {CATEGORY_LABELS[category] ?? category}
+            </p>
+            <div className="overflow-hidden border border-dz-border/50 bg-white">
+              {items.map((item, idx) => {
+                const Icon = ICON_MAP[item.icon]
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`flex items-center gap-4 px-5 py-4 transition-all duration-400 hover:bg-dz-surface group ${
+                      idx < items.length - 1 ? 'border-b border-dz-border/30' : ''
+                    }`}
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-dz-border/50 bg-dz-surface transition-colors group-hover:border-dz-accent/30">
+                      {Icon && <Icon className="h-4 w-4 text-dz-accent" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-light tracking-wide text-dz-primary">{item.label}</p>
+                      <p className="text-[10px] text-dz-muted/40">{item.href}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-dz-border transition-colors group-hover:text-dz-accent" />
+                  </Link>
+                )
+              })}
             </div>
-          </section>
+          </div>
         ))}
       </div>
-    </div>
+    </section>
   )
 }
