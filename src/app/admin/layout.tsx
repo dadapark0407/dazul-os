@@ -1,11 +1,11 @@
 import Link from 'next/link'
-import { Settings } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import GlobalSearch from '@/components/admin/GlobalSearch'
+import SidebarNav from '@/components/admin/SidebarNav'
 import { getVisibleNavItems } from '@/lib/navigation'
 
-// 설정은 하단에 별도 배치
-const NAV_ITEMS = getVisibleNavItems().filter((item) => item.id !== 'settings')
+// 모바일 네비용 (서버 컴포넌트에서 렌더링)
+const MOBILE_NAV = getVisibleNavItems().filter((item) => item.id !== 'settings')
 
 export default function AdminLayout({
   children,
@@ -33,34 +33,12 @@ export default function AdminLayout({
           <GlobalSearch />
         </div>
 
-        {/* 네비게이션 */}
-        <nav className="flex-1 px-3">
-          <ul className="space-y-0.5">
-            {NAV_ITEMS.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="block rounded-sm px-3 py-2.5 text-[13px] font-light tracking-wide text-white/50 transition-all duration-400 hover:text-dz-accent"
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        {/* 네비게이션 + 하단 설정 (클라이언트 — 활성 경로 감지) */}
+        <SidebarNav />
 
-        {/* 하단 */}
-        <div className="border-t border-white/10 px-3 pt-3 pb-4">
-          <Link
-            href="/admin/settings"
-            className="flex items-center gap-3 rounded-sm px-3 py-2.5 text-[13px] font-light tracking-wide text-white/40 transition-all duration-400 hover:text-dz-accent group"
-          >
-            <Settings className="h-4 w-4 text-white/20 transition-colors group-hover:text-dz-accent" />
-            <span>설정</span>
-          </Link>
-          <div className="mt-1 px-3">
-            <LogoutButton />
-          </div>
+        {/* 로그아웃 */}
+        <div className="px-6 pb-4">
+          <LogoutButton />
         </div>
       </aside>
 
@@ -76,7 +54,7 @@ export default function AdminLayout({
         {/* 모바일 네비 */}
         <nav className="scrollbar-hide overflow-x-auto border-b border-dz-border/40 bg-white lg:hidden">
           <div className="flex gap-0 px-2 py-1.5">
-            {NAV_ITEMS.map((item) => (
+            {MOBILE_NAV.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
