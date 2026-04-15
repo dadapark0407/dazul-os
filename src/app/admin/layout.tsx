@@ -1,9 +1,11 @@
 import Link from 'next/link'
+import { Settings } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import GlobalSearch from '@/components/admin/GlobalSearch'
 import { getVisibleNavItems } from '@/lib/navigation'
 
-const NAV_ITEMS = getVisibleNavItems()
+// 설정은 하단에 별도 배치
+const NAV_ITEMS = getVisibleNavItems().filter((item) => item.id !== 'settings')
 
 export default function AdminLayout({
   children,
@@ -48,8 +50,17 @@ export default function AdminLayout({
         </nav>
 
         {/* 하단 */}
-        <div className="border-t border-white/10 px-3 py-4">
-          <LogoutButton />
+        <div className="border-t border-white/10 px-3 pt-3 pb-4">
+          <Link
+            href="/admin/settings"
+            className="flex items-center gap-3 rounded-sm px-3 py-2.5 text-[13px] font-light tracking-wide text-white/40 transition-all duration-400 hover:text-dz-accent group"
+          >
+            <Settings className="h-4 w-4 text-white/20 transition-colors group-hover:text-dz-accent" />
+            <span>설정</span>
+          </Link>
+          <div className="mt-1 px-3">
+            <LogoutButton />
+          </div>
         </div>
       </aside>
 
