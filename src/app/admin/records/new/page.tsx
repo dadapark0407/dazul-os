@@ -53,6 +53,14 @@ const STAFF_OPTIONS = ['담당자 1', '담당자 2', '담당자 3']
 const NOTE_CATEGORIES = ['케어', '특이사항', '다음 추천', '보호자 전달']
 const SEVERITY_OPTIONS = ['일반', '경미', '보통', '심각']
 
+const NEXT_VISIT_OPTIONS = [
+  { label: '2주 후', value: '2주', days: 14 },
+  { label: '3주 후', value: '3주', days: 21 },
+  { label: '4주 후', value: '4주', days: 28 },
+  { label: '6주 후', value: '6주', days: 42 },
+  { label: '8주 후', value: '8주', days: 56 },
+] as const
+
 // ─────────────────────────────────────────────
 // 헬퍼
 // ─────────────────────────────────────────────
@@ -60,6 +68,145 @@ function toggleArr<T>(arr: T[], val: T, exclusive?: T): T[] {
   if (exclusive !== undefined && val === exclusive) return [exclusive]
   const without = exclusive !== undefined ? arr.filter((v) => v !== exclusive) : arr
   return without.includes(val) ? without.filter((v) => v !== val) : [...without, val]
+}
+
+function addDays(base: string, days: number): string {
+  const d = new Date(base)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
+/** 신체 상태 데이터로 건강 요약 미리보기 텍스트 생성 */
+function generateHealthSummary({
+  skin,
+  skinMemo,
+  tangles,
+  eyes,
+  ears,
+  teethStatus,
+  teethMemo,
+  nailStatus,
+  weight,
+}: {
+  skin: string[]
+  skinMemo: string
+  tangles: string[]
+  eyes: string[]
+  ears: string[]
+  teethStatus: TeethStatus
+  teethMemo: string
+  nailStatus: NailStatus
+  weight: string
+}): string {
+  const parts: string[] = []
+
+  if (weight) parts.push(`체중: ${weight}kg`)
+
+  if (skin.length > 0) {
+    const good = skin.length === 1 && skin[0] === '좋음'
+    if (good) {
+      parts.push('피부 상태가 양호합니다.')
+    } else {
+      parts.push(`피부: ${skin.join(', ')}${skinMemo ? ` (${skinMemo})` : ''}`)
+    }
+  }
+
+  if (tangles.length > 0) {
+    const none = tangles.length === 1 && tangles[0] === '없음'
+    if (!none) parts.push(`엉킴 부위: ${tangles.join(', ')}`)
+  }
+
+  if (eyes.length > 0) {
+    const clean = eyes.length === 1 && eyes[0] === '깨끗함'
+    if (!clean) parts.push(`눈: ${eyes.join(', ')}`)
+    else parts.push('눈 상태 양호')
+  }
+
+  if (ears.length > 0) {
+    const clean = ears.length === 1 && ears[0] === '깨끗함'
+    if (!clean) parts.push(`귀: ${ears.join(', ')}`)
+    else parts.push('귀 상태 양호')
+  }
+
+  if (teethStatus) {
+    parts.push(
+      teethStatus === 'clean'
+        ? '치아 상태 깨끗함'
+        : `치아 관리 필요${teethMemo ? ` (${teethMemo})` : ''}`
+    )
+  }
+
+  if (nailStatus) {
+    parts.push(nailStatus === 'good' ? '발톱 적당함' : '발톱 관리 필요')
+  }
+
+  return parts.length > 0 ? parts.join('\n') : ''
+}
+
+/** 서비스 + 신체 상태로 케어 팁 자동 생성 */
+function generateCareTips({
+  mainService,
+  spaLevel,
+  skin,
+  tangles,
+  teethStatus,
+  nailStatus,
+}: {
+  mainService: string
+  spaLevel: SpaLevel
+  skin: string[]
+  tangles: string[]
+  teethStatus: TeethStatus
+  nailStatus: NailStatus
+}): string[] {
+  const tips: string[] = []
+
+  // 서비스 기반 팁
+  if (mainService === '전체미용') {
+    tips.push('미용 후 2~3일은 빗질을 부드럽게 해주세요.')
+  }
+  if (mainService === '목욕관리') {
+    tips.push('목욕 후 완전 건조가 중요합니다. 습한 상태로 방치하지 마세요.')
+  }
+
+  // 스파 팁
+  if (spaLevel) {
+    tips.push('스파 후 24시간은 목욕을 피해주세요. 영양 성분 흡수를 위해 필요합니다.')
+  }
+
+  // 피부 이슈
+  const skinIssues = skin.filter((s) => s !== '좋음')
+  if (skinIssues.includes('건조')) {
+    tips.push('보습 관리를 꾸준히 해주세요. 실내 가습기 사용을 권장합니다.')
+  }
+  if (skinIssues.includes('민감') || skinIssues.includes('붉은반점')) {
+    tips.push('피부가 민감한 상태입니다. 자극이 적은 제품을 사용해주세요.')
+  }
+  if (skinIssues.includes('각질') || skinIssues.includes('기름짐')) {
+    tips.push('주기적인 스킨 케어가 필요합니다. 다음 방문 시 스파를 추천드립니다.')
+  }
+
+  // 엉킴
+  const tangleIssues = tangles.filter((t) => t !== '없음')
+  if (tangleIssues.length > 0) {
+    tips.push(`${tangleIssues.join(', ')} 부위에 엉킴이 있었습니다. 매일 빗질을 해주시면 좋겠습니다.`)
+  }
+
+  // 치아
+  if (teethStatus === 'needs_care') {
+    tips.push('치석이 쌓이고 있습니다. 주 2~3회 양치를 권장합니다.')
+  }
+
+  // 발톱
+  if (nailStatus === 'needs_care') {
+    tips.push('발톱이 길었습니다. 2주마다 체크해주세요.')
+  }
+
+  if (tips.length === 0) {
+    tips.push('전반적으로 컨디션이 좋습니다. 다음 정기 방문을 추천드립니다.')
+  }
+
+  return tips
 }
 
 // ─────────────────────────────────────────────
@@ -261,6 +408,63 @@ function NoteCard({
 }
 
 // ─────────────────────────────────────────────
+// 사진 업로드 미리보기
+// ─────────────────────────────────────────────
+function PhotoUploadSection({
+  photos,
+  onAdd,
+  onRemove,
+}: {
+  photos: { id: string; file: File; preview: string }[]
+  onAdd: (files: FileList) => void
+  onRemove: (id: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-3">
+        {photos.map((p) => (
+          <div key={p.id} className="group relative h-24 w-24 overflow-hidden rounded-xl border border-stone-200">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.preview} alt="" className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onRemove(p.id)}
+              className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex h-24 w-24 flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-200 text-stone-400 transition-colors hover:border-amber-400 hover:text-amber-500"
+        >
+          <span className="text-2xl leading-none">+</span>
+          <span className="mt-1 text-[10px] font-semibold">사진 추가</span>
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            onAdd(e.target.files)
+            e.target.value = ''
+          }
+        }}
+      />
+      <p className="text-xs text-stone-400">최대 5장까지 업로드할 수 있습니다.</p>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
 // 저장 완료 모달
 // ─────────────────────────────────────────────
 function CompleteModal({
@@ -346,7 +550,7 @@ function CompleteModal({
 }
 
 // ─────────────────────────────────────────────
-// 메인 래퍼
+// 메인 래퍼 (Suspense for useSearchParams)
 // ─────────────────────────────────────────────
 export default function AdminNewRecordPageWrapper() {
   return (
@@ -413,10 +617,67 @@ function SessionForm() {
   const [comment, setComment] = useState('')
   const [error, setError] = useState('')
 
+  // ─── 다음 방문 ───
+  const [nextVisitOption, setNextVisitOption] = useState('')
+  const [nextVisitDate, setNextVisitDate] = useState('')
+  const [nextVisitCustom, setNextVisitCustom] = useState('')
+
+  // ─── 사진 업로드 ───
+  const [photos, setPhotos] = useState<{ id: string; file: File; preview: string }[]>([])
+
+  const handleAddPhotos = useCallback((files: FileList) => {
+    const newPhotos = Array.from(files).slice(0, 5).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      preview: URL.createObjectURL(file),
+    }))
+    setPhotos((prev) => [...prev, ...newPhotos].slice(0, 5))
+  }, [])
+
+  const handleRemovePhoto = useCallback((id: string) => {
+    setPhotos((prev) => {
+      const removed = prev.find((p) => p.id === id)
+      if (removed) URL.revokeObjectURL(removed.preview)
+      return prev.filter((p) => p.id !== id)
+    })
+  }, [])
+
   // ─── 저장 완료 모달 ───
   const [showModal, setShowModal] = useState(false)
   const [savedShareUrl, setSavedShareUrl] = useState('')
   const [savedPetId, setSavedPetId] = useState('')
+
+  // ─── 건강 요약 미리보기 ───
+  const healthPreview = generateHealthSummary({
+    skin,
+    skinMemo,
+    tangles,
+    eyes,
+    ears,
+    teethStatus,
+    teethMemo,
+    nailStatus,
+    weight,
+  })
+
+  // ─── 케어 팁 미리보기 ───
+  const careTips = generateCareTips({
+    mainService,
+    spaLevel,
+    skin,
+    tangles,
+    teethStatus,
+    nailStatus,
+  })
+
+  // ─── 다음 방문 옵션 선택 → 날짜 자동 계산 ───
+  useEffect(() => {
+    if (!nextVisitOption || nextVisitOption === 'custom') return
+    const opt = NEXT_VISIT_OPTIONS.find((o) => o.value === nextVisitOption)
+    if (opt) {
+      setNextVisitDate(addDays(sessionDate, opt.days))
+    }
+  }, [nextVisitOption, sessionDate])
 
   // ─── 초기 데이터 로드 ───
   useEffect(() => {
@@ -448,10 +709,14 @@ function SessionForm() {
     }
   }, [guardianId, pets, guardians, petId])
 
-  // ─── 반려견 선택 → 이름 자동완성 ───
+  // ─── 반려견 선택 → 이름 자동완성 (수동 오버라이드 허용) ───
+  const petAutoFilled = useRef(false)
   useEffect(() => {
     const p = pets.find((p) => p.id === petId)
-    if (p) setPetName(p.name ?? '')
+    if (p) {
+      setPetName(p.name ?? '')
+      petAutoFilled.current = true
+    }
   }, [petId, pets])
 
   // ─── 저장 ───
@@ -494,8 +759,17 @@ function SessionForm() {
         const allNotes = [...pinnedNotes, ...regularNotes].filter((n) => n.trim())
         const specialStr = allNotes.length > 0 ? allNotes.join('\n') : null
 
-        // 다음 방문 추천 (메모에서 추출)
-        const nextRecommendation = notes.find((n) => n.category === '다음 추천')?.content || null
+        // 다음 방문 추천
+        const nextRecommendation =
+          nextVisitDate
+            ? `${nextVisitOption === 'custom' ? nextVisitCustom || '직접 지정' : nextVisitOption} 후 (${nextVisitDate})`
+            : notes.find((n) => n.category === '다음 추천')?.content || null
+
+        // 건강 요약 → note 필드에 저장 (healthPreview + comment 합산)
+        const noteField = [healthPreview, comment].filter(Boolean).join('\n\n---\n\n') || null
+
+        // 케어 팁 → next_care_guide 필드에 저장
+        const careTipsStr = careTips.length > 0 ? careTips.join('\n') : null
 
         const payload: Record<string, unknown> = {
           guardian_id: guardianId || null,
@@ -515,9 +789,25 @@ function SessionForm() {
           care_summary: styleNotes || null,
           care_actions: products || null,
           care_notes: null,
-          next_care_guide: null,
-          note: comment || null,
+          next_care_guide: careTipsStr,
+          note: noteField,
         }
+
+        // TODO: 사진 업로드 (supabase.storage)
+        // if (photos.length > 0) {
+        //   const photoUrls: string[] = []
+        //   for (const photo of photos) {
+        //     const path = `visit-photos/${petId}/${sessionDate}/${photo.id}.jpg`
+        //     const { error: uploadError } = await supabase.storage
+        //       .from('photos')
+        //       .upload(path, photo.file, { contentType: photo.file.type })
+        //     if (!uploadError) {
+        //       const { data: urlData } = supabase.storage.from('photos').getPublicUrl(path)
+        //       photoUrls.push(urlData.publicUrl)
+        //     }
+        //   }
+        //   if (photoUrls.length > 0) payload.photo_urls = photoUrls
+        // }
 
         const { data: insertedRows, error: insertError } = await supabase
           .from('visit_records')
@@ -613,7 +903,7 @@ function SessionForm() {
 
       <div className="flex-1 overflow-y-auto pb-52">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-5">
-          {/* ① 보호자 + 반려견 선택 (DB) */}
+          {/* ① 고객 선택 (DB) */}
           <Card>
             <SectionHeader title="고객 선택" sub="기존 등록된 보호자/반려견에서 선택" />
             <div className="flex flex-col gap-4 px-5 py-4">
@@ -637,6 +927,18 @@ function SessionForm() {
                   ))}
                 </select>
               </Field>
+              {/* 반려견 이름 (자동완성, 수동 오버라이드 가능) */}
+              {petId && (
+                <Field label="반려견 이름 (수정 가능)">
+                  <input
+                    type="text"
+                    value={petName}
+                    onChange={(e) => setPetName(e.target.value)}
+                    placeholder="반려견 이름"
+                    className={inputCls}
+                  />
+                </Field>
+              )}
             </div>
           </Card>
 
@@ -882,7 +1184,28 @@ function SessionForm() {
             </div>
           </Card>
 
-          {/* ⑤ 케어 메모 */}
+          {/* ④-b 건강 요약 미리보기 */}
+          {healthPreview && (
+            <Card>
+              <SectionHeader title="건강 요약 미리보기" sub="신체 상태 데이터에서 자동 생성됩니다" />
+              <div className="px-5 py-4">
+                <div className="whitespace-pre-wrap rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-800">
+                  {healthPreview}
+                </div>
+                <p className="mt-2 text-xs text-stone-400">* 이 내용은 기록의 note 필드에 자동 저장됩니다.</p>
+              </div>
+            </Card>
+          )}
+
+          {/* ⑤ 사진 업로드 */}
+          <Card>
+            <SectionHeader title="사진 기록" sub="미용 전/후 사진을 남겨주세요" />
+            <div className="px-5 py-4">
+              <PhotoUploadSection photos={photos} onAdd={handleAddPhotos} onRemove={handleRemovePhoto} />
+            </div>
+          </Card>
+
+          {/* ⑥ 케어 메모 */}
           <Card>
             <SectionHeader title="케어 메모" sub="특이사항, 다음 추천, 추적 관찰" />
             <div className="flex flex-col gap-3 px-5 py-4">
@@ -900,7 +1223,88 @@ function SessionForm() {
             </div>
           </Card>
 
-          {/* ⑥ 보호자 전달 메시지 */}
+          {/* ⑦ 다음 방문 추천 */}
+          <Card>
+            <SectionHeader title="다음 방문" sub="다음 방문 시기를 선택해주세요" />
+            <div className="flex flex-col gap-4 px-5 py-4">
+              <div className="flex flex-wrap gap-2">
+                {NEXT_VISIT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setNextVisitOption(opt.value)
+                      setNextVisitDate(addDays(sessionDate, opt.days))
+                    }}
+                    className={`rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-all ${
+                      nextVisitOption === opt.value
+                        ? 'border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-200'
+                        : 'border-stone-200 text-stone-500 hover:border-amber-300 hover:text-amber-600'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNextVisitOption('custom')
+                    setNextVisitDate('')
+                  }}
+                  className={`rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-all ${
+                    nextVisitOption === 'custom'
+                      ? 'border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-200'
+                      : 'border-stone-200 text-stone-500 hover:border-amber-300 hover:text-amber-600'
+                  }`}
+                >
+                  직접 선택
+                </button>
+              </div>
+              {nextVisitOption === 'custom' && (
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="date"
+                    value={nextVisitDate}
+                    onChange={(e) => setNextVisitDate(e.target.value)}
+                    min={sessionDate}
+                    className={inputCls}
+                  />
+                  <input
+                    type="text"
+                    value={nextVisitCustom}
+                    onChange={(e) => setNextVisitCustom(e.target.value)}
+                    placeholder="메모 (예: 6주 후 전체미용)"
+                    className={inputCls}
+                  />
+                </div>
+              )}
+              {nextVisitDate && nextVisitOption !== 'custom' && (
+                <p className="text-sm text-stone-500">
+                  다음 방문 예정일: <span className="font-bold text-amber-600">{nextVisitDate}</span>
+                </p>
+              )}
+            </div>
+          </Card>
+
+          {/* ⑧ 케어 팁 미리보기 */}
+          {careTips.length > 0 && (
+            <Card>
+              <SectionHeader title="케어 팁 미리보기" sub="서비스 + 신체 상태에서 자동 생성됩니다" />
+              <div className="px-5 py-4">
+                <ul className="flex flex-col gap-2">
+                  {careTips.map((tip, i) => (
+                    <li key={i} className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
+                      <span className="mt-0.5 shrink-0 text-blue-400">💡</span>
+                      <span>{tip}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-stone-400">* 이 팁들은 next_care_guide 필드에 자동 저장됩니다.</p>
+              </div>
+            </Card>
+          )}
+
+          {/* ⑨ 보호자 전달 메시지 */}
           <Card>
             <SectionHeader title="보호자 전달 메시지" sub="카카오톡 리포트에 표시됩니다" />
             <div className="flex flex-col gap-3 px-5 py-4">
@@ -936,6 +1340,8 @@ function SessionForm() {
             )}
             {weight && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-500">{weight}kg</span>}
             {addServices.length > 0 && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-500">+{addServices.length}</span>}
+            {nextVisitDate && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">다음: {nextVisitDate}</span>}
+            {photos.length > 0 && <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">📷 {photos.length}</span>}
           </div>
           {error && (
             <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5">
