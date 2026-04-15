@@ -5,7 +5,7 @@ import SidebarNav from '@/components/admin/SidebarNav'
 import { getVisibleNavItems } from '@/lib/navigation'
 
 // 모바일 네비용 (서버 컴포넌트에서 렌더링)
-const MOBILE_NAV = getVisibleNavItems().filter((item) => item.id !== 'settings')
+const MOBILE_NAV = getVisibleNavItems()
 
 export default function AdminLayout({
   children,
