@@ -1,17 +1,9 @@
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import GlobalSearch from '@/components/admin/GlobalSearch'
+import { getVisibleNavItems } from '@/lib/navigation'
 
-const NAV_ITEMS = [
-  { href: '/admin', label: '대시보드' },
-  { href: '/admin/customers/new', label: '신규 고객' },
-  { href: '/admin/pets', label: '반려견' },
-  { href: '/admin/guardians', label: '보호자' },
-  { href: '/admin/records', label: '방문 기록' },
-  { href: '/admin/products', label: '제품' },
-  { href: '/admin/followups', label: '후속 관리' },
-  { href: '/admin/settings', label: '설정' },
-]
+const NAV_ITEMS = getVisibleNavItems()
 
 export default function AdminLayout({
   children,
