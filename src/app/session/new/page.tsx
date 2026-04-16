@@ -1322,10 +1322,10 @@ function SessionForm() {
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   {([
-                    { key: 'face' as const, label: '얼굴', ph: '예) 9mm' },
-                    { key: 'body' as const, label: '몸', ph: '예) 7mm' },
-                    { key: 'legs' as const, label: '다리', ph: '예) 귀툭튀' },
-                    { key: 'tail' as const, label: '꼬리', ph: '예) 귀툭튀' },
+                    { key: 'face' as const, label: '얼굴', ph: '9mm, 곰돌이컷' },
+                    { key: 'body' as const, label: '몸', ph: '7mm, 풀컷' },
+                    { key: 'legs' as const, label: '다리', ph: '자연스럽게' },
+                    { key: 'tail' as const, label: '꼬리', ph: '' },
                   ]).map((item) => (
                     <div key={item.key}>
                       <label className="mb-1.5 block text-[11px] font-light uppercase tracking-[0.1em] text-[#6B6B6B]">{item.label}</label>
@@ -1349,7 +1349,7 @@ function SessionForm() {
                     type="text"
                     value={groomingStyle.sanitary}
                     onChange={(e) => setGS('sanitary', e.target.value)}
-                    placeholder="예) 클리핑"
+                    placeholder="클리핑, 가위컷"
                     className="w-full bg-transparent px-0 py-2 text-sm outline-none transition-all duration-300"
                     style={{
                       borderBottom: `1px solid ${groomingPrefilled && groomingStyle.sanitary ? '#C9A96E' : '#D0D0D0'}`,
