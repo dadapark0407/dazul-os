@@ -686,17 +686,15 @@ function SessionForm() {
   const teethMemo = Object.entries(teethMemos).filter(([, v]) => v).map(([k, v]) => `${k}(${v})`).join(', ')
   const nailStatus: NailStatus = nails.length === 0 ? null : nails.includes('적당함') && nails.length === 1 ? 'good' : 'needs_care'
 
-  // ─── 메모 ───
-  const [notes, setNotes] = useState<NoteEntry[]>([])
-  const addNote = () =>
-    setNotes((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), category: '케어', severity: '일반', content: '', isPinned: false, followUpNeeded: false, followUpDate: '' },
-    ])
-  const updateNote = (id: string, patch: Partial<NoteEntry>) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)))
-  const removeNote = (id: string) => setNotes((prev) => prev.filter((n) => n.id !== id))
-
-  const [comment, setComment] = useState('')
+  // ─── 메모 (단순화) ───
+  const [internalMemo, setInternalMemo] = useState('')  // 내부 메모 → special_notes
+  const [comment, setComment] = useState('')             // 보호자 전달 → comment
+  const [needsFollowUp, setNeedsFollowUp] = useState(false)
+  const [followUpDate, setFollowUpDate] = useState('')
+  // 하위 호환: notes 배열은 팔로업 생성에만 사용
+  const notes: NoteEntry[] = internalMemo.trim()
+    ? [{ id: 'internal', category: '케어', severity: '일반', content: internalMemo, isPinned: false, followUpNeeded: needsFollowUp, followUpDate }]
+    : []
   const [error, setError] = useState('')
 
   // ─── 다음 방문 ───
@@ -867,16 +865,13 @@ function SessionForm() {
           .join(' / ') || null
 
         // 메모 합치기
-        const pinnedNotes = notes.filter((n) => n.isPinned).map((n) => `[📌 ${n.category}] ${n.content}`)
-        const regularNotes = notes.filter((n) => !n.isPinned).map((n) => `[${n.category}] ${n.content}`)
-        const allNotes = [...pinnedNotes, ...regularNotes].filter((n) => n.trim())
-        const specialStr = allNotes.length > 0 ? allNotes.join('\n') : null
+        const specialStr = internalMemo.trim() || null
 
         // 다음 방문 추천
         const nextRecommendation =
           nextVisitDate
             ? `${nextVisitOption === 'custom' ? nextVisitCustom || '직접 지정' : nextVisitOption} 후 (${nextVisitDate})`
-            : notes.find((n) => n.category === '다음 추천')?.content || null
+            : null
 
         // 건강 요약 → note 필드에 저장 (healthPreview + comment 합산)
         const noteField = [healthPreview, comment].filter(Boolean).join('\n\n---\n\n') || null
@@ -1325,21 +1320,83 @@ function SessionForm() {
             </div>
           </Card>
 
-          {/* ⑥ 케어 메모 */}
+          {/* ⑥ 메모 */}
           <Card>
-            <SectionHeader title="케어 메모" sub="특이사항, 다음 추천, 추적 관찰" />
-            <div className="flex flex-col gap-3">
-              {notes.length === 0 && <p className="py-3 text-center text-sm text-stone-400">메모가 없습니다</p>}
-              {notes.map((note) => (
-                <NoteCard key={note.id} note={note} onChange={(patch) => updateNote(note.id, patch)} onRemove={() => removeNote(note.id)} />
-              ))}
-              <button
-                type="button"
-                onClick={addNote}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-stone-200 py-4 text-sm font-semibold text-stone-400 transition-all hover:border-amber-400 hover:bg-amber-50 hover:text-amber-600"
-              >
-                <span className="text-lg leading-none">+</span> 메모 추가
-              </button>
+            {/* 내부 메모 (비공개) */}
+            <div style={{ background: '#FAFAFA' }}>
+              <div className="flex items-center gap-2 px-5 pt-5 pb-2">
+                <span className="text-base">🔒</span>
+                <div>
+                  <p className="text-[11px] font-light uppercase tracking-[0.15em] text-[#6B6B6B]">내부 메모</p>
+                  <p className="text-[10px] text-[#6B6B6B]">보호자에게 공개되지 않습니다</p>
+                </div>
+              </div>
+              <div className="px-5 pb-4">
+                <textarea
+                  value={internalMemo}
+                  onChange={(e) => setInternalMemo(e.target.value)}
+                  rows={4}
+                  placeholder="미용 스타일, 특이사항, 내부 참고사항 등"
+                  className="w-full resize-none border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
+                />
+                {/* 추적 관찰 */}
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNeedsFollowUp((p) => !p)}
+                    className="flex items-center gap-2"
+                  >
+                    <span
+                      className="flex h-[18px] w-[18px] shrink-0 items-center justify-center border-2 transition-all"
+                      style={{
+                        borderColor: needsFollowUp ? '#0A0A0A' : '#D0D0D0',
+                        background: needsFollowUp ? '#0A0A0A' : 'transparent',
+                      }}
+                    >
+                      {needsFollowUp && (
+                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                          <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="text-xs text-[#6B6B6B]">추적 관찰 필요</span>
+                  </button>
+                  {needsFollowUp && (
+                    <input
+                      type="date"
+                      value={followUpDate}
+                      onChange={(e) => setFollowUpDate(e.target.value)}
+                      className="border-b border-[#D0D0D0] bg-transparent px-0 py-1 text-xs text-[#0A0A0A] outline-none focus:border-[#0A0A0A]"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 구분선 */}
+            <div style={{ borderTop: '1px solid #E8E8E8' }} />
+
+            {/* 보호자 전달 (공개) */}
+            <div style={{ borderLeft: '2px solid #C9A96E' }}>
+              <div className="flex items-center gap-2 px-5 pt-5 pb-2">
+                <span className="text-base">🤍</span>
+                <div>
+                  <p className="text-[11px] font-light uppercase tracking-[0.15em]" style={{ color: '#C9A96E' }}>보호자 전달</p>
+                  <p className="text-[10px]" style={{ color: '#C9A96E' }}>리포트에 공개됩니다</p>
+                </div>
+              </div>
+              <div className="px-5 pb-5">
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows={4}
+                  placeholder="보호자에게 전달할 내용을 입력하세요"
+                  className="w-full resize-none border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#C9A96E]"
+                />
+                <p className="mt-2 text-right text-[10px] tracking-wide text-[#D0D0D0]">
+                  소중한 가족을 믿고 맡겨주셔서 감사드리며, 앞으로도 최선을 다하겠습니다. — 살롱다즐
+                </p>
+              </div>
             </div>
           </Card>
 
@@ -1424,24 +1481,7 @@ function SessionForm() {
             </Card>
           )}
 
-          {/* ⑨ 보호자 전달 메시지 */}
-          <Card>
-            <SectionHeader title="보호자 전달 메시지" sub="카카오톡 리포트에 표시됩니다" />
-            <div className="flex flex-col gap-3">
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={5}
-                placeholder={`예) 오늘 미모 리즈 갱신한 ○○이 ♡\n낭이 많이 풀려있는데 ○○이가 해맑게 잘 버텼어요 🙂\n다음엔 귀 청소 같이 해드리면 좋을 것 같아요!`}
-                className="w-full resize-none rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-base leading-relaxed text-stone-800 placeholder:text-stone-300 outline-none transition-colors focus:bg-white focus:ring-2 focus:ring-amber-300"
-              />
-              <p className="text-right text-xs leading-relaxed text-stone-400">
-                소중한 가족을 믿고 맡겨주셔서 감사드리며,
-                <br />
-                앞으로도 최선을 다하겠습니다. — 살롱다즐
-              </p>
-            </div>
-          </Card>
+          {/* (보호자 전달 메시지는 ⑥ 메모 섹션에 통합됨) */}
         </div>
 
       {/* 저장 */}
