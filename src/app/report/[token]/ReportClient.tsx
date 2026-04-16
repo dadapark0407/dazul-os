@@ -291,7 +291,7 @@ export default function ReportClient({
           {latest && <AdminMenu recordId={latest.id} />}
         </div>
 
-        <div className="mx-auto max-w-[480px] px-4 pt-20 pb-14 text-center">
+        <div className="mx-auto max-w-[480px] px-4 pt-32 pb-14 text-center">
           {/* 로고 */}
           <p style={{ fontSize: 11, letterSpacing: '0.25em', fontWeight: 300, color: C.sub }}>
             SALON DE DAZUL
