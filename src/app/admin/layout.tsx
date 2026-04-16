@@ -9,16 +9,20 @@ export default function AdminLayout({
 }) {
   return (
     <div className="min-h-screen" style={{ background: '#FFFFFF' }}>
-      {/* ─── 상단 네비바 ─── */}
-      <header className="sticky top-0 z-30" style={{ background: '#FFFFFF', borderBottom: '1px solid #E8E8E8' }}>
-        {/* 1단: 로고 + 유틸 */}
-        <div className="mx-auto flex items-center justify-between px-4 sm:px-6" style={{ height: 56 }}>
+      {/* ─── 상단 네비바 (한 줄) ─── */}
+      <header
+        className="sticky top-0 z-30"
+        style={{ background: '#FFFFFF', borderBottom: '1px solid #E8E8E8' }}
+      >
+        <div className="flex items-center px-4 sm:px-6" style={{ height: 52 }}>
+          {/* 로고 */}
           <Link
             href="/admin"
+            className="mr-6 shrink-0 sm:mr-8"
             style={{
-              fontSize: 12,
-              letterSpacing: '0.25em',
-              fontWeight: 300,
+              fontSize: 15,
+              letterSpacing: '0.35em',
+              fontWeight: 600,
               color: '#0A0A0A',
               textDecoration: 'none',
             }}
@@ -26,26 +30,16 @@ export default function AdminLayout({
             DAZUL
           </Link>
 
-          <div className="flex items-center gap-4">
-            <Link
-              href="/admin/settings"
-              className="hidden md:inline-block"
-              style={{
-                fontSize: 11,
-                letterSpacing: '0.1em',
-                fontWeight: 300,
-                color: '#6B6B6B',
-                textDecoration: 'none',
-              }}
-            >
-              설정
-            </Link>
+          {/* 네비 (가로 스크롤) */}
+          <div className="flex-1 overflow-x-auto">
+            <TopNav />
+          </div>
+
+          {/* 로그아웃 */}
+          <div className="ml-4 shrink-0">
             <LogoutButton />
           </div>
         </div>
-
-        {/* 2단: 데스크탑 메뉴 */}
-        <TopNav />
       </header>
 
       {/* ─── 콘텐츠 ─── */}
