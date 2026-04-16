@@ -285,9 +285,9 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
 
       {/* 미용 스타일 */}
       {hasGroomingStyle && (
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
-          <h2 className="mb-4 text-lg font-bold text-neutral-900">미용 스타일</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <section style={{ border: '1px solid #E8E8E8', padding: 24, background: '#FFFFFF' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', fontWeight: 300, color: '#888', textTransform: 'uppercase' as const, marginBottom: 16 }}>GROOMING STYLE</p>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
             {[
               { label: '얼굴', value: groomingStyle.face },
               { label: '몸', value: groomingStyle.body },
@@ -295,59 +295,59 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
               { label: '꼬리', value: groomingStyle.tail },
               { label: '위생', value: groomingStyle.sanitary },
             ].map((item) => (
-              <div key={item.label} className="rounded-xl bg-neutral-50 p-4">
-                <p className="text-xs font-medium text-neutral-500">{item.label}</p>
-                <p className="mt-1 text-sm font-medium text-neutral-800">
-                  {item.value?.trim() || '—'}
-                </p>
+              <div key={item.label}>
+                <p style={{ fontSize: 11, color: '#888', letterSpacing: '0.1em' }}>{item.label}</p>
+                <p style={{ fontSize: 14, color: '#0A0A0A', marginTop: 4 }}>{item.value?.trim() || '—'}</p>
               </div>
             ))}
           </div>
         </section>
       )}
 
-      {/* 건강 상태 (6칸) */}
-      {hasHealthData && (
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
-          <h2 className="mb-4 text-lg font-bold text-neutral-900">건강 상태</h2>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-            {healthItems.map((item) => {
-              const hasIssue = item.value && !['좋음', '깨끗함', '없음', '적당함', '양호'].some((g) => item.value!.includes(g))
-              return (
-                <div
-                  key={item.label}
-                  className="rounded-xl p-4 text-center"
-                  style={{
-                    border: hasIssue ? '1px solid #C9A96E' : '1px solid #E8E8E8',
-                    background: hasIssue ? '#FFFDF7' : '#FAFAFA',
-                  }}
-                >
-                  <p className="text-xs font-medium" style={{ color: hasIssue ? '#C9A96E' : '#888' }}>
-                    {item.label}
-                  </p>
-                  <p className="mt-1 text-sm font-medium" style={{ color: hasIssue ? '#C9A96E' : '#888' }}>
-                    {item.value ? (hasIssue ? '⚠' : '✓') : '✓'}
-                  </p>
-                  {hasIssue && item.value && (
-                    <p className="mt-1 text-[10px]" style={{ color: '#C9A96E' }}>{item.value}</p>
-                  )}
-                </div>
-              )
-            })}
+      {/* 신체 상태 */}
+      {(skinStatus || coatStatus || conditionStatus) && (
+        <section style={{ border: '1px solid #E8E8E8', padding: 24, background: '#FFFFFF' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', fontWeight: 300, color: '#888', textTransform: 'uppercase' as const, marginBottom: 16 }}>BODY CHECK</p>
+          <div className="space-y-3">
+            {[
+              { label: '피부', value: skinStatus },
+              { label: '엉킴', value: coatStatus },
+              { label: '눈', value: cond.eyes },
+              { label: '귀', value: cond.ears },
+              { label: '치아', value: cond.teeth },
+              { label: '발톱', value: cond.nail },
+            ].filter((item) => item.value).map((item) => (
+              <div key={item.label} className="flex items-start gap-4" style={{ borderBottom: '1px solid #E8E8E8', paddingBottom: 12 }}>
+                <span style={{ width: 40, fontSize: 11, color: '#888', letterSpacing: '0.08em', flexShrink: 0 }}>{item.label}</span>
+                <span style={{ fontSize: 13, color: '#C9A96E', fontWeight: 500 }}>{item.value}</span>
+              </div>
+            ))}
           </div>
         </section>
       )}
 
-      {/* 케어 기록 */}
-      {(careSummary || careActions || careNotes || nextCareGuide) && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-neutral-900">케어 기록</h2>
-          <div className="grid gap-3 lg:grid-cols-2">
-            <DetailField label="오늘 케어 요약" value={careSummary} multiline />
-            <DetailField label="진행한 케어 내용" value={careActions} multiline />
-            <DetailField label="문제 → 조치" value={careNotes} multiline />
-            <DetailField label="다음 케어 가이드" value={nextCareGuide} multiline />
-          </div>
+      {/* 사용 제품 + 케어 가이드 */}
+      {(careActions || nextCareGuide) && (
+        <section style={{ border: '1px solid #E8E8E8', padding: 24, background: '#FFFFFF' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', fontWeight: 300, color: '#888', textTransform: 'uppercase' as const, marginBottom: 16 }}>CARE DETAILS</p>
+          {careActions && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>사용 제품</p>
+              <p style={{ fontSize: 13, color: '#0A0A0A', lineHeight: 1.6 }}>{careActions}</p>
+            </div>
+          )}
+          {nextCareGuide && (
+            <div>
+              <p style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>홈케어 가이드</p>
+              <div className="space-y-2">
+                {nextCareGuide.split('\n').filter(Boolean).map((tip, i) => (
+                  <div key={i} style={{ borderLeft: '2px solid #C9A96E', paddingLeft: 12 }}>
+                    <p style={{ fontSize: 12, color: '#0A0A0A', lineHeight: 1.6 }}>{tip}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
