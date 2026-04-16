@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { CopyLinkButton, AdminMenu } from '@/components/report/ReportActions'
+import { AdminMenu } from '@/components/report/ReportActions'
 
 // ─── 다국어 ───
-type Lang = 'ko' | 'en' | 'jp'
+type Lang = 'ko' | 'en' | 'ja'
 
 const T: Record<Lang, Record<string, string>> = {
   ko: {
@@ -26,7 +26,7 @@ const T: Record<Lang, Record<string, string>> = {
     kakao: 'Book via KakaoTalk', call: 'Call to Book',
     all: 'All',
   },
-  jp: {
+  ja: {
     good: '良好', attention: '注意',
     bath: 'バス＆ケア', fullGrooming: 'フルグルーミング',
     basic: 'ベーシック', essential: 'エッセンシャル', signature: 'シグネチャー', prestige: 'プレステージ',
@@ -41,7 +41,7 @@ function useLang(): [Lang, (l: Lang) => void] {
   const searchParams = useSearchParams()
   const router = useRouter()
   const raw = searchParams.get('lang')
-  const lang: Lang = raw === 'en' || raw === 'jp' ? raw : 'ko'
+  const lang: Lang = raw === 'en' || raw === 'ja' ? raw : 'ko'
 
   function setLang(l: Lang) {
     const url = new URL(window.location.href)
@@ -344,7 +344,7 @@ export default function ReportClient({
       <header style={{ background: C.cream, position: 'relative', borderBottom: `1px solid ${C.gold}` }}>
         <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* 언어 전환 */}
-          {(['KO', 'EN', 'JP'] as const).map((l) => {
+          {(['KO', 'EN', 'JA'] as const).map((l) => {
             const key = l.toLowerCase() as Lang
             const active = lang === key
             return (
@@ -443,32 +443,11 @@ export default function ReportClient({
           />
         ))}
 
-        {/* CTA */}
-        <div style={{ marginTop: 48, padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <CopyLinkButton />
-          <div className="flex gap-2">
-            <a href="#" style={{
-              flex: 1, display: 'block', background: '#FAE300', color: '#3B1E08',
-              fontSize: 10, letterSpacing: '0.12em', fontWeight: 400, padding: '14px 0',
-              textDecoration: 'none', textAlign: 'center',
-            }}>
-              {t.kakao}
-            </a>
-            <a href="#" style={{
-              flex: 1, display: 'block', background: C.text, color: '#FFFFFF',
-              fontSize: 10, letterSpacing: '0.12em', fontWeight: 400, padding: '14px 0',
-              textDecoration: 'none', textAlign: 'center',
-            }}>
-              {t.call}
-            </a>
-          </div>
-        </div>
       </main>
 
       {/* ═══ 푸터 ═══ */}
-      <footer style={{ padding: '56px 0 0', textAlign: 'center' }}>
-        <div className="mx-auto" style={{ width: 24, height: 0.5, background: C.gold, marginBottom: 20 }} />
-        <p style={{ fontSize: 9, letterSpacing: '0.3em', color: C.sub, fontWeight: 300 }}>
+      <footer style={{ padding: '48px 0', textAlign: 'center' }}>
+        <p style={{ fontSize: 10, letterSpacing: '0.3em', fontWeight: 300, color: C.gold }}>
           SALON DE DAZUL
         </p>
       </footer>
