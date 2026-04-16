@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { buildSiteUrl } from '@/lib/siteUrl'
 import ReportDraftButton from '@/components/ReportDraftButton'
+import DeleteRecordButton from '@/components/admin/DeleteRecordButton'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -188,17 +189,12 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
-            href={`/admin/records/${id}/edit`}
-            className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            href={`/session/edit/${id}`}
+            style={{ border: '1px solid #0A0A0A', background: '#FFFFFF', color: '#0A0A0A', fontSize: 12, letterSpacing: '0.08em', padding: '8px 16px', textDecoration: 'none' }}
           >
-            수정하기
+            수정
           </Link>
-          <Link
-            href={`/record/${id}/edit`}
-            className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            기존 수정 페이지
-          </Link>
+          <DeleteRecordButton recordId={id} />
         </div>
       </div>
 
