@@ -120,6 +120,49 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
   const careNotes = str(record, 'care_notes')
   const nextCareGuide = str(record, 'next_care_guide')
 
+  // 새 컬럼들
+  const spaLevel = str(record, 'spa_level')
+  const nextVisitDate = str(record, 'next_visit_date')
+  const comment = str(record, 'comment')
+
+  // grooming_style JSON 파싱
+  const rawGS = record.grooming_style
+  const groomingStyle: Record<string, string> =
+    rawGS && typeof rawGS === 'object' && !Array.isArray(rawGS)
+      ? (rawGS as Record<string, string>)
+      : {}
+  const hasGroomingStyle = Object.values(groomingStyle).some((v) => v?.trim())
+
+  // spa_level 한글 변환
+  const SPA_LABEL: Record<string, string> = {
+    basic: '베이직', premium: '에센셜', essential: '에센셜',
+    deep: '시그니처', signature: '시그니처', prestige: '프레스티지',
+  }
+  const spaLabel = spaLevel ? SPA_LABEL[spaLevel] ?? spaLevel : null
+
+  // condition_status 파싱 → 눈/귀/치아/발톱 분리
+  function parseCond(s: string | null): Record<string, string | null> {
+    const r: Record<string, string | null> = { eyes: null, ears: null, teeth: null, nail: null }
+    if (!s) return r
+    for (const p of s.split('/').map((x) => x.trim())) {
+      if (p.startsWith('눈:')) r.eyes = p.slice(2).trim()
+      else if (p.startsWith('귀:')) r.ears = p.slice(2).trim()
+      else if (p.startsWith('치아:')) r.teeth = p.slice(3).trim()
+      else if (p.startsWith('발톱:')) r.nail = p.slice(3).trim()
+    }
+    return r
+  }
+  const cond = parseCond(conditionStatus)
+  const healthItems = [
+    { label: '피부', value: skinStatus },
+    { label: '엉킴', value: coatStatus },
+    { label: '눈', value: cond.eyes },
+    { label: '귀', value: cond.ears },
+    { label: '치아', value: cond.teeth },
+    { label: '발톱', value: cond.nail },
+  ]
+  const hasHealthData = healthItems.some((h) => h.value)
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
@@ -134,8 +177,13 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
           <h1 className="mt-1 text-2xl font-bold text-neutral-900">
             방문 기록 상세
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            {formatDate(visitDate)} · {serviceType ?? '서비스 미입력'}
+          <p className="mt-1 flex items-center gap-2 text-sm text-neutral-500">
+            <span>{formatDate(visitDate)} · {serviceType ?? '서비스 미입력'}</span>
+            {spaLabel && (
+              <span className="inline-block px-2 py-0.5 text-xs font-semibold" style={{ color: '#C9A96E', border: '1px solid #C9A96E' }}>
+                ✨ 스파 {spaLabel}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -239,24 +287,57 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
         </section>
       </div>
 
-      {/* 건강/상태 기록 */}
-      {(skinStatus || coatStatus || conditionStatus || stressStatus) && (
+      {/* 미용 스타일 */}
+      {hasGroomingStyle && (
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
-          <h2 className="mb-4 text-lg font-bold text-neutral-900">건강 상태</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <h2 className="mb-4 text-lg font-bold text-neutral-900">미용 스타일</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
-              { label: '피부', value: skinStatus },
-              { label: '모질', value: coatStatus },
-              { label: '컨디션', value: conditionStatus },
-              { label: '스트레스', value: stressStatus },
+              { label: '얼굴', value: groomingStyle.face },
+              { label: '몸', value: groomingStyle.body },
+              { label: '다리', value: groomingStyle.legs },
+              { label: '꼬리', value: groomingStyle.tail },
+              { label: '위생', value: groomingStyle.sanitary },
             ].map((item) => (
               <div key={item.label} className="rounded-xl bg-neutral-50 p-4">
                 <p className="text-xs font-medium text-neutral-500">{item.label}</p>
                 <p className="mt-1 text-sm font-medium text-neutral-800">
-                  {item.value ?? '-'}
+                  {item.value?.trim() || '—'}
                 </p>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* 건강 상태 (6칸) */}
+      {hasHealthData && (
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
+          <h2 className="mb-4 text-lg font-bold text-neutral-900">건강 상태</h2>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {healthItems.map((item) => {
+              const hasIssue = item.value && !['좋음', '깨끗함', '없음', '적당함', '양호'].some((g) => item.value!.includes(g))
+              return (
+                <div
+                  key={item.label}
+                  className="rounded-xl p-4 text-center"
+                  style={{
+                    border: hasIssue ? '1px solid #C9A96E' : '1px solid #E8E8E8',
+                    background: hasIssue ? '#FFFDF7' : '#FAFAFA',
+                  }}
+                >
+                  <p className="text-xs font-medium" style={{ color: hasIssue ? '#C9A96E' : '#888' }}>
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-sm font-medium" style={{ color: hasIssue ? '#C9A96E' : '#888' }}>
+                    {item.value ? (hasIssue ? '⚠' : '✓') : '✓'}
+                  </p>
+                  {hasIssue && item.value && (
+                    <p className="mt-1 text-[10px]" style={{ color: '#C9A96E' }}>{item.value}</p>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </section>
       )}
@@ -274,14 +355,36 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* 추가 기록 */}
-      {(specialNotes || nextVisitRecommendation || note) && (
+      {/* 다음 방문 */}
+      {(nextVisitDate || nextVisitRecommendation) && (
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
+          <h2 className="mb-3 text-lg font-bold text-neutral-900">다음 방문</h2>
+          {nextVisitDate && (
+            <p className="text-lg font-semibold text-neutral-900">{formatDate(nextVisitDate)}</p>
+          )}
+          {nextVisitRecommendation && (
+            <p className="mt-2 text-sm text-neutral-600">{nextVisitRecommendation}</p>
+          )}
+        </section>
+      )}
+
+      {/* 보호자 전달 메시지 (리포트 공개) */}
+      {comment && (
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200" style={{ borderLeft: '3px solid #C9A96E' }}>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#C9A96E' }}>
+            보호자 전달 (리포트 공개)
+          </h2>
+          <p className="whitespace-pre-line text-sm leading-7 text-neutral-800">{comment}</p>
+        </section>
+      )}
+
+      {/* 내부 메모 + 기타 */}
+      {(specialNotes || note) && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold text-neutral-900">추가 기록</h2>
+          <h2 className="text-lg font-bold text-neutral-900">내부 기록</h2>
           <div className="grid gap-3 lg:grid-cols-2">
-            <DetailField label="특이사항" value={specialNotes} multiline />
-            <DetailField label="다음 방문 추천" value={nextVisitRecommendation} multiline />
-            <DetailField label="메모" value={note} multiline />
+            <DetailField label="내부 메모 (비공개)" value={specialNotes} multiline />
+            <DetailField label="건강 요약 / 메모" value={note} multiline />
           </div>
         </section>
       )}
