@@ -49,25 +49,27 @@ const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
 const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
 const NAIL_OPTIONS = ['적당함', '관리필요'] as const
 
-const BASE_PRODUCT_CATEGORIES = ['샴푸', '린스', '기타'] as const
-const ALL_PRODUCT_CATEGORIES = ['샴푸', '린스', '스파', '팩', '기타'] as const
+// 항상 표시되는 카테고리 (DB category 값 기준 매칭)
+const BASE_PRODUCT_CATEGORIES = ['샴푸', '컨디셔너', '피부케어', '피모케어', '기타'] as const
+// 조건부 카테고리
+const SPA_BONUS_CATEGORIES = ['스파', '팩'] as const
+// 전체 (검색 매칭용)
+const ALL_PRODUCT_CATEGORIES = [...BASE_PRODUCT_CATEGORIES, ...SPA_BONUS_CATEGORIES] as const
 
 /** spaLevel에 따라 표시할 제품 카테고리 */
 function getVisibleProductCategories(spa: SpaLevel): string[] {
   const base: string[] = [...BASE_PRODUCT_CATEGORIES]
+  // 기타 앞에 조건부 카테고리 삽입
+  const insertIdx = base.indexOf('기타')
   if (spa === 'premium' || spa === 'prestige') {
-    // 에센셜 또는 프레스티지: 스파 추가
-    base.splice(2, 0, '스파') // 린스 다음에 삽입
+    base.splice(insertIdx, 0, '스파')
   }
   if (spa === 'deep' || spa === 'prestige') {
-    // 시그니처 또는 프레스티지: 팩 추가
     const idx = base.indexOf('기타')
-    base.splice(idx, 0, '팩') // 기타 앞에 삽입
+    base.splice(idx, 0, '팩')
   }
   return base
 }
-
-const SPA_BONUS_CATEGORIES = ['스파', '팩'] as const
 
 // (방문 유형 삭제됨)
 
@@ -636,10 +638,11 @@ function SessionForm() {
   /** 카테고리별 검색 결과 */
   function getProductsForCategory(cat: string): Product[] {
     const q = (productSearches[cat] ?? '').toLowerCase()
+    const knownCats = ALL_PRODUCT_CATEGORIES.filter((c) => c !== '기타')
     return allProducts.filter((p) => {
       const pCat = (p as Record<string, unknown>).category as string | null
       const matchCat = cat === '기타'
-        ? !ALL_PRODUCT_CATEGORIES.slice(0, -1).some((c) => pCat?.includes(c))
+        ? !knownCats.some((c) => pCat?.includes(c))
         : pCat?.includes(cat)
       if (!matchCat) return false
       if (!q) return true
@@ -1230,7 +1233,12 @@ function SessionForm() {
                         transition: 'opacity 0.2s ease',
                       }}>
                         <div className="flex items-center gap-3">
-                          <span className={`w-16 shrink-0 text-xs font-bold ${isBonus ? 'text-[#C9A96E]' : 'text-stone-400'}`}>{cat}</span>
+                          <span className={`flex w-20 shrink-0 items-center gap-1.5 text-xs font-bold ${isBonus ? 'text-[#C9A96E]' : 'text-[#6B6B6B]'}`}>
+                            {cat}
+                            {isBonus && (
+                              <span style={{ background: '#C9A96E', color: '#FFFFFF', fontSize: 10, padding: '1px 5px', fontWeight: 500 }}>추천</span>
+                            )}
+                          </span>
                           <div className="relative flex-1">
                             <input
                               type="text"
