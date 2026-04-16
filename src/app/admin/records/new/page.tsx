@@ -791,6 +791,9 @@ function SessionForm() {
           care_notes: null,
           next_care_guide: careTipsStr,
           note: noteField,
+          spa_level: spaLevel || null,
+          next_visit_date: nextVisitDate || null,
+          comment: comment.trim() || null,
         }
 
         // TODO: 사진 업로드 (supabase.storage)
