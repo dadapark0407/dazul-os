@@ -1,383 +1,359 @@
 import { notFound } from 'next/navigation'
-import { getReportData, type ReportData, type CareTip } from '@/actions/saveVisitRecord'
+import { createClient } from '@supabase/supabase-js'
 
 // =============================================================
 // DAZUL OS — 보호자 리포트 페이지 (서버 컴포넌트)
-// 인라인 스타일만 사용, 외부 CSS 없음
+// guardian.share_token 기반 최신 방문 기록 1건 표시
 // =============================================================
 
 type PageProps = { params: Promise<{ token: string }> }
 
+// ─── Supabase (anon, 서버 사이드) ───
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+}
+
 // ─── 상수 ───
 
-const SERVICE_LABEL: Record<string, string> = { bath: '목욕관리', full_grooming: '전체미용' }
-const SPA_LABEL: Record<string, string> = { basic: '베이직', essential: '에센셜', signature: '시그니처', prestige: '프레스티지' }
-const SPA_COLOR: Record<string, string> = { basic: '#B0BEC5', essential: '#81C784', signature: '#4FC3F7', prestige: '#FFD54F' }
+const SPA_LABEL: Record<string, string> = {
+  basic: '베이직',
+  premium: '에센셜',
+  essential: '에센셜',
+  deep: '시그니처',
+  signature: '시그니처',
+  prestige: '프레스티지',
+}
 
-const HEALTH_LABEL: Record<string, string> = { skin: '피부', tangles: '엉킴', eyes: '눈', ears: '귀', teeth: '치아', nail: '발톱' }
-const HEALTH_ICON: Record<string, string> = { skin: '🐾', tangles: '🌀', eyes: '👁️', ears: '👂', teeth: '🦷', nail: '✂️' }
+const SPA_COLOR: Record<string, string> = {
+  basic: '#B0BEC5',
+  premium: '#81C784',
+  essential: '#81C784',
+  deep: '#4FC3F7',
+  signature: '#4FC3F7',
+  prestige: '#FFD54F',
+}
 
-function formatDate(dateStr: string | null): string {
+const SPA_DESC: Record<string, string> = {
+  basic: '클렌징 + 보습 기본 케어',
+  premium: '딥클렌징 + 영양 집중 케어',
+  essential: '딥클렌징 + 영양 집중 케어',
+  deep: '전신 트리트먼트 프리미엄 케어',
+  signature: '전신 트리트먼트 프리미엄 케어',
+  prestige: '프리미엄 풀케어 스페셜 코스',
+}
+
+function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return dateStr
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`
 }
 
-function getSpaDescription(level: string): string {
-  const map: Record<string, string> = {
-    basic: '클렌징 + 보습 기본 케어',
-    essential: '딥클렌징 + 영양 집중 케어',
-    signature: '전신 트리트먼트 프리미엄 케어',
-    prestige: '프리미엄 풀케어 스페셜 코스',
+function weeksFromNow(dateStr: string): string {
+  const diff = new Date(dateStr).getTime() - Date.now()
+  if (diff <= 0) return ''
+  const weeks = Math.ceil(diff / (1000 * 60 * 60 * 24 * 7))
+  return `약 ${weeks}주 후`
+}
+
+/** condition_status 문자열에서 개별 항목 파싱 */
+function parseCondition(condStr: string | null): Record<string, string | null> {
+  const result: Record<string, string | null> = {
+    eyes: null,
+    ears: null,
+    teeth: null,
+    nail: null,
   }
-  return map[level] ?? ''
+  if (!condStr) return result
+
+  const parts = condStr.split('/').map((s) => s.trim())
+  for (const part of parts) {
+    if (part.startsWith('눈:')) result.eyes = part.replace('눈:', '').trim()
+    else if (part.startsWith('귀:')) result.ears = part.replace('귀:', '').trim()
+    else if (part.startsWith('치아:')) result.teeth = part.replace('치아:', '').trim()
+    else if (part.startsWith('발톱:')) result.nail = part.replace('발톱:', '').trim()
+  }
+  return result
 }
 
-function isGoodStatus(value: string | null): boolean {
+function isGood(value: string | null): boolean {
   if (!value) return true
-  const good = ['좋음', '깨끗함', '없음', '적당함', 'clean', 'good']
-  return good.some((g) => value.toLowerCase().includes(g))
+  const good = ['좋음', '깨끗함', '없음', '적당함', '양호', 'clean', 'good']
+  return good.some((g) => value.toLowerCase().includes(g.toLowerCase()))
 }
 
-// ─── 스타일 상수 ───
-
-const colors = {
-  navy: '#1a1f3a',
-  navyLight: '#252b4a',
-  gold: '#c8a97e',
-  cream: '#faf8f5',
-  warmGray: '#f5f2ee',
-  text: '#2d2d2d',
-  textMuted: '#7a7a7a',
-  border: '#e8e2d9',
-  green: '#2e7d32',
-  greenBg: '#e8f5e9',
-  orange: '#e65100',
-  orangeBg: '#fff3e0',
-  blue: '#1565c0',
-  blueBg: '#e3f2fd',
-  purple: '#6a1b9a',
-  purpleBg: '#f3e5f5',
-  yellow: '#f9a825',
-  yellowBg: '#fffde7',
-  kakao: '#FEE500',
-}
-
-const containerStyle: React.CSSProperties = { maxWidth: 600, margin: '0 auto', padding: '0 16px' }
-
-// ─── 메인 페이지 ───
+// ─── 페이지 ───
 
 export default async function ReportPage({ params }: PageProps) {
   const { token } = await params
   if (!token) notFound()
 
-  const result = await getReportData(token)
+  const supabase = getSupabase()
 
-  if (result.error || (!result.data && !result.records?.length)) {
-    notFound()
-  }
+  // 1. share_token으로 보호자 조회
+  const { data: guardian } = await supabase
+    .from('guardians')
+    .select('id, name')
+    .eq('share_token', token)
+    .maybeSingle()
 
-  // 단건 또는 최신 1건
-  const records = result.records ?? (result.data ? [result.data] : [])
-  const latest = records[0]
-  if (!latest) notFound()
+  if (!guardian) notFound()
+
+  // 2. 최신 방문 기록 1건
+  const { data: record } = await supabase
+    .from('visit_records')
+    .select(
+      'pet_name, staff_name, visit_date, service, service_type, spa_level, skin_status, coat_status, condition_status, next_visit_date, next_visit_recommendation, next_care_guide, note, comment',
+    )
+    .eq('guardian_id', guardian.id)
+    .order('visit_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!record) notFound()
+
+  // 파싱
+  const petName = record.pet_name ?? '반려견'
+  const visitDate = formatDate(record.visit_date)
+  const service = record.service ?? record.service_type ?? null
+  const spaLevel = record.spa_level as string | null
+  const spaLabel = spaLevel ? SPA_LABEL[spaLevel] ?? spaLevel : null
+  const spaColor = spaLevel ? SPA_COLOR[spaLevel] ?? '#C9A96E' : '#C9A96E'
+  const spaDesc = spaLevel ? SPA_DESC[spaLevel] ?? '' : ''
+
+  // 신체 상태
+  const cond = parseCondition(record.condition_status)
+  const healthItems = [
+    { key: 'skin', label: '피부', icon: '🐾', value: record.skin_status },
+    { key: 'tangles', label: '엉킴', icon: '🌀', value: record.coat_status },
+    { key: 'eyes', label: '눈', icon: '👁️', value: cond.eyes },
+    { key: 'ears', label: '귀', icon: '👂', value: cond.ears },
+    { key: 'teeth', label: '치아', icon: '🦷', value: cond.teeth },
+    { key: 'nail', label: '발톱', icon: '✂️', value: cond.nail },
+  ]
+  const hasHealthData = healthItems.some((i) => i.value)
+  const allGood = healthItems.every((i) => isGood(i.value))
+
+  // 케어팁
+  const careTips = record.next_care_guide
+    ? record.next_care_guide
+        .split('\n')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+    : []
+
+  // 다음 방문
+  const nextDate = record.next_visit_date ?? null
+  const nextDateStr = nextDate ? formatDate(nextDate) : null
+  const nextWeeks = nextDate ? weeksFromNow(nextDate) : ''
+
+  // 보호자 메시지
+  const comment = record.comment ?? null
+
+  // 담당자
+  const staffName = record.staff_name ?? null
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: colors.cream, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div className="min-h-screen bg-[#FAF8F5]">
       {/* ─── 헤더 ─── */}
-      <header style={{ backgroundColor: colors.navy, color: 'white', padding: '40px 16px 32px', textAlign: 'center' }}>
-        <div style={containerStyle}>
-          <p style={{ fontSize: 10, letterSpacing: '0.4em', color: colors.gold, fontWeight: 600, textTransform: 'uppercase' as const }}>DAZUL</p>
-          <p style={{ fontSize: 8, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>HOLISTIC WELLNESS CARE</p>
-          <div style={{ width: 40, height: 1, backgroundColor: colors.gold, margin: '20px auto' }} />
-          {latest.petName && (
-            <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: '0.05em', marginTop: 8 }}>
-              {latest.petName}
-              {latest.petBreed && <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginLeft: 8 }}>{latest.petBreed}</span>}
-            </h1>
-          )}
-          {latest.visitDate && (
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>{formatDate(latest.visitDate)}</p>
+      <header className="bg-[#1A2B4A] px-4 pb-8 pt-10 text-center text-white">
+        <div className="mx-auto max-w-lg">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-[#C9A96E]">
+            DAZUL
+          </p>
+          <p className="mt-1 text-[8px] tracking-[0.2em] text-white/30">
+            HOLISTIC WELLNESS CARE
+          </p>
+          <div className="mx-auto mt-5 h-px w-10 bg-[#C9A96E]" />
+          <h1 className="mt-4 text-2xl font-light tracking-wide">{petName}</h1>
+          {visitDate && (
+            <p className="mt-2 text-xs text-white/50">{visitDate} 케어 리포트</p>
           )}
         </div>
       </header>
 
       {/* ─── 콘텐츠 ─── */}
-      <main style={{ ...containerStyle, paddingTop: 24, paddingBottom: 80 }}>
-        {records.map((record, idx) => (
-          <div key={String(record.visitRecordId)} style={{ marginBottom: idx < records.length - 1 ? 32 : 0 }}>
-            {/* 여러 건일 때 날짜 구분 */}
-            {records.length > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                <div style={{ height: 1, flex: 1, backgroundColor: colors.border }} />
-                <span style={{ fontSize: 12, color: colors.textMuted, fontWeight: 600 }}>{formatDate(record.visitDate)}</span>
-                <div style={{ height: 1, flex: 1, backgroundColor: colors.border }} />
+      <main className="mx-auto max-w-lg px-4 pb-20 pt-6">
+        {/* 서비스 요약 */}
+        {service && (
+          <section className="mb-4 rounded-2xl border border-[#E8E2D9] bg-white p-5">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#C9A96E]">
+              SERVICE
+            </p>
+            <span className="inline-block rounded-full bg-[#1A2B4A] px-4 py-2 text-xs font-semibold text-white">
+              {service}
+            </span>
+
+            {spaLabel && (
+              <div
+                className="mt-4 rounded-xl p-4"
+                style={{
+                  backgroundColor: `${spaColor}15`,
+                  border: `1px solid ${spaColor}40`,
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">✨</span>
+                  <div>
+                    <p className="text-sm font-bold text-[#2D2D2D]">
+                      스파 {spaLabel}
+                    </p>
+                    {spaDesc && (
+                      <p className="mt-0.5 text-[11px] text-[#7A7A7A]">
+                        {spaDesc}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 신체 상태 */}
+        {hasHealthData && (
+          <section className="mb-4 rounded-2xl border border-[#E8E2D9] bg-white p-5">
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-[#C9A96E]">
+              HEALTH CHECK
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {healthItems.map((item) => {
+                const good = isGood(item.value)
+                return (
+                  <div
+                    key={item.key}
+                    className={`rounded-xl border p-3 text-center ${
+                      good
+                        ? 'border-green-200 bg-green-50'
+                        : 'border-orange-200 bg-orange-50'
+                    }`}
+                  >
+                    <p className="text-base">{item.icon}</p>
+                    <p
+                      className={`mt-1 text-[11px] font-semibold ${
+                        good ? 'text-green-700' : 'text-orange-700'
+                      }`}
+                    >
+                      {item.label}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-[#7A7A7A]">
+                      {item.value ?? '정상'}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {allGood && (
+              <div className="mt-4 rounded-xl bg-green-50 p-3 text-center">
+                <p className="text-sm font-semibold text-green-700">
+                  모든 부위가 건강해요 🎉
+                </p>
               </div>
             )}
 
-            <ServiceSummaryCard record={record} />
-            <PhotoGallery photos={record.photos} />
-            <HealthCheckSection record={record} />
-            {record.healthSummary && <HealthSummaryCard text={record.healthSummary} />}
-            <CareTipsSection tips={record.careTips} />
-            <NextVisitSection record={record} />
-            <CommentSection comment={record.comment} />
-            <NotesSection notes={record.specialNotes} />
-          </div>
-        ))}
+            {!allGood && (
+              <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3">
+                <p className="mb-1 text-xs font-semibold text-orange-700">
+                  ⚠️ 주의 항목
+                </p>
+                {healthItems
+                  .filter((i) => !isGood(i.value))
+                  .map((i) => (
+                    <p
+                      key={i.key}
+                      className="text-xs leading-6 text-[#2D2D2D]"
+                    >
+                      {i.icon} <strong>{i.label}</strong>: {i.value}
+                    </p>
+                  ))}
+              </div>
+            )}
+          </section>
+        )}
 
-        <CTASection />
+        {/* 케어팁 */}
+        {careTips.length > 0 && (
+          <section className="mb-4 rounded-2xl border border-[#E8E2D9] bg-white p-5">
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-[#C9A96E]">
+              HOME CARE TIPS
+            </p>
+            <div className="space-y-2.5">
+              {careTips.map((tip: string, i: number) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-2.5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5"
+                >
+                  <span className="mt-0.5 shrink-0 text-blue-400">💡</span>
+                  <p className="text-xs leading-5 text-blue-800">{tip}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 다음 방문 */}
+        {nextDateStr && (
+          <section className="mb-4 rounded-2xl bg-[#1A2B4A] p-6 text-center text-white">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#C9A96E]">
+              NEXT VISIT
+            </p>
+            <p className="mt-3 text-xl font-light">{nextDateStr}</p>
+            {nextWeeks && (
+              <p className="mt-1 text-xs text-white/50">{nextWeeks}</p>
+            )}
+          </section>
+        )}
+
+        {/* 보호자 메시지 */}
+        {comment && (
+          <section className="mb-4 rounded-2xl border-l-4 border-yellow-400 bg-[#FFFDE7] p-5">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-600">
+              MESSAGE
+            </p>
+            <p className="whitespace-pre-wrap text-sm leading-7 text-[#2D2D2D]">
+              {comment}
+            </p>
+            <p className="mt-3 text-right text-[11px] text-[#7A7A7A]">
+              — 살롱다즐 💛
+            </p>
+          </section>
+        )}
+
+        {/* 담당자 */}
+        {staffName && (
+          <p className="mb-6 text-center text-xs text-[#7A7A7A]">
+            {staffName}이 케어했어요 🐾
+          </p>
+        )}
+
+        {/* CTA */}
+        <div className="mt-8 flex flex-col gap-2">
+          <a
+            href="#"
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#FAE300] px-6 py-3.5 text-sm font-bold text-[#3B1E08] transition-colors hover:bg-[#F5D800]"
+          >
+            💬 카카오톡 문의
+          </a>
+          <a
+            href="#"
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#1A2B4A] px-6 py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#152340]"
+          >
+            📞 전화 예약
+          </a>
+        </div>
       </main>
 
       {/* ─── 푸터 ─── */}
-      <footer style={{ backgroundColor: colors.navy, color: 'rgba(255,255,255,0.5)', padding: '32px 16px', textAlign: 'center' }}>
-        <p style={{ fontSize: 10, letterSpacing: '0.3em', color: colors.gold }}>DAZUL</p>
-        <p style={{ fontSize: 11, marginTop: 8 }}>소중한 가족을 믿고 맡겨주셔서 감사합니다.</p>
-        <p style={{ fontSize: 10, marginTop: 12, color: 'rgba(255,255,255,0.3)' }}>© DAZUL · Premium Pet Care</p>
+      <footer className="border-t border-[#E8E2D9] bg-white py-8 text-center">
+        <p className="text-[10px] uppercase tracking-[0.3em] text-[#B0A89C]">
+          DAZUL 반려견 케어 살롱
+        </p>
       </footer>
-    </div>
-  )
-}
-
-// ─── 서비스 요약 ───
-
-function ServiceSummaryCard({ record }: { record: ReportData }) {
-  const mainLabel = record.mainService ? (SERVICE_LABEL[record.mainService] ?? record.mainService) : null
-  const spaLabel = record.spaLevel ? (SPA_LABEL[record.spaLevel] ?? record.spaLevel) : null
-  const spaColor = record.spaLevel ? (SPA_COLOR[record.spaLevel] ?? colors.gold) : colors.gold
-
-  if (!mainLabel && !spaLabel) return null
-
-  return (
-    <div style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, marginBottom: 16, border: `1px solid ${colors.border}` }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', color: colors.gold, textTransform: 'uppercase' as const, marginBottom: 12 }}>SERVICE</p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {mainLabel && (
-          <span style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 20, backgroundColor: colors.navy, color: 'white', fontSize: 13, fontWeight: 600 }}>
-            {mainLabel}
-          </span>
-        )}
-        {record.careActions && (
-          <span style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 20, backgroundColor: colors.warmGray, color: colors.text, fontSize: 12 }}>
-            {record.careActions}
-          </span>
-        )}
-      </div>
-
-      {spaLabel && (
-        <div style={{ marginTop: 16, padding: 16, borderRadius: 12, backgroundColor: `${spaColor}15`, border: `1px solid ${spaColor}40` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>✨</span>
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>스파 {spaLabel}</p>
-              <p style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{getSpaDescription(record.spaLevel ?? '')}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {record.careSummary && (
-        <p style={{ marginTop: 12, fontSize: 13, color: colors.textMuted, lineHeight: 1.6 }}>{record.careSummary}</p>
-      )}
-    </div>
-  )
-}
-
-// ─── 사진 ───
-
-function PhotoGallery({ photos }: { photos: ReportData['photos'] }) {
-  if (!photos || photos.length === 0) return null
-
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 12, overflow: 'hidden' }}>
-        {photos.map((photo) => (
-          <div key={photo.id} style={{ aspectRatio: '1', backgroundColor: '#eee', position: 'relative' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.publicUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── 건강 체크 ───
-
-function HealthCheckSection({ record }: { record: ReportData }) {
-  const hc = record.healthCheck
-  const items = Object.entries(HEALTH_LABEL).map(([key, label]) => {
-    const value = hc[key as keyof typeof hc]
-    const good = isGoodStatus(value)
-    return { key, label, icon: HEALTH_ICON[key], value, good }
-  })
-
-  const allGood = items.every((i) => i.good)
-  const cautionItems = items.filter((i) => !i.good)
-  const hasAnyData = items.some((i) => i.value)
-
-  if (!hasAnyData) return null
-
-  return (
-    <div style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, marginBottom: 16, border: `1px solid ${colors.border}` }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', color: colors.gold, textTransform: 'uppercase' as const, marginBottom: 16 }}>HEALTH CHECK</p>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-        {items.filter((i) => i.value).map((item) => (
-          <div
-            key={item.key}
-            style={{
-              padding: '12px 8px',
-              borderRadius: 12,
-              textAlign: 'center',
-              backgroundColor: item.good ? colors.greenBg : colors.orangeBg,
-              border: `1px solid ${item.good ? '#c8e6c9' : '#ffe0b2'}`,
-            }}
-          >
-            <p style={{ fontSize: 16, marginBottom: 4 }}>{item.icon}</p>
-            <p style={{ fontSize: 11, fontWeight: 600, color: item.good ? colors.green : colors.orange }}>{item.label}</p>
-            <p style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>{item.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {allGood && hasAnyData && (
-        <div style={{ marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: colors.greenBg, textAlign: 'center' }}>
-          <p style={{ fontSize: 13, color: colors.green, fontWeight: 600 }}>🎉 모든 항목이 양호해요!</p>
-        </div>
-      )}
-
-      {cautionItems.length > 0 && (
-        <div style={{ marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: colors.orangeBg, border: `1px solid #ffe0b2` }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: colors.orange, marginBottom: 8 }}>⚠️ 주의가 필요한 항목</p>
-          {cautionItems.map((item) => (
-            <p key={item.key} style={{ fontSize: 12, color: colors.text, lineHeight: 1.8 }}>
-              {item.icon} <strong>{item.label}</strong>: {item.value}
-            </p>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── 건강 요약 문장 ───
-
-function HealthSummaryCard({ text }: { text: string }) {
-  return (
-    <div style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, marginBottom: 16, border: `1px solid ${colors.border}` }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', color: colors.gold, textTransform: 'uppercase' as const, marginBottom: 12 }}>HEALTH SUMMARY</p>
-      <pre style={{ fontSize: 13, color: colors.text, lineHeight: 1.8, whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>{text}</pre>
-    </div>
-  )
-}
-
-// ─── 케어팁 ───
-
-function CareTipsSection({ tips }: { tips: CareTip[] }) {
-  if (!tips || tips.length === 0) return null
-
-  return (
-    <div style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, marginBottom: 16, border: `1px solid ${colors.border}` }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', color: colors.gold, textTransform: 'uppercase' as const, marginBottom: 16 }}>HOME CARE TIPS</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {tips.map((tip, i) => (
-          <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{tip.emoji}</span>
-            <div>
-              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, backgroundColor: colors.blueBg, color: colors.blue, fontSize: 10, fontWeight: 600, marginBottom: 4 }}>
-                {tip.title}
-              </span>
-              <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.6 }}>{tip.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── 다음 방문 ───
-
-function NextVisitSection({ record }: { record: ReportData }) {
-  const dateStr = record.nextVisitDate ?? record.nextVisitRecommendation
-  if (!dateStr) return null
-
-  let weeksLabel = ''
-  if (record.nextVisitDate) {
-    const diff = new Date(record.nextVisitDate).getTime() - Date.now()
-    if (diff > 0) {
-      const weeks = Math.ceil(diff / (1000 * 60 * 60 * 24 * 7))
-      weeksLabel = `약 ${weeks}주 후`
-    }
-  }
-
-  return (
-    <div style={{ backgroundColor: colors.navy, borderRadius: 16, padding: 24, marginBottom: 16, textAlign: 'center', color: 'white' }}>
-      <p style={{ fontSize: 10, letterSpacing: '0.2em', color: colors.gold, fontWeight: 600, textTransform: 'uppercase' as const }}>NEXT VISIT</p>
-      <p style={{ fontSize: 20, fontWeight: 300, marginTop: 12 }}>
-        {record.nextVisitDate ? formatDate(record.nextVisitDate) : dateStr}
-      </p>
-      {weeksLabel && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{weeksLabel}</p>}
-    </div>
-  )
-}
-
-// ─── 보호자 메시지 ───
-
-function CommentSection({ comment }: { comment: string | null }) {
-  if (!comment) return null
-
-  return (
-    <div style={{ borderRadius: 16, padding: 24, marginBottom: 16, backgroundColor: colors.yellowBg, borderLeft: `4px solid ${colors.yellow}` }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', color: colors.yellow, textTransform: 'uppercase' as const, marginBottom: 12 }}>MESSAGE</p>
-      <p style={{ fontSize: 14, color: colors.text, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{comment}</p>
-      <p style={{ fontSize: 11, color: colors.textMuted, marginTop: 12, textAlign: 'right' }}>— 살롱다즐 💛</p>
-    </div>
-  )
-}
-
-// ─── 특이사항/메모 ───
-
-function NotesSection({ notes }: { notes: string | null }) {
-  if (!notes) return null
-
-  return (
-    <div style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, marginBottom: 16, border: `1px solid ${colors.border}` }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', color: colors.gold, textTransform: 'uppercase' as const, marginBottom: 12 }}>NOTES</p>
-      <pre style={{ fontSize: 13, color: colors.text, lineHeight: 1.8, whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>{notes}</pre>
-    </div>
-  )
-}
-
-// ─── CTA ───
-
-function CTASection() {
-  return (
-    <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <a
-        href="https://pf.kakao.com/_placeholder"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          padding: '14px 24px', borderRadius: 12, backgroundColor: colors.kakao,
-          color: '#3C1E1E', fontSize: 14, fontWeight: 700, textDecoration: 'none',
-        }}
-      >
-        💬 카카오톡으로 예약하기
-      </a>
-      <a
-        href="tel:010-1234-5678"
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          padding: '14px 24px', borderRadius: 12, backgroundColor: colors.navy,
-          color: 'white', fontSize: 14, fontWeight: 700, textDecoration: 'none',
-        }}
-      >
-        📞 전화로 예약하기
-      </a>
     </div>
   )
 }
