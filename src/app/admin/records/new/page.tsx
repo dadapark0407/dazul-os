@@ -620,6 +620,11 @@ function SessionForm() {
   const [spaLevel, setSpaLevel] = useState<SpaLevel>(null)
   const [styleNotes, setStyleNotes] = useState('')
 
+  // ─── 미용 스타일 ───
+  const [groomingStyle, setGroomingStyle] = useState({ face: '', body: '', legs: '', tail: '', sanitary: '' })
+  const setGS = (key: keyof typeof groomingStyle, val: string) =>
+    setGroomingStyle((prev) => ({ ...prev, [key]: val }))
+
   // ─── 제품 선택 (카테고리별 검색) ───
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
@@ -894,6 +899,9 @@ function SessionForm() {
           special_notes: specialStr,
           next_visit_recommendation: nextRecommendation,
           care_summary: styleNotes || null,
+          grooming_style: Object.values(groomingStyle).some((v) => v.trim())
+            ? groomingStyle
+            : null,
           care_actions: selectedProductIds.length > 0
             ? allProducts.filter((p) => selectedProductIds.includes(p.id)).map((p) => `${p.name}${p.brand ? ` (${p.brand})` : ''}`).join(', ')
             : null,
@@ -1281,6 +1289,44 @@ function SessionForm() {
               </Field>
             </div>
           </Card>
+
+          {/* ③-b 미용 스타일 */}
+          {mainService === '전체미용' && (
+            <Card>
+              <SectionHeader title="GROOMING STYLE" sub="스타일 컷 상세를 입력해주세요" />
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {([
+                    { key: 'face' as const, label: '얼굴', ph: '예) 9mm, 곰돌이컷' },
+                    { key: 'body' as const, label: '몸', ph: '예) 7mm, 풀컷' },
+                    { key: 'legs' as const, label: '다리', ph: '예) 귀툭튀, 자연스럽게' },
+                    { key: 'tail' as const, label: '꼬리', ph: '예) 귀툭튀' },
+                  ]).map((item) => (
+                    <div key={item.key}>
+                      <label className="mb-1.5 block text-[11px] font-light uppercase tracking-[0.1em] text-[#6B6B6B]">{item.label}</label>
+                      <input
+                        type="text"
+                        value={groomingStyle[item.key]}
+                        onChange={(e) => setGS(item.key, e.target.value)}
+                        placeholder={item.ph}
+                        className="w-full border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-light uppercase tracking-[0.1em] text-[#6B6B6B]">위생</label>
+                  <input
+                    type="text"
+                    value={groomingStyle.sanitary}
+                    onChange={(e) => setGS('sanitary', e.target.value)}
+                    placeholder="예) 클리핑, 가위컷"
+                    className="w-full border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* ④ 신체 상태 */}
           <Card>
