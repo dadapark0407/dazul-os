@@ -24,20 +24,18 @@ type Rec = {
   comment: string | null
 }
 
-// ─── 팔레트 (따뜻한 럭셔리) ───
+// ─── 팔레트 ───
 const C = {
   bg: '#FAFAF8',
   card: '#FFFFFF',
   text: '#1A1A1A',
   sub: '#8A8A7A',
-  muted: '#8A8A7A',
   gold: '#C9A96E',
   border: '#E8E5E0',
-  dark: '#1A1A1A',
+  line: '#F0EDE8',
   cream: '#FDFBF7',
 }
 
-// ─── 상수 ───
 const SPA: { [k: string]: { label: string; desc: string } } = {
   basic: { label: '베이직', desc: '기본 클렌징' },
   premium: { label: '에센셜', desc: '딥클렌징 & 보습' },
@@ -85,6 +83,13 @@ function isIssue(v: string | null): boolean {
   return !['좋음', '깨끗함', '없음', '적당함', '양호'].some((g) => v.includes(g))
 }
 
+// ─── 섹션 헤더 ───
+const SH = ({ children }: { children: string }) => (
+  <p style={{ fontSize: 9, letterSpacing: '0.3em', fontWeight: 400, color: C.sub, textTransform: 'uppercase' as const, marginBottom: 24 }}>
+    {children}
+  </p>
+)
+
 // ─── 기록 카드 ───
 function RecordCard({ rec, expanded, onToggle }: { rec: Rec; expanded: boolean; onToggle: () => void }) {
   const svc = rec.service ?? rec.service_type ?? null
@@ -108,22 +113,22 @@ function RecordCard({ rec, expanded, onToggle }: { rec: Rec; expanded: boolean; 
   const weight = rec.weight ? `${rec.weight}kg` : null
 
   return (
-    <div style={{ background: C.card, marginBottom: 2 }}>
+    <div style={{ background: C.card, borderTop: `1px solid ${C.border}` }}>
       {/* 날짜 헤더 */}
       <button
         type="button"
         onClick={onToggle}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 28px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+          padding: '20px 24px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
         }}
       >
         <div>
-          <p style={{ fontSize: 13, fontWeight: 400, color: C.text, letterSpacing: '0.05em' }}>
+          <p style={{ fontSize: 13, fontWeight: 400, color: C.text, letterSpacing: '0.08em' }}>
             {fmtShort(rec.visit_date)}
           </p>
-          <p style={{ fontSize: 11, color: C.muted, marginTop: 4, letterSpacing: '0.03em' }}>
-            {[svc, spa ? `${spa.label}` : null, weight].filter(Boolean).join('  ·  ')}
+          <p style={{ fontSize: 11, color: C.sub, marginTop: 4, letterSpacing: '0.05em' }}>
+            {[svc, spa ? spa.label : null, weight].filter(Boolean).join('  ·  ')}
           </p>
         </div>
         <span style={{ fontSize: 8, color: C.gold, transition: 'transform 0.3s ease', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
@@ -133,62 +138,52 @@ function RecordCard({ rec, expanded, onToggle }: { rec: Rec; expanded: boolean; 
 
       {/* 상세 */}
       {expanded && (
-        <div style={{ padding: '0 28px 32px' }}>
-          <div style={{ height: 1, background: C.border, marginBottom: 24 }} />
+        <div style={{ padding: '0 24px 32px' }}>
+          <div style={{ height: 1, background: C.line, marginBottom: 28 }} />
 
-          {/* 서비스 + 몸무게 */}
+          {/* SERVICE */}
           {svc && (
-            <div style={{ marginBottom: 28 }}>
-              <p style={{ fontSize: 9, letterSpacing: '0.25em', color: C.muted, textTransform: 'uppercase' as const, marginBottom: 12 }}>
-                Service
+            <div style={{ marginBottom: 32 }}>
+              <SH>Service</SH>
+              <p style={{ fontSize: 15, fontWeight: 300, color: C.text, letterSpacing: '0.03em' }}>
+                {svc}
               </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <span style={{ fontSize: 12, letterSpacing: '0.08em', color: C.text, fontWeight: 400 }}>
-                  {svc}
-                </span>
-                {spa && (
-                  <>
-                    <span style={{ width: 1, height: 12, background: C.border, display: 'inline-block' }} />
-                    <span style={{ fontSize: 12, color: C.gold, letterSpacing: '0.05em' }}>
-                      {spa.label}
-                    </span>
-                  </>
-                )}
-                {weight && (
-                  <>
-                    <span style={{ width: 1, height: 12, background: C.border, display: 'inline-block' }} />
-                    <span style={{ fontSize: 12, color: C.sub }}>{weight}</span>
-                  </>
-                )}
-              </div>
               {spa && (
-                <p style={{ fontSize: 10, color: C.muted, marginTop: 6, fontStyle: 'italic', letterSpacing: '0.02em' }}>
+                <p style={{ fontSize: 11, color: C.gold, letterSpacing: '0.15em', marginTop: 6 }}>
+                  {spa.label}
+                </p>
+              )}
+              {spa && (
+                <p style={{ fontSize: 11, color: C.sub, marginTop: 4 }}>
                   {spa.desc}
+                </p>
+              )}
+              {weight && (
+                <p style={{ fontSize: 11, color: C.sub, marginTop: 8, letterSpacing: '0.05em' }}>
+                  {weight}
                 </p>
               )}
             </div>
           )}
 
-          {/* 신체 상태 */}
+          {/* CONDITION */}
           {bodyItems.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <p style={{ fontSize: 9, letterSpacing: '0.25em', color: C.muted, textTransform: 'uppercase' as const, marginBottom: 12 }}>
-                Condition
-              </p>
-              {bodyItems.map((item, i) => (
+            <div style={{ marginBottom: 32 }}>
+              <SH>Condition</SH>
+              {bodyItems.map((item) => (
                 <div
                   key={item.label}
-                  className="flex items-baseline gap-6"
-                  style={{ padding: '8px 0', borderBottom: i < bodyItems.length - 1 ? `1px solid ${C.cream}` : 'none' }}
+                  className="flex items-baseline"
+                  style={{ padding: '14px 0', borderBottom: `1px solid ${C.line}` }}
                 >
-                  <span style={{ width: 36, fontSize: 10, color: C.muted, letterSpacing: '0.1em', flexShrink: 0 }}>
+                  <span style={{ width: 48, fontSize: 9, color: C.sub, letterSpacing: '0.2em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
                     {item.label}
                   </span>
                   <span style={{
-                    fontSize: 12,
+                    fontSize: 13,
                     color: isIssue(item.value) ? C.gold : C.text,
-                    fontWeight: isIssue(item.value) ? 500 : 300,
-                    letterSpacing: '0.02em',
+                    fontWeight: isIssue(item.value) ? 400 : 300,
+                    lineHeight: 2,
                   }}>
                     {item.value}
                   </span>
@@ -197,62 +192,53 @@ function RecordCard({ rec, expanded, onToggle }: { rec: Rec; expanded: boolean; 
             </div>
           )}
 
-          {/* 사용 제품 */}
+          {/* PRODUCTS */}
           {rec.care_actions && (
-            <div style={{ marginBottom: 28 }}>
-              <p style={{ fontSize: 9, letterSpacing: '0.25em', color: C.muted, textTransform: 'uppercase' as const, marginBottom: 12 }}>
-                Products
-              </p>
-              <p style={{ fontSize: 12, color: C.text, lineHeight: 1.8, fontWeight: 300 }}>{rec.care_actions}</p>
+            <div style={{ marginBottom: 32 }}>
+              <SH>Products</SH>
+              <p style={{ fontSize: 13, color: C.text, lineHeight: 2, fontWeight: 300 }}>{rec.care_actions}</p>
             </div>
           )}
 
-          {/* 홈케어 */}
+          {/* HOME CARE */}
           {tips.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <p style={{ fontSize: 9, letterSpacing: '0.25em', color: C.muted, textTransform: 'uppercase' as const, marginBottom: 12 }}>
-                Home Care
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {tips.map((tip, i) => (
-                  <div key={i} style={{ paddingLeft: 16, borderLeft: `2px solid ${C.gold}`, background: C.cream, padding: '10px 16px', marginLeft: 0 }}>
-                    <p style={{ fontSize: 11, color: C.text, lineHeight: 1.9, fontWeight: 300 }}>{tip}</p>
-                  </div>
-                ))}
-              </div>
+            <div style={{ marginBottom: 32 }}>
+              <SH>Home Care</SH>
+              {tips.map((tip, i) => (
+                <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 12 }}>
+                  <span style={{ color: C.gold, fontSize: 13, flexShrink: 0 }}>—</span>
+                  <p style={{ fontSize: 13, color: C.text, lineHeight: 2, fontWeight: 300 }}>{tip}</p>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* 다음 방문 */}
+          {/* NEXT VISIT */}
           {(nextDate || rec.next_visit_recommendation) && (
-            <div style={{ marginBottom: 28, padding: '24px 0', borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, textAlign: 'center' }}>
-              <p style={{ fontSize: 9, letterSpacing: '0.25em', color: C.gold, textTransform: 'uppercase' as const, marginBottom: 14 }}>
-                Next Visit
-              </p>
+            <div style={{ marginBottom: 32, padding: '28px 0', borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, textAlign: 'center' }}>
+              <SH>Next Visit</SH>
               {nextDate && (
-                <p style={{ fontSize: 20, fontWeight: 300, color: C.text, letterSpacing: '0.06em' }}>
+                <p style={{ fontSize: 24, fontWeight: 300, color: C.text, letterSpacing: '0.06em' }}>
                   {nextDate}
                 </p>
               )}
               {nextWeeks && (
-                <p style={{ fontSize: 10, color: C.muted, marginTop: 6, letterSpacing: '0.1em' }}>{nextWeeks}</p>
+                <p style={{ fontSize: 10, color: C.sub, marginTop: 8, letterSpacing: '0.15em' }}>{nextWeeks}</p>
               )}
               {!nextDate && rec.next_visit_recommendation && (
-                <p style={{ fontSize: 12, color: C.text, fontWeight: 300 }}>{rec.next_visit_recommendation}</p>
+                <p style={{ fontSize: 13, color: C.text, fontWeight: 300, lineHeight: 2 }}>{rec.next_visit_recommendation}</p>
               )}
             </div>
           )}
 
-          {/* 메시지 */}
+          {/* MESSAGE */}
           {rec.comment && (
-            <div style={{ padding: '20px 24px', background: C.cream, borderLeft: `2px solid ${C.gold}`, marginTop: 4 }}>
-              <p style={{ fontSize: 9, letterSpacing: '0.25em', color: C.gold, textTransform: 'uppercase' as const, marginBottom: 14 }}>
-                Message
-              </p>
-              <p style={{ fontSize: 12, color: C.text, lineHeight: 2.2, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
+            <div style={{ padding: '24px', background: C.cream, marginTop: 8 }}>
+              <SH>Message</SH>
+              <p style={{ fontSize: 13, color: C.text, lineHeight: 2, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
                 {rec.comment}
               </p>
-              <p style={{ fontSize: 9, color: C.muted, textAlign: 'right', marginTop: 16, letterSpacing: '0.15em' }}>
+              <p style={{ fontSize: 9, color: C.sub, textAlign: 'right', marginTop: 20, letterSpacing: '0.2em' }}>
                 — DAZUL
               </p>
             </div>
@@ -283,7 +269,7 @@ export default function ReportClient({
     : latest?.pet_name ?? '반려견'
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg }}>
+    <div style={{ minHeight: '100vh', background: C.bg, paddingBottom: 80 }}>
 
       {/* ═══ 헤더 ═══ */}
       <header style={{ background: C.cream, position: 'relative', borderBottom: `1px solid ${C.gold}` }}>
@@ -291,26 +277,27 @@ export default function ReportClient({
           {latest && <AdminMenu recordId={latest.id} />}
         </div>
 
-        <div className="mx-auto max-w-[480px] px-4 pt-32 pb-14 text-center">
+        <div className="mx-auto max-w-[420px] text-center" style={{ padding: '60px 24px 48px' }}>
           {/* 로고 */}
-          <p style={{ fontSize: 11, letterSpacing: '0.25em', fontWeight: 300, color: C.sub }}>
+          <p style={{ fontSize: 10, letterSpacing: '0.4em', fontWeight: 300, color: C.sub }}>
             SALON DE DAZUL
-          </p>
-          <p style={{ fontSize: 13, fontStyle: 'italic', letterSpacing: '0.1em', color: C.sub, marginTop: 6 }}>
-            Wellness Care Journal
           </p>
 
           {/* 골드 라인 */}
-          <div className="mx-auto my-8" style={{ width: 40, height: 0.5, background: C.gold }} />
+          <div className="mx-auto" style={{ width: 32, height: 1, background: C.gold, margin: '16px auto' }} />
+
+          <p style={{ fontSize: 12, fontStyle: 'italic', letterSpacing: '0.2em', color: C.sub }}>
+            Wellness Care Journal
+          </p>
 
           {/* 반려견 이름 */}
-          <h1 style={{ fontSize: 32, fontWeight: 300, letterSpacing: '0.1em', color: C.text, lineHeight: 1.1 }}>
+          <h1 style={{ fontSize: 48, fontWeight: 200, letterSpacing: '0.1em', color: C.text, lineHeight: 1.1, marginTop: 32 }}>
             {petName}
           </h1>
 
           {/* 날짜 + 몸무게 */}
           {latest?.visit_date && (
-            <p style={{ fontSize: 12, color: C.sub, letterSpacing: '0.15em', marginTop: 16 }}>
+            <p style={{ fontSize: 11, color: C.sub, letterSpacing: '0.2em', marginTop: 20 }}>
               {fmtShort(latest.visit_date)}
               {latest.weight ? `  ·  ${latest.weight}kg` : ''}
             </p>
@@ -318,62 +305,55 @@ export default function ReportClient({
 
           {/* 다견 탭 */}
           {pets.length > 1 && (
-            <div className="mt-8 flex justify-center" style={{ gap: 0 }}>
-              {[{ id: null as string | null, name: '전체' }, ...pets.map((p) => ({ id: p.id as string | null, name: p.name }))].map((tab) => (
-                <button
-                  key={tab.id ?? 'all'}
-                  type="button"
-                  onClick={() => setActivePetId(tab.id)}
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: '0.15em',
-                    padding: '8px 20px',
-                    background: 'transparent',
-                    color: (activePetId === tab.id || (!activePetId && !tab.id))
-                      ? C.text
-                      : C.muted,
-                    border: 'none',
-                    borderBottom: (activePetId === tab.id || (!activePetId && !tab.id))
-                      ? `1px solid ${C.gold}`
-                      : '1px solid transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.4s ease',
-                    fontWeight: 300,
-                  }}
-                >
-                  {tab.name}
-                </button>
-              ))}
+            <div className="flex justify-center" style={{ marginTop: 32, gap: 0 }}>
+              {[{ id: null as string | null, name: '전체' }, ...pets.map((p) => ({ id: p.id as string | null, name: p.name }))].map((tab) => {
+                const active = activePetId === tab.id || (!activePetId && !tab.id)
+                return (
+                  <button
+                    key={tab.id ?? 'all'}
+                    type="button"
+                    onClick={() => setActivePetId(tab.id)}
+                    style={{
+                      fontSize: 10, letterSpacing: '0.15em', padding: '10px 20px',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      color: active ? C.text : C.sub,
+                      borderBottom: active ? `1px solid ${C.gold}` : '1px solid transparent',
+                      fontWeight: active ? 400 : 300,
+                      transition: 'all 0.4s ease',
+                    }}
+                  >
+                    {tab.name}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
       </header>
 
       {/* ═══ 기록 ═══ */}
-      <main className="mx-auto max-w-[480px] px-4 pt-8 pb-4">
+      <main className="mx-auto max-w-[420px]" style={{ padding: '32px 0 0' }}>
         {/* 카운트 */}
-        <div className="flex items-center gap-3" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-3" style={{ marginBottom: 20, padding: '0 24px' }}>
           <div style={{ flex: 1, height: 0.5, background: C.border }} />
-          <p style={{ fontSize: 9, letterSpacing: '0.3em', color: C.muted, flexShrink: 0 }}>
+          <p style={{ fontSize: 9, letterSpacing: '0.3em', color: C.sub, flexShrink: 0 }}>
             CARE HISTORY · {filtered.length}
           </p>
           <div style={{ flex: 1, height: 0.5, background: C.border }} />
         </div>
 
-        {/* 카드 목록 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filtered.map((rec) => (
-            <RecordCard
-              key={rec.id}
-              rec={rec}
-              expanded={expandedId === rec.id}
-              onToggle={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
-            />
-          ))}
-        </div>
+        {/* 카드 목록 (간격 0, 상단 보더만) */}
+        {filtered.map((rec) => (
+          <RecordCard
+            key={rec.id}
+            rec={rec}
+            expanded={expandedId === rec.id}
+            onToggle={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
+          />
+        ))}
 
         {/* CTA */}
-        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ marginTop: 48, padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <CopyLinkButton />
           <div className="flex gap-2">
             <a href="#" style={{
@@ -384,7 +364,7 @@ export default function ReportClient({
               카카오톡 문의
             </a>
             <a href="#" style={{
-              flex: 1, display: 'block', background: C.dark, color: '#FFFFFF',
+              flex: 1, display: 'block', background: C.text, color: '#FFFFFF',
               fontSize: 10, letterSpacing: '0.12em', fontWeight: 400, padding: '14px 0',
               textDecoration: 'none', textAlign: 'center',
             }}>
@@ -395,10 +375,10 @@ export default function ReportClient({
       </main>
 
       {/* ═══ 푸터 ═══ */}
-      <footer style={{ padding: '48px 0 36px', textAlign: 'center' }}>
+      <footer style={{ padding: '56px 0 0', textAlign: 'center' }}>
         <div className="mx-auto" style={{ width: 24, height: 0.5, background: C.gold, marginBottom: 20 }} />
-        <p style={{ fontSize: 11, letterSpacing: '0.2em', color: C.sub, fontWeight: 300 }}>
-          DAZUL · Wellness Care Salon
+        <p style={{ fontSize: 9, letterSpacing: '0.3em', color: C.sub, fontWeight: 300 }}>
+          SALON DE DAZUL
         </p>
       </footer>
     </div>
