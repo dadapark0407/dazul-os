@@ -49,7 +49,25 @@ const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
 const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
 const NAIL_OPTIONS = ['적당함', '관리필요'] as const
 
-const PRODUCT_CATEGORIES = ['샴푸', '컨디셔너', '스파', '팩', '기타'] as const
+const BASE_PRODUCT_CATEGORIES = ['샴푸', '린스', '기타'] as const
+const ALL_PRODUCT_CATEGORIES = ['샴푸', '린스', '스파', '팩', '기타'] as const
+
+/** spaLevel에 따라 표시할 제품 카테고리 */
+function getVisibleProductCategories(spa: SpaLevel): string[] {
+  const base: string[] = [...BASE_PRODUCT_CATEGORIES]
+  if (spa === 'premium' || spa === 'prestige') {
+    // 에센셜 또는 프레스티지: 스파 추가
+    base.splice(2, 0, '스파') // 린스 다음에 삽입
+  }
+  if (spa === 'deep' || spa === 'prestige') {
+    // 시그니처 또는 프레스티지: 팩 추가
+    const idx = base.indexOf('기타')
+    base.splice(idx, 0, '팩') // 기타 앞에 삽입
+  }
+  return base
+}
+
+const SPA_BONUS_CATEGORIES = ['스파', '팩'] as const
 
 // (방문 유형 삭제됨)
 
@@ -621,13 +639,36 @@ function SessionForm() {
     return allProducts.filter((p) => {
       const pCat = (p as Record<string, unknown>).category as string | null
       const matchCat = cat === '기타'
-        ? !PRODUCT_CATEGORIES.slice(0, -1).some((c) => pCat?.includes(c))
+        ? !ALL_PRODUCT_CATEGORIES.slice(0, -1).some((c) => pCat?.includes(c))
         : pCat?.includes(cat)
       if (!matchCat) return false
       if (!q) return true
       return (p.name ?? '').toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q)
     })
   }
+
+  // spaLevel이 바뀌면 제거된 카테고리의 선택 제품 초기화
+  const visibleCategories = getVisibleProductCategories(spaLevel)
+  useEffect(() => {
+    const visible = getVisibleProductCategories(spaLevel)
+    // 보이지 않는 카테고리에 속한 제품 제거
+    setSelectedProductIds((prev) => prev.filter((id) => {
+      const p = allProducts.find((x) => x.id === id)
+      if (!p) return true
+      const pCat = (p as Record<string, unknown>).category as string | null
+      if (!pCat) return true // 기타로 간주 — 항상 표시
+      return visible.some((c) => pCat.includes(c))
+    }))
+    // 검색어도 초기화
+    setProductSearches((prev) => {
+      const next = { ...prev }
+      for (const cat of SPA_BONUS_CATEGORIES) {
+        if (!visible.includes(cat)) delete next[cat]
+      }
+      return next
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spaLevel])
 
   // ─── 신체 상태 ───
   const [skin, setSkin] = useState<string[]>([])
@@ -1177,13 +1218,19 @@ function SessionForm() {
                 )}
                 {/* 카테고리별 행 */}
                 <div className="space-y-3">
-                  {PRODUCT_CATEGORIES.map((cat) => {
+                  {visibleCategories.map((cat) => {
                     const q = productSearches[cat] ?? ''
                     const results = q.length > 0 ? getProductsForCategory(cat) : []
+                    const isBonus = SPA_BONUS_CATEGORIES.includes(cat as typeof SPA_BONUS_CATEGORIES[number])
                     return (
-                      <div key={cat}>
+                      <div key={cat} style={{
+                        borderLeft: isBonus ? '2px solid #C9A96E' : 'none',
+                        paddingLeft: isBonus ? 12 : 0,
+                        opacity: 1,
+                        transition: 'opacity 0.2s ease',
+                      }}>
                         <div className="flex items-center gap-3">
-                          <span className="w-16 shrink-0 text-xs font-bold text-stone-400">{cat}</span>
+                          <span className={`w-16 shrink-0 text-xs font-bold ${isBonus ? 'text-[#C9A96E]' : 'text-stone-400'}`}>{cat}</span>
                           <div className="relative flex-1">
                             <input
                               type="text"
