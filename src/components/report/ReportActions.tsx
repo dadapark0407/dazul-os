@@ -89,7 +89,7 @@ export function AdminMenu({ recordId }: { recordId: string | number }) {
         >
           <button
             type="button"
-            onClick={() => { setOpen(false); router.push(`/admin/records/${recordId}/edit`) }}
+            onClick={() => { setOpen(false); router.push(`/session/edit/${recordId}`) }}
             style={{ display: 'block', width: '100%', textAlign: 'left', fontSize: 12, padding: '10px 14px', color: '#0A0A0A', background: 'none', border: 'none', borderBottom: '1px solid #E8E8E8', cursor: 'pointer' }}
           >
             기록 수정
