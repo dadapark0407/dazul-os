@@ -43,7 +43,7 @@ const SPA_OPTIONS: { value: NonNullable<SpaLevel>; label: string; desc: string }
 // (추가서비스 항목 삭제됨)
 
 const SKIN_OPTIONS = ['좋음', '건조', '민감', '습진', '붉은반점', '붉음', '탈모', '딱지', '각질', '기름짐'] as const
-const TANGLE_OPTIONS = ['없음', '귀', '머리', '꼬리', '쳐드링이', '목', '앞다리', '뒷다리', '기타'] as const
+const TANGLE_OPTIONS = ['없음', '귀', '머리', '꼬리', '겨드랑이', '목', '앞다리', '뒷다리', '기타'] as const
 const EYE_OPTIONS = ['깨끗함', '붉음', '눈물많음'] as const
 const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
 const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
