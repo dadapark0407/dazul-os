@@ -225,25 +225,25 @@ function generateCareTips({
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-none border border-[#E8E2D9] bg-white ${className}`}>{children}</div>
+    <div className={`border border-dz-border/50 bg-white p-6 ${className}`}>{children}</div>
   )
 }
 
 function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="border-b border-[#E8E2D9] px-5 pb-3 pt-5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.25em] text-[#C9A96E]">{title}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-[#8C7B6B]">{sub}</p>}
+    <div className="mb-4">
+      <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-dz-accent">{title}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-dz-muted/60">{sub}</p>}
     </div>
   )
 }
 
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm font-semibold text-stone-500">
+    <div>
+      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.1em] text-dz-muted">
         {label}
-        {required && <span className="ml-0.5 text-red-400">*</span>}
+        {required && <span className="ml-0.5 text-dz-accent">*</span>}
       </label>
       {children}
     </div>
@@ -254,7 +254,6 @@ function CheckChips({
   options,
   selected,
   onToggle,
-  exclusive,
 }: {
   options: readonly string[]
   selected: string[]
@@ -262,30 +261,21 @@ function CheckChips({
   exclusive?: string
 }) {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-2.5">
+    <div className="flex flex-wrap gap-2">
       {options.map((opt) => {
         const checked = selected.includes(opt)
-        const isExclusive = opt === exclusive
         return (
-          <button key={opt} type="button" onClick={() => onToggle(opt)} className="group flex items-center gap-1.5">
-            <span
-              className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border-2 transition-all ${
-                checked
-                  ? isExclusive
-                    ? 'border-stone-600 bg-stone-600'
-                    : 'border-amber-500 bg-amber-500'
-                  : 'border-stone-300 group-hover:border-amber-400'
-              }`}
-            >
-              {checked && (
-                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </span>
-            <span className={`text-sm transition-colors ${checked ? 'font-semibold text-stone-800' : 'text-stone-500 group-hover:text-stone-700'}`}>
-              {opt}
-            </span>
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onToggle(opt)}
+            className={`border px-3 py-1.5 text-[12px] font-medium transition-all duration-400 ${
+              checked
+                ? 'border-dz-primary bg-dz-primary text-white'
+                : 'border-dz-border text-dz-muted hover:border-dz-muted'
+            }`}
+          >
+            {opt}
           </button>
         )
       })}
@@ -314,9 +304,9 @@ function BodyRow({
 }) {
   const exclusions = memoExclusions ?? []
   return (
-    <div className="border-b border-stone-100 py-3 last:border-b-0">
+    <div className="border-b border-dz-border/30 py-3 last:border-b-0">
       <div className="flex items-start gap-3">
-        <span className="w-12 shrink-0 pt-0.5 text-xs font-bold text-stone-400">{label}</span>
+        <span className="w-12 shrink-0 pt-0.5 text-[11px] font-medium uppercase tracking-[0.1em] text-dz-muted">{label}</span>
         <div className="flex-1">
           <CheckChips options={options} selected={selected} onToggle={onToggle} exclusive={exclusive} />
           {/* 체크된 항목별 개별 메모 */}
@@ -324,13 +314,13 @@ function BodyRow({
             <div className="mt-2 flex flex-col gap-1.5">
               {selected.filter((s) => !exclusions.includes(s)).map((item) => (
                 <div key={item} className="flex items-center gap-2">
-                  <span className="shrink-0 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">{item}</span>
+                  <span className="shrink-0 bg-dz-accent/10 px-2 py-0.5 text-[10px] font-medium text-dz-accent">{item}</span>
                   <input
                     type="text"
                     value={memos[item] ?? ''}
                     onChange={(e) => onMemoChange(item, e.target.value)}
-                    placeholder="부위/상세 (예: 다리, 배 주변)"
-                    className="flex-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-xs text-stone-700 placeholder:text-stone-300 outline-none transition-colors focus:ring-1 focus:ring-amber-300"
+                    placeholder="부위 (예: 다리, 배)"
+                    className="flex-1 border-b border-dz-border bg-transparent px-0 py-1 text-xs text-dz-primary placeholder:text-dz-border outline-none transition-all duration-400 focus:border-dz-primary"
                   />
                 </div>
               ))}
@@ -948,31 +938,32 @@ function SessionForm() {
   }
 
   const inputCls =
-    'w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-base text-stone-800 placeholder:text-stone-300 outline-none transition-colors focus:bg-white focus:ring-2 focus:ring-amber-300'
+    'w-full border-b border-dz-border bg-transparent px-0 py-2.5 text-sm text-dz-primary outline-none transition-all duration-400 placeholder:text-dz-border focus:border-dz-primary'
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAF8F5]">
+    <div className="mx-auto max-w-xl space-y-6 pb-48">
       {/* 저장 완료 모달 */}
       {showModal && <CompleteModal shareUrl={savedShareUrl} petId={savedPetId} onClose={() => setShowModal(false)} />}
 
       {/* 헤더 */}
-      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#1E1E1E] bg-[#0A0A0A] px-5 py-4">
-        <Link href="/admin/records" className="flex h-9 w-9 items-center justify-center rounded-full border border-[#2A2A2A] text-sm text-[#C9A96E] transition-colors hover:bg-[#1A1A1A]">
-          ←
+      <div>
+        <Link
+          href="/admin/records"
+          className="text-[11px] tracking-[0.1em] text-dz-muted transition-all duration-400 hover:text-dz-primary"
+        >
+          ← 케어 기록
         </Link>
-        <div>
-          <p className="text-[9px] font-medium uppercase tracking-[0.4em] text-[#C9A96E]">DAZUL</p>
-          <h1 className="text-sm font-light tracking-wide text-white">케어 기록 작성</h1>
-        </div>
-        {petName && <span className="ml-auto rounded-full bg-[#C9A96E]/10 px-3 py-1 text-xs font-medium text-[#C9A96E]">🐾 {petName}</span>}
-      </header>
+        <h1 className="mt-2 text-xl font-semibold text-dz-primary">케어 기록 작성</h1>
+        <p className="mt-1 text-[12px] text-dz-muted">
+          방문 기록과 신체 상태를 입력합니다
+        </p>
+      </div>
 
-      <div className="flex-1 overflow-y-auto pb-52">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-5">
+      <div className="flex flex-col gap-5">
           {/* ① 고객 검색 */}
           <Card>
             <SectionHeader title="고객 검색" sub="보호자 또는 반려견 이름으로 검색" />
-            <div className="flex flex-col gap-4 px-5 py-4">
+            <div className="flex flex-col gap-5">
               <div className="relative">
                 <input
                   type="text"
@@ -1057,7 +1048,7 @@ function SessionForm() {
           {/* ② 기본 정보 */}
           <Card>
             <SectionHeader title="기본 정보" />
-            <div className="flex flex-col gap-4 px-5 py-4">
+            <div className="flex flex-col gap-5">
               <Field label="날짜">
                 <input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className={inputCls} />
               </Field>
@@ -1067,7 +1058,7 @@ function SessionForm() {
           {/* ③ 오늘의 서비스 */}
           <Card>
             <SectionHeader title="오늘의 서비스" />
-            <div className="flex flex-col gap-5 px-5 py-4">
+            <div className="flex flex-col gap-5">
               <Field label="메인 서비스" required>
                 <div className="grid grid-cols-2 gap-2">
                   {MAIN_SERVICES.map((svc) => (
@@ -1077,8 +1068,8 @@ function SessionForm() {
                       onClick={() => setMainService(svc)}
                       className={`rounded-xl border-2 py-3 text-sm font-bold transition-all ${
                         mainService === svc
-                          ? 'border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-200'
-                          : 'border-stone-200 text-stone-500 hover:border-amber-300 hover:text-amber-600'
+                          ? 'border-dz-primary bg-dz-primary text-white'
+                          : 'border-dz-border text-dz-muted hover:border-dz-muted'
                       }`}
                     >
                       {svc}
@@ -1178,7 +1169,7 @@ function SessionForm() {
                   onChange={(e) => setStyleNotes(e.target.value)}
                   placeholder="스타일 지시사항, 보호자 요청 등"
                   rows={2}
-                  className="w-full resize-none rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-base text-stone-800 placeholder:text-stone-300 outline-none transition-colors focus:bg-white focus:ring-2 focus:ring-amber-300"
+                  className="w-full resize-none border border-dz-border bg-transparent px-3 py-2.5 text-sm text-dz-primary placeholder:text-dz-border outline-none transition-all duration-400 focus:border-dz-primary"
                 />
               </Field>
             </div>
@@ -1187,7 +1178,7 @@ function SessionForm() {
           {/* ④ 신체 상태 */}
           <Card>
             <SectionHeader title="신체 상태" sub="해당 항목을 모두 체크하세요" />
-            <div className="px-5 py-3">
+            <div className="">
               <BodyRow label="피부" options={SKIN_OPTIONS} selected={skin} onToggle={(val) => setSkin((prev) => toggleArr(prev, val))} memos={skinMemos} onMemoChange={updateMemo(setSkinMemos)} memoExclusions={['좋음']} />
               <BodyRow label="엉킴" options={TANGLE_OPTIONS} selected={tangles} onToggle={(val) => setTangles((prev) => toggleArr(prev, val, '없음'))} exclusive="없음" memos={tangleMemos} onMemoChange={updateMemo(setTangleMemos)} memoExclusions={['없음']} />
               <BodyRow label="눈" options={EYE_OPTIONS} selected={eyes} onToggle={(val) => setEyes((prev) => toggleArr(prev, val))} memos={eyeMemos} onMemoChange={updateMemo(setEyeMemos)} memoExclusions={['깨끗함']} />
@@ -1254,7 +1245,7 @@ function SessionForm() {
           {healthPreview && (
             <Card>
               <SectionHeader title="건강 요약 미리보기" sub="신체 상태 데이터에서 자동 생성됩니다" />
-              <div className="px-5 py-4">
+              <div className="">
                 <div className="whitespace-pre-wrap rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-800">
                   {healthPreview}
                 </div>
@@ -1266,7 +1257,7 @@ function SessionForm() {
           {/* ⑤ 사진 업로드 */}
           <Card>
             <SectionHeader title="사진 기록" sub="미용 전/후 사진을 남겨주세요" />
-            <div className="px-5 py-4">
+            <div className="">
               <PhotoUploadSection photos={photos} onAdd={handleAddPhotos} onRemove={handleRemovePhoto} />
             </div>
           </Card>
@@ -1274,7 +1265,7 @@ function SessionForm() {
           {/* ⑥ 케어 메모 */}
           <Card>
             <SectionHeader title="케어 메모" sub="특이사항, 다음 추천, 추적 관찰" />
-            <div className="flex flex-col gap-3 px-5 py-4">
+            <div className="flex flex-col gap-3">
               {notes.length === 0 && <p className="py-3 text-center text-sm text-stone-400">메모가 없습니다</p>}
               {notes.map((note) => (
                 <NoteCard key={note.id} note={note} onChange={(patch) => updateNote(note.id, patch)} onRemove={() => removeNote(note.id)} />
@@ -1292,7 +1283,7 @@ function SessionForm() {
           {/* ⑦ 다음 방문 추천 */}
           <Card>
             <SectionHeader title="다음 방문" sub="다음 방문 시기를 선택해주세요" />
-            <div className="flex flex-col gap-4 px-5 py-4">
+            <div className="flex flex-col gap-5">
               <div className="flex flex-wrap gap-2">
                 {NEXT_VISIT_OPTIONS.map((opt) => (
                   <button
@@ -1302,10 +1293,10 @@ function SessionForm() {
                       setNextVisitOption(opt.value)
                       setNextVisitDate(addDays(sessionDate, opt.days))
                     }}
-                    className={`rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-all ${
+                    className={`border px-3 py-1.5 text-[12px] font-medium transition-all duration-400 ${
                       nextVisitOption === opt.value
-                        ? 'border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-200'
-                        : 'border-stone-200 text-stone-500 hover:border-amber-300 hover:text-amber-600'
+                        ? 'border-dz-primary bg-dz-primary text-white'
+                        : 'border-dz-border text-dz-muted hover:border-dz-muted'
                     }`}
                   >
                     {opt.label}
@@ -1317,10 +1308,10 @@ function SessionForm() {
                     setNextVisitOption('custom')
                     setNextVisitDate('')
                   }}
-                  className={`rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-all ${
+                  className={`border px-3 py-1.5 text-[12px] font-medium transition-all duration-400 ${
                     nextVisitOption === 'custom'
-                      ? 'border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-200'
-                      : 'border-stone-200 text-stone-500 hover:border-amber-300 hover:text-amber-600'
+                      ? 'border-dz-primary bg-dz-primary text-white'
+                      : 'border-dz-border text-dz-muted hover:border-dz-muted'
                   }`}
                 >
                   직접 선택
@@ -1356,7 +1347,7 @@ function SessionForm() {
           {careTips.length > 0 && (
             <Card>
               <SectionHeader title="케어 팁 미리보기" sub="서비스 + 신체 상태에서 자동 생성됩니다" />
-              <div className="px-5 py-4">
+              <div className="">
                 <ul className="flex flex-col gap-2">
                   {careTips.map((tip, i) => (
                     <li key={i} className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
@@ -1373,7 +1364,7 @@ function SessionForm() {
           {/* ⑨ 보호자 전달 메시지 */}
           <Card>
             <SectionHeader title="보호자 전달 메시지" sub="카카오톡 리포트에 표시됩니다" />
-            <div className="flex flex-col gap-3 px-5 py-4">
+            <div className="flex flex-col gap-3">
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
@@ -1389,55 +1380,39 @@ function SessionForm() {
             </div>
           </Card>
         </div>
-      </div>
 
       {/* 하단 고정 저장 바 */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-stone-100 bg-white px-4 pb-5 pt-3 shadow-[0_-4px_24px_rgba(0,0,0,0.07)]">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
-          <div className="flex min-h-[26px] flex-wrap items-center gap-2">
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-dz-border bg-white px-4 pb-5 pt-3">
+        <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
+          {/* 상태 요약 뱃지 */}
+          <div className="flex min-h-[24px] flex-wrap items-center gap-1.5">
             {petName ? (
-              <span className="shrink-0 text-sm font-bold text-stone-700">🐾 {petName}</span>
+              <span className="text-[11px] font-medium text-dz-primary">🐾 {petName}</span>
             ) : (
-              <span className="shrink-0 text-sm font-bold text-red-400">반려견 미선택</span>
+              <span className="text-[11px] font-medium text-red-500">반려견 미선택</span>
             )}
-            {mainService && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">{mainService}</span>}
+            {mainService && <span className="bg-dz-primary px-2 py-0.5 text-[10px] text-white">{mainService}</span>}
             {spaLevel && (
-              <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">✨ 스파 {SPA_OPTIONS.find((s) => s.value === spaLevel)?.label}</span>
+              <span className="bg-dz-accent/15 px-2 py-0.5 text-[10px] text-dz-accent">✨ {SPA_OPTIONS.find((s) => s.value === spaLevel)?.label}</span>
             )}
-            {selectedProductIds.length > 0 && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-500">제품 {selectedProductIds.length}개</span>}
-            {nextVisitDate && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">다음: {nextVisitDate}</span>}
-            {photos.length > 0 && <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">📷 {photos.length}</span>}
+            {selectedProductIds.length > 0 && <span className="bg-dz-surface px-2 py-0.5 text-[10px] text-dz-muted">제품 {selectedProductIds.length}</span>}
           </div>
+
           {error && (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5">
-              <span className="flex-1 text-sm font-medium text-red-600">{error}</span>
-              <button type="button" onClick={() => setError('')} className="text-lg text-red-300 hover:text-red-500">
-                ×
-              </button>
+            <div className="flex items-center gap-2 border border-red-200 bg-red-50 px-3 py-2">
+              <span className="flex-1 text-[12px] text-red-600">{error}</span>
+              <button type="button" onClick={() => setError('')} className="text-red-300 hover:text-red-500">×</button>
             </div>
           )}
+
           <button
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className="flex min-h-[56px] w-full items-center justify-center bg-[#1A1A1A] py-4 text-sm font-medium uppercase tracking-[0.2em] text-white transition-all duration-400 hover:bg-[#1A1A1A]/85 disabled:opacity-40"
+            className="w-full bg-dz-primary py-3.5 text-[11px] font-medium uppercase tracking-[0.3em] text-white transition-all duration-400 hover:bg-dz-primary/85 disabled:opacity-40"
           >
             {isPending ? '저장 중…' : '기록 저장'}
           </button>
-          <div className="flex gap-2">
-            <Link
-              href="/admin/records"
-              className="flex flex-1 items-center justify-center rounded-xl border border-stone-200 py-3.5 text-sm font-semibold text-stone-500 transition-colors hover:border-amber-200 hover:text-amber-600"
-            >
-              기록 목록
-            </Link>
-            <Link
-              href="/admin"
-              className="flex flex-1 items-center justify-center rounded-xl border border-stone-200 py-3.5 text-sm font-semibold text-stone-500 transition-colors hover:border-amber-200 hover:text-amber-600"
-            >
-              대시보드
-            </Link>
-          </div>
         </div>
       </div>
     </div>
