@@ -622,8 +622,11 @@ function SessionForm() {
 
   // ─── 미용 스타일 ───
   const [groomingStyle, setGroomingStyle] = useState({ face: '', body: '', legs: '', tail: '', sanitary: '' })
-  const setGS = (key: keyof typeof groomingStyle, val: string) =>
+  const [groomingPrefilled, setGroomingPrefilled] = useState(false)
+  const setGS = (key: keyof typeof groomingStyle, val: string) => {
     setGroomingStyle((prev) => ({ ...prev, [key]: val }))
+    setGroomingPrefilled(false) // 수동 편집하면 프리필 표시 해제
+  }
 
   // ─── 제품 선택 (카테고리별 검색) ───
   const [allProducts, setAllProducts] = useState<Product[]>([])
@@ -814,7 +817,7 @@ function SessionForm() {
     }
   }, [guardianId, pets, guardians, petId])
 
-  // ─── 반려견 선택 → 이름 자동완성 (수동 오버라이드 허용) ───
+  // ─── 반려견 선택 → 이름 자동완성 + 이전 미용 스타일 불러오기 ───
   const petAutoFilled = useRef(false)
   useEffect(() => {
     const p = pets.find((p) => p.id === petId)
@@ -822,6 +825,31 @@ function SessionForm() {
       setPetName(p.name ?? '')
       petAutoFilled.current = true
     }
+    // 이전 방문 기록에서 grooming_style 자동 채우기
+    if (petId) {
+      (async () => {
+        const { data } = await supabase
+          .from('visit_records')
+          .select('grooming_style, weight')
+          .eq('pet_id', petId)
+          .order('visit_date', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (data?.grooming_style && typeof data.grooming_style === 'object') {
+          const gs = data.grooming_style as Record<string, string>
+          const filled = { face: gs.face ?? '', body: gs.body ?? '', legs: gs.legs ?? '', tail: gs.tail ?? '', sanitary: gs.sanitary ?? '' }
+          if (Object.values(filled).some((v) => v)) {
+            setGroomingStyle(filled)
+            setGroomingPrefilled(true)
+          }
+        }
+        // 몸무게도 이전 값 프리필
+        if (data?.weight && !weight) {
+          setWeight(String(data.weight))
+        }
+      })()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [petId, pets])
 
   // ─── 저장 ───
@@ -1278,15 +1306,7 @@ function SessionForm() {
                   })}
                 </div>
               </div>
-              <Field label="스타일 메모">
-                <textarea
-                  value={styleNotes}
-                  onChange={(e) => setStyleNotes(e.target.value)}
-                  placeholder="스타일 지시사항, 보호자 요청 등"
-                  rows={2}
-                  className="w-full resize-none border border-[#D0D0D0] bg-transparent px-3 py-2.5 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
-                />
-              </Field>
+              {/* 스타일 메모 삭제됨 — 미용 스타일 5개 input으로 대체 */}
             </div>
           </Card>
 
@@ -1295,11 +1315,16 @@ function SessionForm() {
             <Card>
               <SectionHeader title="GROOMING STYLE" sub="스타일 컷 상세를 입력해주세요" />
               <div className="flex flex-col gap-4">
+                {groomingPrefilled && (
+                  <p style={{ fontSize: 11, color: '#C9A96E', letterSpacing: '0.02em' }}>
+                    이전 방문 기록을 불러왔어요. 변경사항만 수정해주세요.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   {([
-                    { key: 'face' as const, label: '얼굴', ph: '예) 9mm, 곰돌이컷' },
-                    { key: 'body' as const, label: '몸', ph: '예) 7mm, 풀컷' },
-                    { key: 'legs' as const, label: '다리', ph: '예) 귀툭튀, 자연스럽게' },
+                    { key: 'face' as const, label: '얼굴', ph: '예) 9mm' },
+                    { key: 'body' as const, label: '몸', ph: '예) 7mm' },
+                    { key: 'legs' as const, label: '다리', ph: '예) 귀툭튀' },
                     { key: 'tail' as const, label: '꼬리', ph: '예) 귀툭튀' },
                   ]).map((item) => (
                     <div key={item.key}>
@@ -1309,7 +1334,11 @@ function SessionForm() {
                         value={groomingStyle[item.key]}
                         onChange={(e) => setGS(item.key, e.target.value)}
                         placeholder={item.ph}
-                        className="w-full border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
+                        className="w-full bg-transparent px-0 py-2 text-sm outline-none transition-all duration-300"
+                        style={{
+                          borderBottom: `1px solid ${groomingPrefilled && groomingStyle[item.key] ? '#C9A96E' : '#D0D0D0'}`,
+                          color: groomingPrefilled && groomingStyle[item.key] ? '#6B6B6B' : '#0A0A0A',
+                        }}
                       />
                     </div>
                   ))}
@@ -1320,8 +1349,12 @@ function SessionForm() {
                     type="text"
                     value={groomingStyle.sanitary}
                     onChange={(e) => setGS('sanitary', e.target.value)}
-                    placeholder="예) 클리핑, 가위컷"
-                    className="w-full border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
+                    placeholder="예) 클리핑"
+                    className="w-full bg-transparent px-0 py-2 text-sm outline-none transition-all duration-300"
+                    style={{
+                      borderBottom: `1px solid ${groomingPrefilled && groomingStyle.sanitary ? '#C9A96E' : '#D0D0D0'}`,
+                      color: groomingPrefilled && groomingStyle.sanitary ? '#6B6B6B' : '#0A0A0A',
+                    }}
                   />
                 </div>
               </div>
