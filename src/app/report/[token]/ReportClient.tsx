@@ -286,12 +286,12 @@ export default function ReportClient({
     <div style={{ minHeight: '100vh', background: C.bg }}>
 
       {/* ═══ 헤더 ═══ */}
-      <header style={{ background: C.bg, position: 'relative', borderBottom: `1px solid ${C.gold}` }}>
+      <header style={{ background: C.cream, position: 'relative', borderBottom: `1px solid ${C.gold}` }}>
         <div style={{ position: 'absolute', top: 16, right: 16 }}>
           {latest && <AdminMenu recordId={latest.id} />}
         </div>
 
-        <div className="mx-auto max-w-[480px] px-4 pt-16 pb-12 text-center">
+        <div className="mx-auto max-w-[480px] px-4 pt-20 pb-14 text-center">
           {/* 로고 */}
           <p style={{ fontSize: 11, letterSpacing: '0.25em', fontWeight: 300, color: C.sub }}>
             SALON DE DAZUL
