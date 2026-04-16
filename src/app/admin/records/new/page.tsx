@@ -26,6 +26,8 @@ interface NoteEntry {
 
 type Guardian = { id: string; name: string; phone: string | null }
 type Pet = { id: string; guardian_id: string; name: string; breed: string | null }
+type ProductCategory = { id: string; name: string; slug: string }
+type Product = { id: string; name: string; brand: string | null; category_id: string | null }
 
 // ─────────────────────────────────────────────
 // 상수
@@ -33,22 +35,20 @@ type Pet = { id: string; guardian_id: string; name: string; breed: string | null
 const MAIN_SERVICES = ['목욕관리', '전체미용'] as const
 
 const SPA_OPTIONS: { value: NonNullable<SpaLevel>; label: string; desc: string }[] = [
-  { value: 'basic', label: '베이직', desc: '클렌징 + 보습' },
-  { value: 'premium', label: '에센셜', desc: '딥클렌징 + 영양' },
-  { value: 'deep', label: '시그니처', desc: '전신 트리트먼트' },
-  { value: 'prestige', label: '프레스티지', desc: '프리미엄 풀케어' },
+  { value: 'basic', label: '베이직', desc: '기본 클렌징' },
+  { value: 'premium', label: '에센셜', desc: '딥클렌징 & 보습' },
+  { value: 'deep', label: '시그니처', desc: '전신 영양 트리트먼트' },
+  { value: 'prestige', label: '프레스티지', desc: '프리미엄 맞춤 풀케어' },
 ]
 
-const ADD_SERVICES = ['발톱', '귀 청소', '치아 케어', '항문낭', '눈 주변 정리', '기타'] as const
+// (추가서비스 항목 삭제됨)
 
-const SKIN_OPTIONS = ['좋음', '건조', '민감', '습진', '붉은반점', '붓음', '탈모', '딱지', '각질', '기름짐'] as const
-const TANGLE_OPTIONS = ['없음', '귀티', '머리', '꼬리', '쳐드링이', '목', '앞다리', '뒷다리', '기타'] as const
+const SKIN_OPTIONS = ['좋음', '건조', '민감', '습진', '붉은반점', '붉음', '탈모', '딱지', '각질', '기름짐'] as const
+const TANGLE_OPTIONS = ['없음', '귀', '머리', '꼬리', '쳐드링이', '목', '앞다리', '뒷다리', '기타'] as const
 const EYE_OPTIONS = ['깨끗함', '붉음', '눈물많음'] as const
 const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
 
-const WEIGHT_QUICK = ['2', '3', '4', '5', '6', '7', '8', '10', '12', '15']
 const SESSION_TYPES = ['정기', '첫 방문', '특별케어', '픽업/딜리버리']
-const STAFF_OPTIONS = ['담당자 1', '담당자 2', '담당자 3']
 
 const NOTE_CATEGORIES = ['케어', '특이사항', '다음 추천', '보호자 전달']
 const SEVERITY_OPTIONS = ['일반', '경미', '보통', '심각']
@@ -86,7 +86,6 @@ function generateHealthSummary({
   teethStatus,
   teethMemo,
   nailStatus,
-  weight,
 }: {
   skin: string[]
   skinMemo: string
@@ -96,11 +95,8 @@ function generateHealthSummary({
   teethStatus: TeethStatus
   teethMemo: string
   nailStatus: NailStatus
-  weight: string
 }): string {
   const parts: string[] = []
-
-  if (weight) parts.push(`체중: ${weight}kg`)
 
   if (skin.length > 0) {
     const good = skin.length === 1 && skin[0] === '좋음'
@@ -580,26 +576,41 @@ function SessionForm() {
   const [petId, setPetId] = useState(searchParams.get('petId') ?? '')
   const [petName, setPetName] = useState('')
   const [sessionDate, setSessionDate] = useState(today)
-  const [weight, setWeight] = useState('')
   const [guardianName, setGuardianName] = useState('')
   const [guardianPhone, setGuardianPhone] = useState('')
-  const [staff, setStaff] = useState('')
   const [sessionType, setSessionType] = useState('')
+
+  // ─── 검색 ───
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ type: 'guardian' | 'pet'; id: string; name: string; sub: string }[]>([])
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null)
 
   // ─── 서비스 ───
   const [mainService, setMainService] = useState('')
   const [spaLevel, setSpaLevel] = useState<SpaLevel>(null)
-  const [addServices, setAddServices] = useState<string[]>([])
-  const toggleAdd = (svc: string) => setAddServices((prev) => toggleArr(prev, svc))
-  const [products, setProducts] = useState('')
   const [styleNotes, setStyleNotes] = useState('')
+
+  // ─── 제품 선택 (DB) ───
+  const [productCategories, setProductCategories] = useState<ProductCategory[]>([])
+  const [allProducts, setAllProducts] = useState<Product[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
+  const toggleProduct = (id: string) =>
+    setSelectedProductIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
+  const filteredProducts = selectedCategoryId
+    ? allProducts.filter((p) => p.category_id === selectedCategoryId)
+    : allProducts
 
   // ─── 신체 상태 ───
   const [skin, setSkin] = useState<string[]>([])
   const [skinMemo, setSkinMemo] = useState('')
   const [tangles, setTangles] = useState<string[]>([])
+  const [tangleMemo, setTangleMemo] = useState('')
   const [eyes, setEyes] = useState<string[]>([])
+  const [eyeMemo, setEyeMemo] = useState('')
   const [ears, setEars] = useState<string[]>([])
+  const [earMemo, setEarMemo] = useState('')
   const [teethStatus, setTeethStatus] = useState<TeethStatus>(null)
   const [teethMemo, setTeethMemo] = useState('')
   const [nailStatus, setNailStatus] = useState<NailStatus>(null)
@@ -657,7 +668,6 @@ function SessionForm() {
     teethStatus,
     teethMemo,
     nailStatus,
-    weight,
   })
 
   // ─── 케어 팁 미리보기 ───
@@ -682,15 +692,41 @@ function SessionForm() {
   // ─── 초기 데이터 로드 ───
   useEffect(() => {
     async function load() {
-      const [gResult, pResult] = await Promise.all([
+      const [gResult, pResult, catResult, prodResult] = await Promise.all([
         supabase.from('guardians').select('id, name, phone').order('name'),
         supabase.from('pets').select('id, guardian_id, name, breed').order('name'),
+        supabase.from('product_categories').select('id, name, slug').order('sort_order').order('name'),
+        supabase.from('products').select('id, name, brand, category_id').eq('is_active', true).order('name'),
       ])
       setGuardians(gResult.data || [])
       setPets(pResult.data || [])
+      setProductCategories(catResult.data || [])
+      setAllProducts(prodResult.data || [])
     }
     load()
   }, [])
+
+  // ─── 검색 (보호자 + 반려견 동시) ───
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return }
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
+    searchTimeout.current = setTimeout(async () => {
+      const q = searchQuery.trim()
+      const [gRes, pRes] = await Promise.all([
+        supabase.from('guardians').select('id, name, phone').ilike('name', `%${q}%`).limit(5),
+        supabase.from('pets').select('id, guardian_id, name, breed').ilike('name', `%${q}%`).limit(5),
+      ])
+      const results: typeof searchResults = []
+      for (const g of gRes.data ?? []) results.push({ type: 'guardian', id: g.id, name: g.name, sub: g.phone ?? '' })
+      for (const p of pRes.data ?? []) {
+        const gName = guardians.find((g) => g.id === p.guardian_id)?.name ?? ''
+        results.push({ type: 'pet', id: p.id, name: p.name, sub: `${p.breed ?? ''} ${gName ? `· ${gName}` : ''}`.trim() })
+      }
+      setSearchResults(results)
+      setShowSearchResults(results.length > 0)
+    }, 300)
+    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }
+  }, [searchQuery, guardians])
 
   // ─── 보호자 선택 → 반려견 필터 + 자동완성 ───
   useEffect(() => {
@@ -738,15 +774,14 @@ function SessionForm() {
         // 서비스 문자열 조합
         const serviceParts = [mainService]
         if (spaLevel) serviceParts.push(`스파 ${SPA_OPTIONS.find((s) => s.value === spaLevel)?.label ?? spaLevel}`)
-        if (addServices.length > 0) serviceParts.push(...addServices)
         const serviceStr = serviceParts.join(', ')
 
         // 건강 상태 문자열
         const skinStr = skin.length > 0 ? skin.join(', ') + (skinMemo ? ` (${skinMemo})` : '') : null
-        const coatStr = tangles.length > 0 ? `엉킴: ${tangles.join(', ')}` : null
+        const coatStr = tangles.length > 0 ? `엉킴: ${tangles.join(', ')}${tangleMemo ? ` (${tangleMemo})` : ''}` : null
         const conditionStr = [
-          eyes.length > 0 ? `눈: ${eyes.join(', ')}` : '',
-          ears.length > 0 ? `귀: ${ears.join(', ')}` : '',
+          eyes.length > 0 ? `눈: ${eyes.join(', ')}${eyeMemo ? ` (${eyeMemo})` : ''}` : '',
+          ears.length > 0 ? `귀: ${ears.join(', ')}${earMemo ? ` (${earMemo})` : ''}` : '',
           teethStatus ? `치아: ${teethStatus === 'clean' ? '깨끗함' : '관리필요'}${teethMemo ? ` (${teethMemo})` : ''}` : '',
           nailStatus ? `발톱: ${nailStatus === 'good' ? '적당함' : '관리필요'}` : '',
         ]
@@ -776,7 +811,6 @@ function SessionForm() {
           pet_id: petId,
           pet_name: petName || null,
           guardian_name: guardianName || null,
-          staff_name: staff || null,
           visit_date: sessionDate,
           service_type: serviceStr,
           service: mainService,
@@ -787,7 +821,9 @@ function SessionForm() {
           special_notes: specialStr,
           next_visit_recommendation: nextRecommendation,
           care_summary: styleNotes || null,
-          care_actions: products || null,
+          care_actions: selectedProductIds.length > 0
+            ? allProducts.filter((p) => selectedProductIds.includes(p.id)).map((p) => `${p.name}${p.brand ? ` (${p.brand})` : ''}`).join(', ')
+            : null,
           care_notes: null,
           next_care_guide: careTipsStr,
           note: noteField,
@@ -906,40 +942,86 @@ function SessionForm() {
 
       <div className="flex-1 overflow-y-auto pb-52">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-5">
-          {/* ① 고객 선택 (DB) */}
+          {/* ① 고객 검색 */}
           <Card>
-            <SectionHeader title="고객 선택" sub="기존 등록된 보호자/반려견에서 선택" />
+            <SectionHeader title="고객 검색" sub="보호자 또는 반려견 이름으로 검색" />
             <div className="flex flex-col gap-4 px-5 py-4">
-              <Field label="보호자" required>
-                <select value={guardianId} onChange={(e) => setGuardianId(e.target.value)} className={inputCls}>
-                  <option value="">보호자 선택</option>
-                  {guardians.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name} {g.phone ? `(${g.phone})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="반려견" required>
-                <select value={petId} onChange={(e) => setPetId(e.target.value)} className={inputCls}>
-                  <option value="">반려견 선택</option>
-                  {(guardianId ? filteredPets : pets).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} {p.breed ? `(${p.breed})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              {/* 반려견 이름 (자동완성, 수동 오버라이드 가능) */}
-              {petId && (
-                <Field label="반려견 이름 (수정 가능)">
-                  <input
-                    type="text"
-                    value={petName}
-                    onChange={(e) => setPetName(e.target.value)}
-                    placeholder="반려견 이름"
-                    className={inputCls}
-                  />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setShowSearchResults(true) }}
+                  onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
+                  placeholder="보호자 또는 반려견 이름 검색..."
+                  className={inputCls}
+                />
+                {showSearchResults && searchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-lg">
+                    {searchResults.map((r) => (
+                      <button
+                        key={`${r.type}-${r.id}`}
+                        type="button"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50"
+                        onClick={() => {
+                          if (r.type === 'guardian') {
+                            setGuardianId(r.id)
+                            setGuardianName(r.name)
+                          } else {
+                            setPetId(r.id)
+                            setPetName(r.name)
+                            const pet = pets.find((p) => p.id === r.id)
+                            if (pet?.guardian_id) {
+                              setGuardianId(pet.guardian_id)
+                              const g = guardians.find((g) => g.id === pet.guardian_id)
+                              if (g) { setGuardianName(g.name); setGuardianPhone(g.phone ?? '') }
+                            }
+                          }
+                          setSearchQuery('')
+                          setShowSearchResults(false)
+                        }}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-xs">
+                          {r.type === 'guardian' ? '👤' : '🐾'}
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-stone-800">{r.name}</p>
+                          <p className="text-xs text-stone-400">{r.type === 'guardian' ? '보호자' : '반려견'} · {r.sub}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 선택된 고객 표시 */}
+              {(guardianId || petId) && (
+                <div className="flex flex-wrap gap-2">
+                  {guardianName && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1.5 text-xs font-semibold text-stone-700">
+                      👤 {guardianName}
+                      <button type="button" onClick={() => { setGuardianId(''); setGuardianName(''); setGuardianPhone('') }} className="ml-1 text-stone-400 hover:text-red-400">✕</button>
+                    </span>
+                  )}
+                  {petName && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700">
+                      🐾 {petName}
+                      <button type="button" onClick={() => { setPetId(''); setPetName('') }} className="ml-1 text-amber-400 hover:text-red-400">✕</button>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* 보호자 선택 후 반려견 드롭다운 (검색 대체) */}
+              {guardianId && !petId && filteredPets.length > 0 && (
+                <Field label="반려견 선택" required>
+                  <div className="flex flex-wrap gap-2">
+                    {filteredPets.map((p) => (
+                      <button key={p.id} type="button" onClick={() => { setPetId(p.id); setPetName(p.name) }}
+                        className="rounded-xl border-2 border-stone-200 px-4 py-2.5 text-sm font-semibold text-stone-600 transition-all hover:border-amber-400 hover:text-amber-600">
+                        {p.name} {p.breed ? `(${p.breed})` : ''}
+                      </button>
+                    ))}
+                  </div>
                 </Field>
               )}
             </div>
@@ -949,39 +1031,19 @@ function SessionForm() {
           <Card>
             <SectionHeader title="기본 정보" />
             <div className="flex flex-col gap-4 px-5 py-4">
-              <div className="flex gap-3">
-                <Field label="날짜">
-                  <input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="몸무게 (kg)">
-                  <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-amber-300">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={weight}
-                      onChange={(e) => setWeight(e.target.value)}
-                      placeholder="0.0"
-                      className="w-20 bg-transparent text-base text-stone-800 placeholder:text-stone-300 outline-none"
-                    />
-                    <span className="text-sm font-semibold text-stone-400">kg</span>
-                  </div>
-                </Field>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {WEIGHT_QUICK.map((w) => (
-                  <button
-                    key={w}
-                    type="button"
-                    onClick={() => setWeight(w)}
-                    className={`min-w-[40px] rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
-                      weight === w ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-500 hover:bg-amber-50 hover:text-amber-700'
-                    }`}
-                  >
-                    {w}
-                  </button>
-                ))}
-              </div>
+              <Field label="날짜">
+                <input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="방문 유형">
+                <div className="flex flex-wrap gap-2">
+                  {SESSION_TYPES.map((t) => (
+                    <button key={t} type="button" onClick={() => setSessionType(t)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        sessionType === t ? 'border-stone-700 bg-stone-700 text-white' : 'border-stone-200 text-stone-500 hover:bg-stone-100'
+                      }`}>{t}</button>
+                  ))}
+                </div>
+              </Field>
             </div>
           </Card>
 
@@ -1045,70 +1107,54 @@ function SessionForm() {
                 </div>
               </div>
 
-              {/* 추가 서비스 */}
-              <Field label="추가 서비스">
-                <div className="flex flex-wrap gap-x-4 gap-y-2.5">
-                  {ADD_SERVICES.map((svc) => {
-                    const on = addServices.includes(svc)
+              {/* 사용 제품 (DB) */}
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-stone-500">사용 제품</label>
+                {/* 카테고리 탭 */}
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  <button type="button" onClick={() => setSelectedCategoryId(null)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${!selectedCategoryId ? 'bg-stone-700 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
+                    전체
+                  </button>
+                  {productCategories.map((cat) => (
+                    <button key={cat.id} type="button" onClick={() => setSelectedCategoryId(cat.id)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${selectedCategoryId === cat.id ? 'bg-stone-700 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+                {/* 제품 선택 */}
+                <div className="flex flex-wrap gap-2">
+                  {filteredProducts.map((p) => {
+                    const on = selectedProductIds.includes(p.id)
                     return (
-                      <button key={svc} type="button" onClick={() => toggleAdd(svc)} className="group flex items-center gap-1.5">
-                        <span
-                          className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border-2 transition-all ${
-                            on ? 'border-amber-500 bg-amber-500' : 'border-stone-300 group-hover:border-amber-400'
-                          }`}
-                        >
-                          {on && (
-                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                              <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </span>
-                        <span className={`text-sm ${on ? 'font-semibold text-stone-800' : 'text-stone-500'}`}>{svc}</span>
+                      <button key={p.id} type="button" onClick={() => toggleProduct(p.id)}
+                        className={`rounded-xl border-2 px-3 py-2 text-xs font-semibold transition-all ${
+                          on ? 'border-amber-500 bg-amber-500 text-white' : 'border-stone-200 text-stone-600 hover:border-amber-300'
+                        }`}>
+                        {p.name}{p.brand ? ` (${p.brand})` : ''}
                       </button>
                     )
                   })}
+                  {filteredProducts.length === 0 && (
+                    <p className="text-xs text-stone-400">등록된 제품이 없습니다.</p>
+                  )}
                 </div>
-              </Field>
-
-              {/* 담당자 / 방문유형 */}
-              <div className="flex flex-wrap gap-4">
-                <Field label="담당자">
-                  <div className="flex flex-wrap gap-2">
-                    {STAFF_OPTIONS.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setStaff(s)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          staff === s ? 'border-stone-700 bg-stone-700 text-white' : 'border-stone-200 text-stone-500 hover:bg-stone-100'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                {/* 선택된 제품 배지 */}
+                {selectedProductIds.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {selectedProductIds.map((id) => {
+                      const p = allProducts.find((x) => x.id === id)
+                      return p ? (
+                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                          {p.name}
+                          <button type="button" onClick={() => toggleProduct(id)} className="text-amber-400 hover:text-red-400">✕</button>
+                        </span>
+                      ) : null
+                    })}
                   </div>
-                </Field>
-                <Field label="방문 유형">
-                  <div className="flex flex-wrap gap-2">
-                    {SESSION_TYPES.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setSessionType(t)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          sessionType === t ? 'border-stone-700 bg-stone-700 text-white' : 'border-stone-200 text-stone-500 hover:bg-stone-100'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
+                )}
               </div>
-
-              <Field label="사용 제품">
-                <input type="text" value={products} onChange={(e) => setProducts(e.target.value)} placeholder="예: 레녹스 샴푸, 밥선샴..." className={inputCls} />
-              </Field>
               <Field label="스타일 메모">
                 <textarea
                   value={styleNotes}
@@ -1126,9 +1172,9 @@ function SessionForm() {
             <SectionHeader title="신체 상태" sub="해당 항목을 모두 체크하세요" />
             <div className="px-5 py-3">
               <BodyRow label="피부" options={SKIN_OPTIONS} selected={skin} onToggle={(val) => setSkin((prev) => toggleArr(prev, val))} memo={skinMemo} onMemo={setSkinMemo} showMemoWhen={skin.some((s) => s !== '좋음')} />
-              <BodyRow label="엉킴" options={TANGLE_OPTIONS} selected={tangles} onToggle={(val) => setTangles((prev) => toggleArr(prev, val, '없음'))} exclusive="없음" />
-              <BodyRow label="눈" options={EYE_OPTIONS} selected={eyes} onToggle={(val) => setEyes((prev) => toggleArr(prev, val))} />
-              <BodyRow label="귀" options={EAR_OPTIONS} selected={ears} onToggle={(val) => setEars((prev) => toggleArr(prev, val))} />
+              <BodyRow label="엉킴" options={TANGLE_OPTIONS} selected={tangles} onToggle={(val) => setTangles((prev) => toggleArr(prev, val, '없음'))} exclusive="없음" memo={tangleMemo} onMemo={setTangleMemo} showMemoWhen={tangles.some((t) => t !== '없음')} />
+              <BodyRow label="눈" options={EYE_OPTIONS} selected={eyes} onToggle={(val) => setEyes((prev) => toggleArr(prev, val))} memo={eyeMemo} onMemo={setEyeMemo} showMemoWhen={eyes.some((e) => e !== '깨끗함')} />
+              <BodyRow label="귀" options={EAR_OPTIONS} selected={ears} onToggle={(val) => setEars((prev) => toggleArr(prev, val))} memo={earMemo} onMemo={setEarMemo} showMemoWhen={ears.some((e) => e !== '깨끗함')} />
 
               {/* 치아 */}
               <div className="border-b border-stone-100 py-3">
@@ -1341,8 +1387,7 @@ function SessionForm() {
             {spaLevel && (
               <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">✨ 스파 {SPA_OPTIONS.find((s) => s.value === spaLevel)?.label}</span>
             )}
-            {weight && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-500">{weight}kg</span>}
-            {addServices.length > 0 && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-500">+{addServices.length}</span>}
+            {selectedProductIds.length > 0 && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-500">제품 {selectedProductIds.length}개</span>}
             {nextVisitDate && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">다음: {nextVisitDate}</span>}
             {photos.length > 0 && <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">📷 {photos.length}</span>}
           </div>
