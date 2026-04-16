@@ -82,7 +82,7 @@ export default async function ReportPage({ params }: PageProps) {
 
   const { data: rec } = await supabase
     .from('visit_records')
-    .select('id, pet_name, visit_date, weight, service, service_type, spa_level, skin_status, coat_status, condition_status, nail_status, next_care_guide, next_visit_date, next_visit_recommendation, comment')
+    .select('id, pet_name, visit_date, service, service_type, spa_level, skin_status, coat_status, condition_status, next_care_guide, next_visit_date, next_visit_recommendation, comment')
     .eq('guardian_id', guardian.id)
     .order('visit_date', { ascending: false })
     .limit(1)
@@ -92,7 +92,6 @@ export default async function ReportPage({ params }: PageProps) {
 
   const petName = rec.pet_name ?? '반려견'
   const dateStr = fmtShort(rec.visit_date)
-  const weightStr = rec.weight ? `${rec.weight}kg` : null
   const svc = rec.service ?? rec.service_type ?? null
   const spaKey = rec.spa_level as string | null
   const spa = spaKey ? SPA[spaKey] ?? null : null
@@ -104,7 +103,7 @@ export default async function ReportPage({ params }: PageProps) {
     { key: 'eyes',    label: '눈',   icon: '👁️', value: cond.eyes ?? null },
     { key: 'ears',    label: '귀',   icon: '👂', value: cond.ears ?? null },
     { key: 'teeth',   label: '치아', icon: '🦷', value: cond.teeth ?? null },
-    { key: 'nail',    label: '발톱', icon: '✂️', value: rec.nail_status ?? cond.nail ?? null },
+    { key: 'nail',    label: '발톱', icon: '✂️', value: cond.nail ?? null },
   ]
   const hasHealth = health.some((h) => h.value)
   const allOk = health.every((h) => isOk(h.value))
@@ -147,7 +146,7 @@ export default async function ReportPage({ params }: PageProps) {
             {petName}
           </h1>
           <p className="mt-3" style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em' }}>
-            {[dateStr, weightStr].filter(Boolean).join(' · ')}
+            {dateStr}
           </p>
         </div>
       </header>
