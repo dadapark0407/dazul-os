@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import StatusAction from '@/components/admin/StatusAction'
+import CareHistoryTable from '@/components/admin/CareHistoryTable'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -65,13 +66,12 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
     guardian = data
   }
 
-  // 방문 기록
+  // 방문 기록 (전체 조회)
   const { data: visitRecords } = await supabase
     .from('visit_records')
-    .select('id, visit_date, service_type, skin_status, coat_status, condition_status, stress_status, special_notes')
+    .select('*')
     .eq('pet_id', id)
     .order('visit_date', { ascending: false })
-    .limit(20)
 
   const records = visitRecords ?? []
   const totalVisits = records.length
@@ -223,57 +223,11 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
         </section>
       </div>
 
-      {/* 방문 기록 타임라인 */}
-      <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-neutral-900">방문 기록</h2>
-          <span className="text-sm text-neutral-500">최근 20건</span>
-        </div>
-
-        {records.length === 0 ? (
-          <div className="mt-6 rounded-xl border border-dashed border-neutral-300 py-10 text-center">
-            <p className="text-sm text-neutral-500">방문 기록이 아직 없습니다.</p>
-          </div>
-        ) : (
-          <div className="mt-4 divide-y divide-neutral-100">
-            {records.map((record) => (
-              <Link
-                key={record.id}
-                href={`/admin/records/${record.id}`}
-                className="block py-4 transition hover:bg-neutral-50 -mx-2 px-2 rounded-lg"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-900">
-                      {formatDate(record.visit_date)}
-                    </p>
-                    <p className="mt-1 text-xs text-neutral-500">
-                      {record.service_type ?? '서비스 미입력'}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {record.skin_status && (
-                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                        피부: {record.skin_status}
-                      </span>
-                    )}
-                    {record.condition_status && (
-                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                        {record.condition_status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {record.special_notes && (
-                  <p className="mt-2 line-clamp-1 text-xs text-neutral-500">
-                    특이: {record.special_notes}
-                  </p>
-                )}
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* 케어 히스토리 테이블 */}
+      <CareHistoryTable
+        records={records as Record<string, unknown>[]}
+        petName={str(pet, 'name') ?? '반려견'}
+      />
 
       {/* 상태 관리 */}
       <StatusAction
