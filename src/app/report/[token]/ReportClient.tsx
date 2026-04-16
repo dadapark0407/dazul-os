@@ -286,17 +286,17 @@ export default function ReportClient({
     <div style={{ minHeight: '100vh', background: C.bg }}>
 
       {/* ═══ 헤더 ═══ */}
-      <header style={{ background: C.dark, position: 'relative', borderBottom: `1px solid ${C.gold}` }}>
+      <header style={{ background: C.bg, position: 'relative', borderBottom: `1px solid ${C.gold}` }}>
         <div style={{ position: 'absolute', top: 16, right: 16 }}>
           {latest && <AdminMenu recordId={latest.id} />}
         </div>
 
-        <div className="mx-auto max-w-[520px] px-8 pt-16 pb-12 text-center">
+        <div className="mx-auto max-w-[480px] px-4 pt-16 pb-12 text-center">
           {/* 로고 */}
-          <p style={{ fontSize: 11, letterSpacing: '0.3em', fontWeight: 300, color: 'rgba(255,255,255,0.5)' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.3em', fontWeight: 300, color: C.sub }}>
             DAZUL
           </p>
-          <p style={{ fontSize: 13, fontStyle: 'italic', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>
+          <p style={{ fontSize: 13, fontStyle: 'italic', letterSpacing: '0.15em', color: C.sub, marginTop: 6 }}>
             Grooming Letter
           </p>
 
@@ -304,13 +304,13 @@ export default function ReportClient({
           <div className="mx-auto my-8" style={{ width: 40, height: 0.5, background: C.gold }} />
 
           {/* 반려견 이름 */}
-          <h1 style={{ fontSize: 32, fontWeight: 300, letterSpacing: '0.1em', color: '#FFFFFF', lineHeight: 1.1 }}>
+          <h1 style={{ fontSize: 32, fontWeight: 300, letterSpacing: '0.1em', color: C.text, lineHeight: 1.1 }}>
             {petName}
           </h1>
 
           {/* 날짜 + 몸무게 */}
           {latest?.visit_date && (
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.15em', marginTop: 16 }}>
+            <p style={{ fontSize: 12, color: C.sub, letterSpacing: '0.15em', marginTop: 16 }}>
               {fmtShort(latest.visit_date)}
               {latest.weight ? `  ·  ${latest.weight}kg` : ''}
             </p>
@@ -330,8 +330,8 @@ export default function ReportClient({
                     padding: '8px 20px',
                     background: 'transparent',
                     color: (activePetId === tab.id || (!activePetId && !tab.id))
-                      ? '#FFFFFF'
-                      : 'rgba(255,255,255,0.25)',
+                      ? C.text
+                      : C.muted,
                     border: 'none',
                     borderBottom: (activePetId === tab.id || (!activePetId && !tab.id))
                       ? `1px solid ${C.gold}`
@@ -350,7 +350,7 @@ export default function ReportClient({
       </header>
 
       {/* ═══ 기록 ═══ */}
-      <main className="mx-auto max-w-[520px] px-5 pt-8 pb-4">
+      <main className="mx-auto max-w-[480px] px-4 pt-8 pb-4">
         {/* 카운트 */}
         <div className="flex items-center gap-3" style={{ marginBottom: 16 }}>
           <div style={{ flex: 1, height: 0.5, background: C.border }} />
