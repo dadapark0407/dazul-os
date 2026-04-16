@@ -26,8 +26,7 @@ interface NoteEntry {
 
 type Guardian = { id: string; name: string; phone: string | null }
 type Pet = { id: string; guardian_id: string; name: string; breed: string | null }
-type ProductCategory = { id: string; name: string; slug: string }
-type Product = { id: string; name: string; brand: string | null; category_id: string | null }
+type Product = { id: string; name: string; brand: string | null; category: string | null; category_id: string | null }
 
 // ─────────────────────────────────────────────
 // 상수
@@ -47,6 +46,10 @@ const SKIN_OPTIONS = ['좋음', '건조', '민감', '습진', '붉은반점', '�
 const TANGLE_OPTIONS = ['없음', '귀', '머리', '꼬리', '쳐드링이', '목', '앞다리', '뒷다리', '기타'] as const
 const EYE_OPTIONS = ['깨끗함', '붉음', '눈물많음'] as const
 const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
+const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
+const NAIL_OPTIONS = ['적당함', '관리필요'] as const
+
+const PRODUCT_CATEGORIES = ['샴푸', '컨디셔너', '스파', '팩', '기타'] as const
 
 // (방문 유형 삭제됨)
 
@@ -225,15 +228,15 @@ function generateCareTips({
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`border border-dz-border/50 bg-white p-6 ${className}`}>{children}</div>
+    <div className={`border border-[#E8E8E8] bg-white p-8 ${className}`}>{children}</div>
   )
 }
 
 function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="mb-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-dz-accent">{title}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-dz-muted/60">{sub}</p>}
+    <div className="mb-5">
+      <p className="text-[11px] font-light uppercase tracking-[0.15em] text-[#6B6B6B]">{title}</p>
+      {sub && <p className="mt-1 text-[11px] text-[#6B6B6B]/50">{sub}</p>}
     </div>
   )
 }
@@ -241,9 +244,9 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <div>
-      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.1em] text-dz-muted">
+      <label className="mb-2 block text-[11px] font-light uppercase tracking-[0.1em] text-[#6B6B6B]">
         {label}
-        {required && <span className="ml-0.5 text-dz-accent">*</span>}
+        {required && <span className="ml-0.5 text-[#C9A96E]">*</span>}
       </label>
       {children}
     </div>
@@ -269,10 +272,10 @@ function CheckChips({
             key={opt}
             type="button"
             onClick={() => onToggle(opt)}
-            className={`border px-3 py-1.5 text-[12px] font-medium transition-all duration-400 ${
+            className={`border px-3 py-1.5 text-[12px] font-normal transition-all duration-300 ${
               checked
-                ? 'border-dz-primary bg-dz-primary text-white'
-                : 'border-dz-border text-dz-muted hover:border-dz-muted'
+                ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
+                : 'border-[#D0D0D0] text-[#6B6B6B] hover:border-[#0A0A0A]'
             }`}
           >
             {opt}
@@ -304,23 +307,23 @@ function BodyRow({
 }) {
   const exclusions = memoExclusions ?? []
   return (
-    <div className="border-b border-dz-border/30 py-3 last:border-b-0">
-      <div className="flex items-start gap-3">
-        <span className="w-12 shrink-0 pt-0.5 text-[11px] font-medium uppercase tracking-[0.1em] text-dz-muted">{label}</span>
+    <div className="border-b border-[#E8E8E8] py-4 last:border-b-0">
+      <div className="flex items-start gap-4">
+        <span className="w-12 shrink-0 pt-0.5 text-[11px] font-light uppercase tracking-[0.1em] text-[#6B6B6B]">{label}</span>
         <div className="flex-1">
           <CheckChips options={options} selected={selected} onToggle={onToggle} exclusive={exclusive} />
           {/* 체크된 항목별 개별 메모 */}
           {memos && onMemoChange && selected.filter((s) => !exclusions.includes(s)).length > 0 && (
-            <div className="mt-2 flex flex-col gap-1.5">
+            <div className="mt-3 flex flex-col gap-2">
               {selected.filter((s) => !exclusions.includes(s)).map((item) => (
                 <div key={item} className="flex items-center gap-2">
-                  <span className="shrink-0 bg-dz-accent/10 px-2 py-0.5 text-[10px] font-medium text-dz-accent">{item}</span>
+                  <span className="shrink-0 border border-[#C9A96E]/30 bg-[#C9A96E]/5 px-2 py-0.5 text-[10px] font-normal text-[#C9A96E]">{item}</span>
                   <input
                     type="text"
                     value={memos[item] ?? ''}
                     onChange={(e) => onMemoChange(item, e.target.value)}
                     placeholder="부위 (예: 다리, 배)"
-                    className="flex-1 border-b border-dz-border bg-transparent px-0 py-1 text-xs text-dz-primary placeholder:text-dz-border outline-none transition-all duration-400 focus:border-dz-primary"
+                    className="flex-1 border-b border-[#D0D0D0] bg-transparent px-0 py-1 text-xs text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
                   />
                 </div>
               ))}
@@ -589,6 +592,7 @@ function SessionForm() {
   const [petId, setPetId] = useState(searchParams.get('petId') ?? '')
   const [petName, setPetName] = useState('')
   const [sessionDate, setSessionDate] = useState(today)
+  const [weight, setWeight] = useState('')
   const [guardianName, setGuardianName] = useState('')
   const [guardianPhone, setGuardianPhone] = useState('')
 
@@ -603,16 +607,27 @@ function SessionForm() {
   const [spaLevel, setSpaLevel] = useState<SpaLevel>(null)
   const [styleNotes, setStyleNotes] = useState('')
 
-  // ─── 제품 선택 (DB) ───
-  const [productCategories, setProductCategories] = useState<ProductCategory[]>([])
+  // ─── 제품 선택 (카테고리별 검색) ───
   const [allProducts, setAllProducts] = useState<Product[]>([])
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
+  const [productSearches, setProductSearches] = useState<Record<string, string>>({})
   const toggleProduct = (id: string) =>
     setSelectedProductIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
-  const filteredProducts = selectedCategoryId
-    ? allProducts.filter((p) => p.category_id === selectedCategoryId)
-    : allProducts
+  const setProductSearch = (cat: string, val: string) =>
+    setProductSearches((prev) => ({ ...prev, [cat]: val }))
+  /** 카테고리별 검색 결과 */
+  function getProductsForCategory(cat: string): Product[] {
+    const q = (productSearches[cat] ?? '').toLowerCase()
+    return allProducts.filter((p) => {
+      const pCat = (p as Record<string, unknown>).category as string | null
+      const matchCat = cat === '기타'
+        ? !PRODUCT_CATEGORIES.slice(0, -1).some((c) => pCat?.includes(c))
+        : pCat?.includes(cat)
+      if (!matchCat) return false
+      if (!q) return true
+      return (p.name ?? '').toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q)
+    })
+  }
 
   // ─── 신체 상태 ───
   const [skin, setSkin] = useState<string[]>([])
@@ -625,9 +640,14 @@ function SessionForm() {
   const [earMemos, setEarMemos] = useState<Record<string, string>>({})
   const updateMemo = (setter: React.Dispatch<React.SetStateAction<Record<string, string>>>) =>
     (key: string, val: string) => setter((prev) => ({ ...prev, [key]: val }))
-  const [teethStatus, setTeethStatus] = useState<TeethStatus>(null)
-  const [teethMemo, setTeethMemo] = useState('')
-  const [nailStatus, setNailStatus] = useState<NailStatus>(null)
+  const [teeth, setTeeth] = useState<string[]>([])
+  const [teethMemos, setTeethMemos] = useState<Record<string, string>>({})
+  const [nails, setNails] = useState<string[]>([])
+  const [nailMemos, setNailMemos] = useState<Record<string, string>>({})
+  // 하위 호환용 (generateHealthSummary 등에서 사용)
+  const teethStatus: TeethStatus = teeth.length === 0 ? null : teeth.includes('깨끗함') && teeth.length === 1 ? 'clean' : 'needs_care'
+  const teethMemo = Object.entries(teethMemos).filter(([, v]) => v).map(([k, v]) => `${k}(${v})`).join(', ')
+  const nailStatus: NailStatus = nails.length === 0 ? null : nails.includes('적당함') && nails.length === 1 ? 'good' : 'needs_care'
 
   // ─── 메모 ───
   const [notes, setNotes] = useState<NoteEntry[]>([])
@@ -703,15 +723,13 @@ function SessionForm() {
   // ─── 초기 데이터 로드 ───
   useEffect(() => {
     async function load() {
-      const [gResult, pResult, catResult, prodResult] = await Promise.all([
+      const [gResult, pResult, prodResult] = await Promise.all([
         supabase.from('guardians').select('id, name, phone').order('name'),
         supabase.from('pets').select('id, guardian_id, name, breed').order('name'),
-        supabase.from('product_categories').select('id, name, slug').order('sort_order').order('name'),
-        supabase.from('products').select('id, name, brand, category_id').eq('is_active', true).order('name'),
+        supabase.from('products').select('id, name, brand, category, category_id').eq('is_active', true).order('name'),
       ])
       setGuardians(gResult.data || [])
       setPets(pResult.data || [])
-      setProductCategories(catResult.data || [])
       setAllProducts(prodResult.data || [])
     }
     load()
@@ -796,11 +814,17 @@ function SessionForm() {
         const coatStr = tangles.length > 0 && !(tangles.length === 1 && tangles[0] === '없음')
           ? `엉킴: ${fmtItems(tangles, tangleMemos, ['없음'])}`
           : null
+        const teethStr = teeth.length > 0 && !(teeth.length === 1 && teeth[0] === '깨끗함')
+          ? `치아: ${fmtItems(teeth, teethMemos, ['깨끗함'])}`
+          : teeth.includes('깨끗함') ? '치아: 깨끗함' : ''
+        const nailStr = nails.length > 0 && !(nails.length === 1 && nails[0] === '적당함')
+          ? `발톱: ${fmtItems(nails, nailMemos, ['적당함'])}`
+          : nails.includes('적당함') ? '발톱: 적당함' : ''
         const conditionStr = [
           eyes.length > 0 && !(eyes.length === 1 && eyes[0] === '깨끗함') ? `눈: ${fmtItems(eyes, eyeMemos, ['깨끗함'])}` : '',
           ears.length > 0 && !(ears.length === 1 && ears[0] === '깨끗함') ? `귀: ${fmtItems(ears, earMemos, ['깨끗함'])}` : '',
-          teethStatus ? `치아: ${teethStatus === 'clean' ? '깨끗함' : '관리필요'}${teethMemo ? ` (${teethMemo})` : ''}` : '',
-          nailStatus ? `발톱: ${nailStatus === 'good' ? '적당함' : '관리필요'}` : '',
+          teethStr,
+          nailStr,
         ]
           .filter(Boolean)
           .join(' / ') || null
@@ -938,23 +962,31 @@ function SessionForm() {
   }
 
   const inputCls =
-    'w-full border-b border-dz-border bg-transparent px-0 py-2.5 text-sm text-dz-primary outline-none transition-all duration-400 placeholder:text-dz-border focus:border-dz-primary'
+    'w-full border-b border-[#D0D0D0] bg-transparent px-0 py-2.5 text-sm text-[#0A0A0A] outline-none transition-all duration-300 placeholder:text-[#D0D0D0] focus:border-[#0A0A0A]'
 
   return (
-    <div className="mx-auto max-w-xl space-y-6 pb-12">
+    <div className="min-h-screen bg-white">
       {/* 저장 완료 모달 */}
       {showModal && <CompleteModal shareUrl={savedShareUrl} petId={savedPetId} onClose={() => setShowModal(false)} />}
 
-      {/* 헤더 */}
+      {/* 상단 네비바 */}
+      <nav className="border-b border-[#E8E8E8] bg-white">
+        <div className="mx-auto flex max-w-[720px] items-center justify-between px-6 py-4">
+          <span className="text-[13px] font-light tracking-[0.2em] text-[#0A0A0A]">DAZUL</span>
+          <Link
+            href="/admin/records"
+            className="text-[11px] font-light tracking-[0.05em] text-[#6B6B6B] transition-colors duration-300 hover:text-[#0A0A0A]"
+          >
+            ← 케어 기록
+          </Link>
+        </div>
+      </nav>
+
+      <div className="mx-auto max-w-[720px] space-y-8 px-6 py-10">
+      {/* 페이지 타이틀 */}
       <div>
-        <Link
-          href="/admin/records"
-          className="text-[11px] tracking-[0.1em] text-dz-muted transition-all duration-400 hover:text-dz-primary"
-        >
-          ← 케어 기록
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold text-dz-primary">케어 기록 작성</h1>
-        <p className="mt-1 text-[12px] text-dz-muted">
+        <h1 className="text-[28px] font-light tracking-[0.05em] text-[#0A0A0A]">케어 기록 작성</h1>
+        <p className="mt-2 text-[12px] font-light text-[#6B6B6B]">
           방문 기록과 신체 상태를 입력합니다
         </p>
       </div>
@@ -1052,6 +1084,17 @@ function SessionForm() {
               <Field label="날짜">
                 <input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className={inputCls} />
               </Field>
+              <Field label="몸무게 (kg)">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  placeholder="0.0"
+                  className={inputCls}
+                />
+              </Field>
             </div>
           </Card>
 
@@ -1068,8 +1111,8 @@ function SessionForm() {
                       onClick={() => setMainService(svc)}
                       className={`rounded-xl border-2 py-3 text-sm font-bold transition-all ${
                         mainService === svc
-                          ? 'border-dz-primary bg-dz-primary text-white'
-                          : 'border-dz-border text-dz-muted hover:border-dz-muted'
+                          ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
+                          : 'border-[#D0D0D0] text-[#6B6B6B] hover:border-[#0A0A0A]'
                       }`}
                     >
                       {svc}
@@ -1115,53 +1158,71 @@ function SessionForm() {
                 </div>
               </div>
 
-              {/* 사용 제품 (DB) */}
+              {/* 사용 제품 (카테고리별 검색) */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-stone-500">사용 제품</label>
-                {/* 카테고리 탭 */}
-                <div className="mb-3 flex flex-wrap gap-1.5">
-                  <button type="button" onClick={() => setSelectedCategoryId(null)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${!selectedCategoryId ? 'bg-stone-700 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
-                    전체
-                  </button>
-                  {productCategories.map((cat) => (
-                    <button key={cat.id} type="button" onClick={() => setSelectedCategoryId(cat.id)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${selectedCategoryId === cat.id ? 'bg-stone-700 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
-                      {cat.name}
-                    </button>
-                  ))}
-                </div>
-                {/* 제품 선택 */}
-                <div className="flex flex-wrap gap-2">
-                  {filteredProducts.map((p) => {
-                    const on = selectedProductIds.includes(p.id)
-                    return (
-                      <button key={p.id} type="button" onClick={() => toggleProduct(p.id)}
-                        className={`rounded-xl border-2 px-3 py-2 text-xs font-semibold transition-all ${
-                          on ? 'border-amber-500 bg-amber-500 text-white' : 'border-stone-200 text-stone-600 hover:border-amber-300'
-                        }`}>
-                        {p.name}{p.brand ? ` (${p.brand})` : ''}
-                      </button>
-                    )
-                  })}
-                  {filteredProducts.length === 0 && (
-                    <p className="text-xs text-stone-400">등록된 제품이 없습니다.</p>
-                  )}
-                </div>
-                {/* 선택된 제품 배지 */}
+                <label className="mb-3 block text-sm font-semibold text-stone-500">사용 제품</label>
+                {/* 선택된 제품 배지 (상단에 표시) */}
                 {selectedProductIds.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
+                  <div className="mb-4 flex flex-wrap gap-1.5">
                     {selectedProductIds.map((id) => {
                       const p = allProducts.find((x) => x.id === id)
                       return p ? (
-                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                          {p.name}
-                          <button type="button" onClick={() => toggleProduct(id)} className="text-amber-400 hover:text-red-400">✕</button>
+                        <span key={id} className="inline-flex items-center gap-1.5 border border-[#0A0A0A] bg-[#0A0A0A] px-3 py-1.5 text-xs font-medium text-white">
+                          {p.name}{p.brand ? ` · ${p.brand}` : ''}
+                          <button type="button" onClick={() => toggleProduct(id)} className="text-white/50 hover:text-white">✕</button>
                         </span>
                       ) : null
                     })}
                   </div>
                 )}
+                {/* 카테고리별 행 */}
+                <div className="space-y-3">
+                  {PRODUCT_CATEGORIES.map((cat) => {
+                    const q = productSearches[cat] ?? ''
+                    const results = q.length > 0 ? getProductsForCategory(cat) : []
+                    return (
+                      <div key={cat}>
+                        <div className="flex items-center gap-3">
+                          <span className="w-16 shrink-0 text-xs font-bold text-stone-400">{cat}</span>
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              value={q}
+                              onChange={(e) => setProductSearch(cat, e.target.value)}
+                              placeholder={`${cat} 검색...`}
+                              className={inputCls}
+                            />
+                            {/* 검색 결과 드롭다운 */}
+                            {q.length > 0 && results.length > 0 && (
+                              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-40 overflow-y-auto border border-[#E8E8E8] bg-white shadow-sm">
+                                {results.map((p) => {
+                                  const on = selectedProductIds.includes(p.id)
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => { toggleProduct(p.id); setProductSearch(cat, '') }}
+                                      className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs transition-colors ${on ? 'bg-[#0A0A0A] text-white' : 'text-stone-700 hover:bg-stone-50'}`}
+                                    >
+                                      <span className="font-medium">{p.name}</span>
+                                      {p.brand && <span className="text-stone-400">· {p.brand}</span>}
+                                      {on && <span className="ml-auto text-[10px]">✓</span>}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            {q.length > 0 && results.length === 0 && (
+                              <div className="absolute left-0 right-0 top-full z-10 mt-1 border border-[#E8E8E8] bg-white px-3 py-3 text-center text-xs text-stone-400">
+                                검색 결과 없음
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
               <Field label="스타일 메모">
                 <textarea
@@ -1169,7 +1230,7 @@ function SessionForm() {
                   onChange={(e) => setStyleNotes(e.target.value)}
                   placeholder="스타일 지시사항, 보호자 요청 등"
                   rows={2}
-                  className="w-full resize-none border border-dz-border bg-transparent px-3 py-2.5 text-sm text-dz-primary placeholder:text-dz-border outline-none transition-all duration-400 focus:border-dz-primary"
+                  className="w-full resize-none border border-[#D0D0D0] bg-transparent px-3 py-2.5 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
                 />
               </Field>
             </div>
@@ -1185,59 +1246,10 @@ function SessionForm() {
               <BodyRow label="귀" options={EAR_OPTIONS} selected={ears} onToggle={(val) => setEars((prev) => toggleArr(prev, val))} memos={earMemos} onMemoChange={updateMemo(setEarMemos)} memoExclusions={['깨끗함']} />
 
               {/* 치아 */}
-              <div className="border-b border-stone-100 py-3">
-                <div className="flex items-start gap-3">
-                  <span className="w-12 shrink-0 pt-0.5 text-xs font-bold text-stone-400">치아</span>
-                  <div className="flex flex-1 flex-col gap-2">
-                    <div className="flex flex-wrap gap-x-4 gap-y-2.5">
-                      {(['깨끗함', '관리필요'] as const).map((opt) => {
-                        const val: TeethStatus = opt === '깨끗함' ? 'clean' : 'needs_care'
-                        const checked = teethStatus === val
-                        return (
-                          <button key={opt} type="button" onClick={() => setTeethStatus(checked ? null : val)} className="group flex items-center gap-1.5">
-                            <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border-2 transition-all ${checked ? 'border-amber-500 bg-amber-500' : 'border-stone-300 group-hover:border-amber-400'}`}>
-                              {checked && (
-                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                  <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </span>
-                            <span className={`text-sm ${checked ? 'font-semibold text-stone-800' : 'text-stone-500'}`}>{opt}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {teethStatus === 'needs_care' && (
-                      <input type="text" value={teethMemo} onChange={(e) => setTeethMemo(e.target.value)} placeholder="메모 (예: 어금니 치석)" className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 placeholder:text-stone-300 outline-none transition-colors focus:ring-2 focus:ring-amber-300" />
-                    )}
-                  </div>
-                </div>
-              </div>
+              <BodyRow label="치아" options={TEETH_OPTIONS} selected={teeth} onToggle={(val) => setTeeth((prev) => toggleArr(prev, val))} memos={teethMemos} onMemoChange={updateMemo(setTeethMemos)} memoExclusions={['깨끗함']} />
 
               {/* 발톱 */}
-              <div className="py-3">
-                <div className="flex items-center gap-3">
-                  <span className="w-12 shrink-0 text-xs font-bold text-stone-400">발톱</span>
-                  <div className="flex flex-wrap gap-x-4 gap-y-2.5">
-                    {(['적당함', '관리필요'] as const).map((opt) => {
-                      const val: NailStatus = opt === '적당함' ? 'good' : 'needs_care'
-                      const checked = nailStatus === val
-                      return (
-                        <button key={opt} type="button" onClick={() => setNailStatus(checked ? null : val)} className="group flex items-center gap-1.5">
-                          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border-2 transition-all ${checked ? 'border-amber-500 bg-amber-500' : 'border-stone-300 group-hover:border-amber-400'}`}>
-                            {checked && (
-                              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </span>
-                          <span className={`text-sm ${checked ? 'font-semibold text-stone-800' : 'text-stone-500'}`}>{opt}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
+              <BodyRow label="발톱" options={NAIL_OPTIONS} selected={nails} onToggle={(val) => setNails((prev) => toggleArr(prev, val))} memos={nailMemos} onMemoChange={updateMemo(setNailMemos)} memoExclusions={['적당함']} />
             </div>
           </Card>
 
@@ -1295,8 +1307,8 @@ function SessionForm() {
                     }}
                     className={`border px-3 py-1.5 text-[12px] font-medium transition-all duration-400 ${
                       nextVisitOption === opt.value
-                        ? 'border-dz-primary bg-dz-primary text-white'
-                        : 'border-dz-border text-dz-muted hover:border-dz-muted'
+                        ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
+                        : 'border-[#D0D0D0] text-[#6B6B6B] hover:border-[#0A0A0A]'
                     }`}
                   >
                     {opt.label}
@@ -1310,8 +1322,8 @@ function SessionForm() {
                   }}
                   className={`border px-3 py-1.5 text-[12px] font-medium transition-all duration-400 ${
                     nextVisitOption === 'custom'
-                      ? 'border-dz-primary bg-dz-primary text-white'
-                      : 'border-dz-border text-dz-muted hover:border-dz-muted'
+                      ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
+                      : 'border-[#D0D0D0] text-[#6B6B6B] hover:border-[#0A0A0A]'
                   }`}
                 >
                   직접 선택
@@ -1382,19 +1394,19 @@ function SessionForm() {
         </div>
 
       {/* 저장 */}
-      <div className="mt-2 space-y-3">
-          {/* 상태 요약 뱃지 */}
-          <div className="flex min-h-[24px] flex-wrap items-center gap-1.5">
+      <div className="mt-4 space-y-4 border-t border-[#E8E8E8] pt-8">
+          {/* 상태 요약 */}
+          <div className="flex min-h-[24px] flex-wrap items-center gap-2">
             {petName ? (
-              <span className="text-[11px] font-medium text-dz-primary">🐾 {petName}</span>
+              <span className="text-[11px] font-light text-[#0A0A0A]">🐾 {petName}</span>
             ) : (
-              <span className="text-[11px] font-medium text-red-500">반려견 미선택</span>
+              <span className="text-[11px] font-light text-red-500">반려견 미선택</span>
             )}
-            {mainService && <span className="bg-dz-primary px-2 py-0.5 text-[10px] text-white">{mainService}</span>}
+            {mainService && <span className="bg-[#0A0A0A] px-2 py-0.5 text-[10px] text-white">{mainService}</span>}
             {spaLevel && (
-              <span className="bg-dz-accent/15 px-2 py-0.5 text-[10px] text-dz-accent">✨ {SPA_OPTIONS.find((s) => s.value === spaLevel)?.label}</span>
+              <span className="border border-[#C9A96E]/30 bg-[#C9A96E]/5 px-2 py-0.5 text-[10px] text-[#C9A96E]">✨ {SPA_OPTIONS.find((s) => s.value === spaLevel)?.label}</span>
             )}
-            {selectedProductIds.length > 0 && <span className="bg-dz-surface px-2 py-0.5 text-[10px] text-dz-muted">제품 {selectedProductIds.length}</span>}
+            {selectedProductIds.length > 0 && <span className="border border-[#E8E8E8] px-2 py-0.5 text-[10px] text-[#6B6B6B]">제품 {selectedProductIds.length}</span>}
           </div>
 
           {error && (
@@ -1408,10 +1420,11 @@ function SessionForm() {
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className="w-full bg-dz-primary py-3.5 text-[11px] font-medium uppercase tracking-[0.3em] text-white transition-all duration-400 hover:bg-dz-primary/85 disabled:opacity-40"
+            className="w-full bg-[#0A0A0A] py-4 text-[11px] font-normal uppercase tracking-[0.1em] text-white transition-all duration-300 hover:bg-[#0A0A0A]/85 disabled:opacity-40"
           >
             {isPending ? '저장 중…' : '기록 저장'}
           </button>
+      </div>
       </div>
     </div>
   )
