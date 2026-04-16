@@ -1196,13 +1196,13 @@ function SessionForm() {
                 </div>
               </Field>
 
-              {/* 스파코스 */}
+              {/* 케어코스 */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-stone-500">✨ 스파코스</label>
+                <label className="mb-2 block text-sm font-semibold text-stone-500">✨ 케어코스</label>
                 <div className={`rounded-2xl border-2 p-4 transition-all ${spaLevel ? 'border-amber-400 bg-amber-50' : 'border-stone-200 bg-stone-50'}`}>
                   <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-stone-700">스파코스</p>
+                      <p className="text-sm font-bold text-stone-700">케어코스</p>
                       <p className="text-xs text-stone-400">피부 상태에 따라 선택</p>
                     </div>
                     {spaLevel && (
