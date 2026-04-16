@@ -539,23 +539,30 @@ function CompleteModal({
 
         {shareUrl && (
           <div className="space-y-2">
-            <p className="break-all rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">{shareUrl}</p>
+            <p className="break-all bg-[#FAFAFA] px-3 py-2 text-xs text-[#888]" style={{ border: '1px solid #E8E8E8' }}>{shareUrl}</p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handleCopy}
-                className="flex-1 rounded-xl border border-stone-200 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50"
+                style={{ flex: 1, border: '1px solid #0A0A0A', background: '#FFFFFF', color: '#0A0A0A', fontSize: 11, letterSpacing: '0.1em', padding: '12px 0', cursor: 'pointer' }}
               >
                 {copied ? '복사됨 ✓' : '링크 복사'}
               </button>
               <button
                 type="button"
                 onClick={handleKakao}
-                className="flex-1 rounded-xl bg-[#FEE500] py-2.5 text-sm font-bold text-[#3C1E1E] transition-colors hover:bg-[#FDD835]"
+                style={{ flex: 1, background: '#FAE300', color: '#3B1E08', fontSize: 11, letterSpacing: '0.1em', fontWeight: 500, padding: '12px 0', border: 'none', cursor: 'pointer' }}
               >
                 카카오톡 공유
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => window.open(shareUrl, '_blank')}
+              style={{ width: '100%', border: '1px solid #0A0A0A', background: '#FFFFFF', color: '#0A0A0A', fontSize: 11, letterSpacing: '0.1em', padding: 14, cursor: 'pointer' }}
+            >
+              리포트 미리보기
+            </button>
           </div>
         )}
 
@@ -565,7 +572,7 @@ function CompleteModal({
             onClose()
             router.push(`/admin/pets/${petId}`)
           }}
-          className="mt-4 w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition-colors hover:bg-amber-600"
+          style={{ width: '100%', marginTop: 12, background: '#0A0A0A', color: '#FFFFFF', fontSize: 11, letterSpacing: '0.1em', fontWeight: 400, padding: 14, border: 'none', cursor: 'pointer' }}
         >
           확인
         </button>

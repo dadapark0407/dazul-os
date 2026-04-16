@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { CopyLinkButton, AdminMenu } from '@/components/report/ReportActions'
 
 // =============================================================
 // DAZUL OS — Grooming Letter (보호자 리포트)
@@ -81,7 +82,7 @@ export default async function ReportPage({ params }: PageProps) {
 
   const { data: rec } = await supabase
     .from('visit_records')
-    .select('pet_name, visit_date, weight, service, service_type, spa_level, skin_status, coat_status, condition_status, nail_status, next_care_guide, next_visit_date, next_visit_recommendation, comment')
+    .select('id, pet_name, visit_date, weight, service, service_type, spa_level, skin_status, coat_status, condition_status, nail_status, next_care_guide, next_visit_date, next_visit_recommendation, comment')
     .eq('guardian_id', guardian.id)
     .order('visit_date', { ascending: false })
     .limit(1)
@@ -129,7 +130,11 @@ export default async function ReportPage({ params }: PageProps) {
   return (
     <div className="min-h-screen" style={{ background: '#FFFFFF' }}>
       {/* ─── 1. 헤더 ─── */}
-      <header style={{ background: '#0A0A0A', borderBottom: '1px solid #C9A96E' }}>
+      <header style={{ background: '#0A0A0A', borderBottom: '1px solid #C9A96E', position: 'relative' }}>
+        {/* 관리 메뉴 (직원용) */}
+        <div style={{ position: 'absolute', top: 12, right: 12 }}>
+          <AdminMenu recordId={rec.id} />
+        </div>
         <div className="mx-auto max-w-[480px] px-6 py-10 text-center">
           <p style={{ fontSize: 12, letterSpacing: '0.25em', fontWeight: 300, color: '#FFFFFF' }}>
             DAZUL
@@ -264,6 +269,7 @@ export default async function ReportPage({ params }: PageProps) {
 
         {/* 7. CTA */}
         <div className="mb-3 space-y-2">
+          <CopyLinkButton />
           <a
             href="#"
             className="flex items-center justify-center gap-2"
