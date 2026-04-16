@@ -293,11 +293,11 @@ export default function ReportClient({
 
         <div className="mx-auto max-w-[480px] px-4 pt-16 pb-12 text-center">
           {/* 로고 */}
-          <p style={{ fontSize: 11, letterSpacing: '0.3em', fontWeight: 300, color: C.sub }}>
-            DAZUL
+          <p style={{ fontSize: 11, letterSpacing: '0.25em', fontWeight: 300, color: C.sub }}>
+            SALON DE DAZUL
           </p>
-          <p style={{ fontSize: 13, fontStyle: 'italic', letterSpacing: '0.15em', color: C.sub, marginTop: 6 }}>
-            Grooming Letter
+          <p style={{ fontSize: 13, fontStyle: 'italic', letterSpacing: '0.1em', color: C.sub, marginTop: 6 }}>
+            Wellness Care Journal
           </p>
 
           {/* 골드 라인 */}
