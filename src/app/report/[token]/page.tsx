@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import ReportClient from './ReportClient'
@@ -36,10 +37,12 @@ export default async function ReportPage({ params }: PageProps) {
   if (!records || records.length === 0) notFound()
 
   return (
-    <ReportClient
-      guardianName={guardian.name}
-      pets={(pets ?? []).map((p) => ({ id: p.id, name: p.name ?? '반려견', breed: p.breed }))}
-      records={records}
-    />
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#FAFAF8' }} />}>
+      <ReportClient
+        guardianName={guardian.name}
+        pets={(pets ?? []).map((p) => ({ id: p.id, name: p.name ?? '반려견', breed: p.breed }))}
+        records={records}
+      />
+    </Suspense>
   )
 }

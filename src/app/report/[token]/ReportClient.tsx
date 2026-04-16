@@ -1,7 +1,72 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { CopyLinkButton, AdminMenu } from '@/components/report/ReportActions'
+
+// ─── 다국어 ───
+type Lang = 'ko' | 'en' | 'jp'
+
+const T: Record<Lang, Record<string, string>> = {
+  ko: {
+    good: '정상', attention: '주의',
+    bath: '목욕관리', fullGrooming: '전체미용',
+    basic: '베이직', essential: '에센셜', signature: '시그니처', prestige: '프레스티지',
+    nextVisit: '다음 방문 추천', inWeeks: '약 {n}주 후',
+    copyLink: '링크 복사', copied: '복사됨 ✓',
+    kakao: '카카오톡 문의', call: '전화 예약',
+    all: '전체',
+  },
+  en: {
+    good: 'Good', attention: 'Attention',
+    bath: 'Bath & Care', fullGrooming: 'Full Grooming',
+    basic: 'Basic', essential: 'Essential', signature: 'Signature', prestige: 'Prestige',
+    nextVisit: 'Next Visit', inWeeks: 'in {n} weeks',
+    copyLink: 'Copy Link', copied: 'Copied ✓',
+    kakao: 'Book via KakaoTalk', call: 'Call to Book',
+    all: 'All',
+  },
+  jp: {
+    good: '良好', attention: '注意',
+    bath: 'バス＆ケア', fullGrooming: 'フルグルーミング',
+    basic: 'ベーシック', essential: 'エッセンシャル', signature: 'シグネチャー', prestige: 'プレステージ',
+    nextVisit: '次回来店', inWeeks: '{n}週間後',
+    copyLink: 'リンクをコピー', copied: 'コピー済み ✓',
+    kakao: 'カカオで予約', call: 'お電話で予約',
+    all: '全体',
+  },
+}
+
+function useLang(): [Lang, (l: Lang) => void] {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const raw = searchParams.get('lang')
+  const lang: Lang = raw === 'en' || raw === 'jp' ? raw : 'ko'
+
+  function setLang(l: Lang) {
+    const url = new URL(window.location.href)
+    if (l === 'ko') url.searchParams.delete('lang')
+    else url.searchParams.set('lang', l)
+    router.replace(url.pathname + url.search, { scroll: false })
+  }
+
+  return [lang, setLang]
+}
+
+function tSvc(svc: string, lang: Lang): string {
+  const t = T[lang]
+  if (svc === '목욕관리') return t.bath
+  if (svc === '전체미용') return t.fullGrooming
+  return svc
+}
+
+function tSpa(key: string, lang: Lang): string {
+  const map: Record<string, keyof typeof T.ko> = {
+    basic: 'basic', premium: 'essential', essential: 'essential',
+    deep: 'signature', signature: 'signature', prestige: 'prestige',
+  }
+  return T[lang][map[key] ?? 'basic'] ?? key
+}
 
 // ─── 타입 ───
 type Pet = { id: string; name: string; breed: string | null }
@@ -91,9 +156,10 @@ const SH = ({ children }: { children: string }) => (
 )
 
 // ─── 기록 카드 ───
-function RecordCard({ rec, expanded, onToggle }: { rec: Rec; expanded: boolean; onToggle: () => void }) {
-  const svc = rec.service ?? rec.service_type ?? null
-  const spa = rec.spa_level ? SPA[rec.spa_level] ?? null : null
+function RecordCard({ rec, expanded, onToggle, lang }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang }) {
+  const rawSvc = rec.service ?? rec.service_type ?? null
+  const svc = rawSvc ? tSvc(rawSvc, lang) : null
+  const spa = rec.spa_level ? { ...SPA[rec.spa_level], label: tSpa(rec.spa_level, lang) } : null
   const cond = parseCond(rec.condition_status)
   const bodyItems = [
     { label: '피부', value: rec.skin_status },
@@ -109,7 +175,8 @@ function RecordCard({ rec, expanded, onToggle }: { rec: Rec; expanded: boolean; 
     : []
 
   const nextDate = rec.next_visit_date ? fmtDate(rec.next_visit_date) : null
-  const nextWeeks = rec.next_visit_date ? weeksFrom(rec.next_visit_date) : ''
+  const nextWeeksN = rec.next_visit_date ? Math.ceil((new Date(rec.next_visit_date).getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000)) : 0
+  const nextWeeks = nextWeeksN > 0 ? T[lang].inWeeks.replace('{n}', String(nextWeeksN)) : ''
   const weight = rec.weight ? `${rec.weight}kg` : null
 
   return (
@@ -259,6 +326,8 @@ export default function ReportClient({
   pets: Pet[]
   records: Rec[]
 }) {
+  const [lang, setLang] = useLang()
+  const t = T[lang]
   const [activePetId, setActivePetId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | number | null>(records[0]?.id ?? null)
 
@@ -273,7 +342,28 @@ export default function ReportClient({
 
       {/* ═══ 헤더 ═══ */}
       <header style={{ background: C.cream, position: 'relative', borderBottom: `1px solid ${C.gold}` }}>
-        <div style={{ position: 'absolute', top: 16, right: 16 }}>
+        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* 언어 전환 */}
+          {(['KO', 'EN', 'JP'] as const).map((l) => {
+            const key = l.toLowerCase() as Lang
+            const active = lang === key
+            return (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLang(key)}
+                style={{
+                  fontSize: 10, letterSpacing: '0.15em', fontWeight: 300, padding: 0,
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: active ? C.text : C.sub,
+                  borderBottom: active ? `1px solid ${C.gold}` : '1px solid transparent',
+                  paddingBottom: 2, transition: 'all 0.3s ease',
+                }}
+              >
+                {l}
+              </button>
+            )
+          })}
           {latest && <AdminMenu recordId={latest.id} />}
         </div>
 
@@ -306,7 +396,7 @@ export default function ReportClient({
           {/* 다견 탭 */}
           {pets.length > 1 && (
             <div className="flex justify-center" style={{ marginTop: 32, gap: 0 }}>
-              {[{ id: null as string | null, name: '전체' }, ...pets.map((p) => ({ id: p.id as string | null, name: p.name }))].map((tab) => {
+              {[{ id: null as string | null, name: t.all }, ...pets.map((p) => ({ id: p.id as string | null, name: p.name }))].map((tab) => {
                 const active = activePetId === tab.id || (!activePetId && !tab.id)
                 return (
                   <button
@@ -349,6 +439,7 @@ export default function ReportClient({
             rec={rec}
             expanded={expandedId === rec.id}
             onToggle={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
+            lang={lang}
           />
         ))}
 
@@ -361,14 +452,14 @@ export default function ReportClient({
               fontSize: 10, letterSpacing: '0.12em', fontWeight: 400, padding: '14px 0',
               textDecoration: 'none', textAlign: 'center',
             }}>
-              카카오톡 문의
+              {t.kakao}
             </a>
             <a href="#" style={{
               flex: 1, display: 'block', background: C.text, color: '#FFFFFF',
               fontSize: 10, letterSpacing: '0.12em', fontWeight: 400, padding: '14px 0',
               textDecoration: 'none', textAlign: 'center',
             }}>
-              전화 예약
+              {t.call}
             </a>
           </div>
         </div>
