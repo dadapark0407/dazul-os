@@ -582,6 +582,54 @@ function CompleteModal({
 }
 
 // ─────────────────────────────────────────────
+// 삭제 버튼
+// ─────────────────────────────────────────────
+function DeleteButton({ recordId }: { recordId: string }) {
+  const router = useRouter()
+  const [show, setShow] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    setDeleting(true)
+    const { error } = await supabase.from('visit_records').delete().eq('id', recordId)
+    if (error) { alert(`삭제 실패: ${error.message}`); setDeleting(false); return }
+    router.push('/admin/records')
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setShow(true)}
+        style={{ background: '#0A0A0A', color: '#FFFFFF', fontSize: 11, letterSpacing: '0.1em', padding: '8px 20px', border: 'none', cursor: 'pointer' }}
+      >
+        삭제
+      </button>
+      {show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div style={{ background: '#FFFFFF', maxWidth: 360, width: '100%', padding: 28 }}>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#0A0A0A', marginBottom: 8 }}>기록 삭제</p>
+            <p style={{ fontSize: 12, color: '#6B6B6B', lineHeight: 1.6, marginBottom: 20 }}>
+              이 기록을 삭제하면 복구할 수 없습니다.
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShow(false)}
+                style={{ flex: 1, border: '1px solid #0A0A0A', background: '#FFFFFF', color: '#0A0A0A', fontSize: 11, letterSpacing: '0.1em', padding: 12, cursor: 'pointer' }}>
+                취소
+              </button>
+              <button type="button" onClick={handleDelete} disabled={deleting}
+                style={{ flex: 1, background: '#0A0A0A', color: '#FFFFFF', fontSize: 11, letterSpacing: '0.1em', padding: 12, border: 'none', cursor: 'pointer', opacity: deleting ? 0.5 : 1 }}>
+                {deleting ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────
 // 메인 래퍼 (Suspense for useSearchParams)
 // ─────────────────────────────────────────────
 export default function EditRecordPageWrapper() {
@@ -1134,13 +1182,13 @@ function EditRecordForm() {
       {/* 상단 네비바 */}
       <nav className="border-b border-[#E8E8E8] bg-white">
         <div className="mx-auto flex max-w-[720px] items-center justify-between px-6 py-4">
-          <span className="text-[13px] font-light tracking-[0.2em] text-[#0A0A0A]">DAZUL</span>
           <Link
-            href={`/admin/records/${recordId}`}
+            href="/admin/records"
             className="text-[11px] font-light tracking-[0.05em] text-[#6B6B6B] transition-colors duration-300 hover:text-[#0A0A0A]"
           >
-            ← 방문 기록 상세
+            ← 방문 기록 목록
           </Link>
+          <DeleteButton recordId={recordId} />
         </div>
       </nav>
 
