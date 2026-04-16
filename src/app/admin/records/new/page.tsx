@@ -1310,8 +1310,8 @@ function SessionForm() {
             </div>
           </Card>
 
-          {/* ③-b 미용 스타일 */}
-          {mainService === '전체미용' && (
+          {/* ③-b 미용 스타일 (목욕관리에서도 얼굴컷/라인정리 가능) */}
+          {mainService && (
             <Card>
               <SectionHeader title="GROOMING STYLE" sub="스타일 컷 상세를 입력해주세요" />
               <div className="flex flex-col gap-4">
