@@ -49,26 +49,19 @@ const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
 const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
 const NAIL_OPTIONS = ['적당함', '관리필요'] as const
 
-// 항상 표시되는 카테고리 (DB category 값 기준 매칭)
-const BASE_PRODUCT_CATEGORIES = ['샴푸', '컨디셔너', '피부케어', '피모케어', '기타'] as const
+// 기본 카테고리 (DB category 값 기준 매칭)
+const BASE_PRODUCT_CATEGORIES = ['샴푸', '린스', '피부케어', '피모케어', '기타'] as const
 // 조건부 카테고리
 const SPA_BONUS_CATEGORIES = ['스파', '팩'] as const
 // 전체 (검색 매칭용)
 const ALL_PRODUCT_CATEGORIES = [...BASE_PRODUCT_CATEGORIES, ...SPA_BONUS_CATEGORIES] as const
 
-/** spaLevel에 따라 표시할 제품 카테고리 */
+/** spaLevel에 따라 표시할 제품 카테고리 (조건부 항목은 맨 앞) */
 function getVisibleProductCategories(spa: SpaLevel): string[] {
-  const base: string[] = [...BASE_PRODUCT_CATEGORIES]
-  // 기타 앞에 조건부 카테고리 삽입
-  const insertIdx = base.indexOf('기타')
-  if (spa === 'premium' || spa === 'prestige') {
-    base.splice(insertIdx, 0, '스파')
-  }
-  if (spa === 'deep' || spa === 'prestige') {
-    const idx = base.indexOf('기타')
-    base.splice(idx, 0, '팩')
-  }
-  return base
+  const bonus: string[] = []
+  if (spa === 'premium' || spa === 'prestige') bonus.push('스파')
+  if (spa === 'deep' || spa === 'prestige') bonus.push('팩')
+  return [...bonus, ...BASE_PRODUCT_CATEGORIES]
 }
 
 // (방문 유형 삭제됨)
@@ -1229,8 +1222,11 @@ function SessionForm() {
                       <div key={cat} style={{
                         borderLeft: isBonus ? '2px solid #C9A96E' : 'none',
                         paddingLeft: isBonus ? 12 : 0,
+                        background: isBonus ? '#FFFDF7' : 'transparent',
+                        padding: isBonus ? '8px 12px' : '0',
+                        marginBottom: isBonus ? 4 : 0,
                         opacity: 1,
-                        transition: 'opacity 0.2s ease',
+                        transition: 'opacity 0.2s ease, transform 0.2s ease',
                       }}>
                         <div className="flex items-center gap-3">
                           <span className={`flex w-20 shrink-0 items-center gap-1.5 text-xs font-bold ${isBonus ? 'text-[#C9A96E]' : 'text-[#6B6B6B]'}`}>
