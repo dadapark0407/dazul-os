@@ -277,7 +277,7 @@ export default function ReportClient({
           {latest && <AdminMenu recordId={latest.id} />}
         </div>
 
-        <div className="mx-auto max-w-[420px] text-center" style={{ padding: '60px 24px 48px' }}>
+        <div className="mx-auto max-w-[480px] text-center" style={{ padding: '60px 24px 48px' }}>
           {/* 로고 */}
           <p style={{ fontSize: 10, letterSpacing: '0.4em', fontWeight: 300, color: C.sub }}>
             SALON DE DAZUL
@@ -332,7 +332,7 @@ export default function ReportClient({
       </header>
 
       {/* ═══ 기록 ═══ */}
-      <main className="mx-auto max-w-[420px]" style={{ padding: '32px 0 0' }}>
+      <main className="mx-auto max-w-[480px]" style={{ padding: '32px 0 0' }}>
         {/* 카운트 */}
         <div className="flex items-center gap-3" style={{ marginBottom: 20, padding: '0 24px' }}>
           <div style={{ flex: 1, height: 0.5, background: C.border }} />
