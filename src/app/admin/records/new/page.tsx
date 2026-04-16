@@ -941,7 +941,7 @@ function SessionForm() {
     'w-full border-b border-dz-border bg-transparent px-0 py-2.5 text-sm text-dz-primary outline-none transition-all duration-400 placeholder:text-dz-border focus:border-dz-primary'
 
   return (
-    <div className="mx-auto max-w-xl space-y-6 pb-48">
+    <div className="mx-auto max-w-xl space-y-6 pb-12">
       {/* 저장 완료 모달 */}
       {showModal && <CompleteModal shareUrl={savedShareUrl} petId={savedPetId} onClose={() => setShowModal(false)} />}
 
@@ -1381,9 +1381,8 @@ function SessionForm() {
           </Card>
         </div>
 
-      {/* 하단 고정 저장 바 */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-dz-border bg-white px-4 pb-5 pt-3">
-        <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
+      {/* 저장 */}
+      <div className="mt-2 space-y-3">
           {/* 상태 요약 뱃지 */}
           <div className="flex min-h-[24px] flex-wrap items-center gap-1.5">
             {petName ? (
@@ -1413,7 +1412,6 @@ function SessionForm() {
           >
             {isPending ? '저장 중…' : '기록 저장'}
           </button>
-        </div>
       </div>
     </div>
   )
