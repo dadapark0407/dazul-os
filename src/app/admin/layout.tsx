@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
-import TopNav, { TopNavMobile } from '@/components/admin/TopNav'
+import TopNav from '@/components/admin/TopNav'
 
 export default function AdminLayout({
   children,
@@ -41,7 +41,6 @@ export default function AdminLayout({
               설정
             </Link>
             <LogoutButton />
-            <TopNavMobile />
           </div>
         </div>
 

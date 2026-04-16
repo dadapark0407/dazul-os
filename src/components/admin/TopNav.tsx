@@ -20,7 +20,7 @@ export default function TopNav() {
   }
 
   return (
-    <nav className="hidden overflow-x-auto md:flex" style={{ borderTop: '1px solid #E8E8E8' }}>
+    <nav className="flex overflow-x-auto" style={{ borderTop: '1px solid #E8E8E8' }}>
       <div className="flex items-center gap-0 px-4 sm:px-6">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.href)
