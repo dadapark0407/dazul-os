@@ -540,28 +540,29 @@ function CompleteModal({
         {shareUrl && (
           <div className="space-y-2">
             <p className="break-all bg-[#FAFAFA] px-3 py-2 text-xs text-[#888]" style={{ border: '1px solid #E8E8E8' }}>{shareUrl}</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleCopy}
-                style={{ flex: 1, border: '1px solid #0A0A0A', background: '#FFFFFF', color: '#0A0A0A', fontSize: 11, letterSpacing: '0.1em', padding: '12px 0', cursor: 'pointer' }}
-              >
-                {copied ? '복사됨 ✓' : '링크 복사'}
-              </button>
-              <button
-                type="button"
-                onClick={handleKakao}
-                style={{ flex: 1, background: '#FAE300', color: '#3B1E08', fontSize: 11, letterSpacing: '0.1em', fontWeight: 500, padding: '12px 0', border: 'none', cursor: 'pointer' }}
-              >
-                카카오톡 공유
-              </button>
-            </div>
+            {/* 링크 복사 */}
+            <button
+              type="button"
+              onClick={handleCopy}
+              style={{ width: '100%', border: '1px solid #E8E5E0', background: '#FFFFFF', color: '#8A8A7A', fontSize: 11, letterSpacing: '0.1em', padding: 14, cursor: 'pointer' }}
+            >
+              {copied ? '복사됨 ✓' : '링크 복사'}
+            </button>
+            {/* 리포트 미리보기 */}
             <button
               type="button"
               onClick={() => window.open(shareUrl, '_blank')}
               style={{ width: '100%', border: '1px solid #0A0A0A', background: '#FFFFFF', color: '#0A0A0A', fontSize: 11, letterSpacing: '0.1em', padding: 14, cursor: 'pointer' }}
             >
               리포트 미리보기
+            </button>
+            {/* 카카오톡 공유 */}
+            <button
+              type="button"
+              onClick={handleKakao}
+              style={{ width: '100%', background: '#FAE300', color: '#3B1E08', fontSize: 11, letterSpacing: '0.1em', fontWeight: 500, padding: 14, border: 'none', cursor: 'pointer' }}
+            >
+              카카오톡 공유
             </button>
           </div>
         )}
