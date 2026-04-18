@@ -219,14 +219,31 @@ function RecordCard({ rec, expanded, onToggle, lang }: { rec: Rec; expanded: boo
                 {svc}
               </p>
               {spa && (
-                <p style={{ fontSize: 11, color: C.gold, letterSpacing: '0.15em', marginTop: 6 }}>
-                  {spa.label}
-                </p>
-              )}
-              {spa && (
-                <p style={{ fontSize: 11, color: C.sub, marginTop: 4 }}>
-                  {spa.desc}
-                </p>
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: '14px 16px',
+                    background: C.cream,
+                    border: `1px solid ${C.gold}`,
+                    borderLeft: `3px solid ${C.gold}`,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: C.gold,
+                      letterSpacing: '0.15em',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {spa.label}
+                  </p>
+                  {spa.desc && (
+                    <p style={{ fontSize: 11, color: C.sub, marginTop: 4, letterSpacing: '0.02em' }}>
+                      {spa.desc}
+                    </p>
+                  )}
+                </div>
               )}
               {weight && (
                 <p style={{ fontSize: 11, color: C.sub, marginTop: 8, letterSpacing: '0.05em' }}>
