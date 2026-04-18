@@ -134,10 +134,14 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
       : {}
   const hasGroomingStyle = Object.values(groomingStyle).some((v) => v?.trim())
 
-  // spa_level 한글 변환
+  // spa_level 한글 변환 (이모지 + 풀네임)
   const SPA_LABEL: Record<string, string> = {
-    basic: '베이직', premium: '에센셜', essential: '에센셜',
-    deep: '시그니처', signature: '시그니처', prestige: '프레스티지',
+    basic: '🌿 베이직 코스',
+    premium: '✨ 에센셜 스파 코스',
+    essential: '✨ 에센셜 스파 코스',
+    deep: '💎 시그니처 팩 코스',
+    signature: '💎 시그니처 팩 코스',
+    prestige: '👑 프레스티지 풀 케어 코스',
   }
   const spaLabel = spaLevel ? SPA_LABEL[spaLevel] ?? spaLevel : null
 
@@ -182,7 +186,7 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
             <span>{formatDate(visitDate)} · {serviceType ?? '서비스 미입력'}</span>
             {spaLabel && (
               <span className="inline-block px-2 py-0.5 text-xs font-semibold" style={{ color: '#C9A96E', border: '1px solid #C9A96E' }}>
-                ✨ 스파 {spaLabel}
+                {spaLabel}
               </span>
             )}
           </p>
