@@ -752,8 +752,8 @@ function SessionForm() {
     teethStatus, teethMemo, nailStatus,
   })
 
-  // ─── 케어 팁 미리보기 ───
-  const careTips = generateCareTips({
+  // ─── 케어 팁 미리보기 (편집 가능) ───
+  const autoCareTips = generateCareTips({
     mainService,
     spaLevel,
     skin,
@@ -761,6 +761,39 @@ function SessionForm() {
     teethStatus,
     nailStatus,
   })
+  // customCareTips: null이면 자동 생성 결과 사용, 배열이면 사용자가 편집한 버전
+  const [customCareTips, setCustomCareTips] = useState<string[] | null>(null)
+  const careTips = customCareTips ?? autoCareTips
+
+  // 신체 상태 변경 감지 → 사용자가 편집한 내용이 있으면 확인 후 초기화
+  const autoTipsKey = autoCareTips.join('|')
+  const prevAutoKeyRef = useRef(autoTipsKey)
+  useEffect(() => {
+    if (prevAutoKeyRef.current === autoTipsKey) return
+    prevAutoKeyRef.current = autoTipsKey
+    if (customCareTips !== null) {
+      const ok = window.confirm('케어팁을 다시 생성하면 수정한 내용이 초기화됩니다. 계속할까요?')
+      if (ok) setCustomCareTips(null)
+    }
+  }, [autoTipsKey, customCareTips])
+
+  function updateTip(i: number, val: string) {
+    const base = customCareTips ?? autoCareTips
+    const next = [...base]
+    next[i] = val
+    setCustomCareTips(next)
+  }
+  function removeTip(i: number) {
+    const base = customCareTips ?? autoCareTips
+    setCustomCareTips(base.filter((_, idx) => idx !== i))
+  }
+  function addTip() {
+    const base = customCareTips ?? autoCareTips
+    setCustomCareTips([...base, ''])
+  }
+  function resetTips() {
+    setCustomCareTips(null)
+  }
 
   // ─── 다음 방문 옵션 선택 → 날짜 자동 계산 ───
   useEffect(() => {
@@ -917,8 +950,9 @@ function SessionForm() {
         // 건강 요약 → note 필드에 저장 (healthPreview + comment 합산)
         const noteField = [healthPreview, comment].filter(Boolean).join('\n\n---\n\n') || null
 
-        // 케어 팁 → next_care_guide 필드에 저장
-        const careTipsStr = careTips.length > 0 ? careTips.join('\n') : null
+        // 케어 팁 → next_care_guide 필드에 저장 (빈 줄 제외)
+        const careTipsCleaned = careTips.map((t) => t.trim()).filter(Boolean)
+        const careTipsStr = careTipsCleaned.length > 0 ? careTipsCleaned.join('\n') : null
 
         const payload: Record<string, unknown> = {
           guardian_id: guardianId || null,
@@ -1550,23 +1584,88 @@ function SessionForm() {
             </div>
           </Card>
 
-          {/* ⑧ 케어 팁 미리보기 */}
-          {careTips.length > 0 && (
-            <Card>
-              <SectionHeader title="케어 팁 미리보기" sub="서비스 + 신체 상태에서 자동 생성됩니다" />
-              <div className="">
-                <ul className="flex flex-col gap-2">
-                  {careTips.map((tip, i) => (
-                    <li key={i} className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
-                      <span className="mt-0.5 shrink-0 text-blue-400">💡</span>
-                      <span>{tip}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-xs text-stone-400">* 이 팁들은 next_care_guide 필드에 자동 저장됩니다.</p>
+          {/* ⑧ 케어 팁 (편집 가능) */}
+          <Card>
+            <SectionHeader
+              title="케어 팁"
+              sub={
+                customCareTips !== null
+                  ? '수정됨 · next_care_guide에 저장'
+                  : '서비스 + 신체 상태에서 자동 생성됩니다'
+              }
+            />
+            <div>
+              {careTips.length === 0 && (
+                <p className="text-xs" style={{ color: '#8A8A7A' }}>
+                  아직 생성된 케어 팁이 없습니다. 신체 상태를 체크하거나 아래 버튼으로 직접 추가해주세요.
+                </p>
+              )}
+              <ul className="flex flex-col gap-2">
+                {careTips.map((tip, i) => (
+                  <li key={i} className="flex items-start gap-2 py-1" style={{ borderBottom: '1px solid #F0EDE8' }}>
+                    <span className="mt-2 shrink-0" style={{ color: '#C9A96E' }}>—</span>
+                    <textarea
+                      value={tip}
+                      onChange={(e) => updateTip(i, e.target.value)}
+                      rows={2}
+                      className="flex-1 resize-none py-2 text-sm outline-none"
+                      style={{
+                        background: 'transparent',
+                        borderBottom: '1px solid #D0D0D0',
+                        color: '#0A0A0A',
+                        lineHeight: 1.5,
+                      }}
+                      placeholder="케어 팁을 입력하세요"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeTip(i)}
+                      className="mt-1 shrink-0 px-2 py-1"
+                      style={{ color: '#8A8A7A', fontSize: 11 }}
+                      aria-label="팁 삭제"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={addTip}
+                  style={{
+                    color: '#C9A96E',
+                    fontSize: 11,
+                    letterSpacing: '0.1em',
+                    background: 'none',
+                    border: 'none',
+                    padding: '4px 0',
+                  }}
+                >
+                  + 팁 추가
+                </button>
+                {customCareTips !== null && (
+                  <button
+                    type="button"
+                    onClick={resetTips}
+                    style={{
+                      color: '#8A8A7A',
+                      fontSize: 11,
+                      letterSpacing: '0.1em',
+                      background: 'none',
+                      border: 'none',
+                      padding: '4px 0',
+                    }}
+                  >
+                    자동 생성으로 초기화
+                  </button>
+                )}
               </div>
-            </Card>
-          )}
+              <p className="mt-3 text-xs" style={{ color: '#8A8A7A' }}>
+                * 저장 시 next_care_guide 필드에 줄바꿈으로 저장됩니다.
+              </p>
+            </div>
+          </Card>
 
           {/* (보호자 전달 메시지는 ⑥ 메모 섹션에 통합됨) */}
         </div>
