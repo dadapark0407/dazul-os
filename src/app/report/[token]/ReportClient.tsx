@@ -10,7 +10,7 @@ const T: Record<Lang, Record<string, string>> = {
   ko: {
     good: '정상', attention: '주의',
     bath: '목욕관리', fullGrooming: '전체미용',
-    basic: '베이직', essential: '에센셜', signature: '시그니처', prestige: '프레스티지',
+    basic: '베이직 코스', essential: '✨ 에센셜 스파 코스', signature: '💎 시그니처 팩 코스', prestige: '👑 프레스티지 풀 케어 코스',
     nextVisit: '다음 방문 추천', inWeeks: '약 {n}주 후',
     copyLink: '링크 복사', copied: '복사됨 ✓',
     kakao: '카카오톡 문의', call: '전화 예약',
@@ -160,9 +160,13 @@ function RecordCard({ rec, expanded, onToggle, lang }: { rec: Rec; expanded: boo
   const svc = rawSvc ? tSvc(rawSvc, lang) : null
   const spa = rec.spa_level ? { ...SPA[rec.spa_level], label: tSpa(rec.spa_level, lang) } : null
   const cond = parseCond(rec.condition_status)
+  // 엉킴 라벨 중복 제거: '엉킴: 겨드랑이' → '겨드랑이'
+  const coatValue = rec.coat_status
+    ? rec.coat_status.replace(/^\s*엉킴\s*:\s*/, '').trim() || null
+    : null
   const bodyItems = [
     { label: '피부', value: rec.skin_status },
-    { label: '엉킴', value: rec.coat_status },
+    { label: '엉킴', value: coatValue },
     { label: '눈', value: cond.eyes ?? null },
     { label: '귀', value: cond.ears ?? null },
     { label: '치아', value: cond.teeth ?? null },
