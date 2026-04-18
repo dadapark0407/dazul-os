@@ -108,7 +108,15 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
 
   // 레코드 필드들 — 존재하지 않는 컬럼도 안전하게 처리
   const visitDate = str(record, 'visit_date')
-  const serviceType = str(record, 'service_type')
+  const serviceTypeRaw = str(record, 'service_type')
+  // 스파코스 배지로 별도 표시하므로 service_type에서 '스파 *' 항목 제거
+  const serviceType = serviceTypeRaw
+    ? (serviceTypeRaw
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s && !/^스파\s+/.test(s))
+        .join(', ') || null)
+    : null
   const note = str(record, 'note')
   const skinStatus = str(record, 'skin_status')
   const coatStatus = str(record, 'coat_status')
