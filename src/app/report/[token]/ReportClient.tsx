@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { AdminMenu } from '@/components/report/ReportActions'
 
 // ─── 다국어 ───
 type Lang = 'ko' | 'en' | 'ja'
@@ -364,7 +363,6 @@ export default function ReportClient({
               </button>
             )
           })}
-          {latest && <AdminMenu recordId={latest.id} />}
         </div>
 
         <div className="mx-auto max-w-[480px] text-center" style={{ padding: '60px 24px 48px' }}>
