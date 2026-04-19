@@ -1,5 +1,8 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+
 // =============================================================
 // DAZUL OS — 케어 히스토리 누적 테이블 (Numbers 스타일)
 // =============================================================
@@ -56,6 +59,9 @@ export default function CareHistoryTable({
   records: R[]
   petName: string
 }) {
+  const router = useRouter()
+  const [hoverId, setHoverId] = useState<string | null>(null)
+
   if (records.length === 0) {
     return (
       <section style={{ border: '1px solid #E8E8E8', padding: 40, textAlign: 'center' }}>
@@ -172,12 +178,22 @@ export default function CareHistoryTable({
               const cond = parseCondition(s(r, 'condition_status'))
               const svc = s(r, 'service') || s(r, 'service_type')
               const spa = s(r, 'spa_level')
-              const oddBg = i % 2 === 1 ? '#FAFAFA' : '#FFFFFF'
+              const recordId = s(r, 'id')
+              const rowKey = recordId || String(i)
+              const isHover = hoverId === rowKey
+              const baseBg = i % 2 === 1 ? '#FAFAFA' : '#FFFFFF'
+              const oddBg = isHover ? '#FAFAF8' : baseBg
               const cell = { ...TD, background: oddBg }
               const hasIssue = (v: string) => v && !['좋음', '깨끗함', '없음', '적당함', '양호'].includes(v)
 
               return (
-                <tr key={s(r, 'id') || i}>
+                <tr
+                  key={rowKey}
+                  onClick={() => recordId && router.push(`/session/edit/${recordId}`)}
+                  onMouseEnter={() => setHoverId(rowKey)}
+                  onMouseLeave={() => setHoverId((cur) => (cur === rowKey ? null : cur))}
+                  style={{ cursor: recordId ? 'pointer' : 'default' }}
+                >
                   <td style={{ ...cell, ...STICKY, background: oddBg, fontWeight: 500 }}>
                     {s(r, 'visit_date') ? formatDate(s(r, 'visit_date')) : '-'}
                   </td>
