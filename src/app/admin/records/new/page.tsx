@@ -175,6 +175,8 @@ function generateCareTips({
   spaLevel,
   skin,
   tangles,
+  eyes,
+  ears,
   teethStatus,
   nailStatus,
 }: {
@@ -182,6 +184,8 @@ function generateCareTips({
   spaLevel: SpaLevel
   skin: string[]
   tangles: string[]
+  eyes: string[]
+  ears: string[]
   teethStatus: TeethStatus
   nailStatus: NailStatus
 }): string[] {
@@ -189,47 +193,59 @@ function generateCareTips({
 
   // 서비스 기반 팁
   if (mainService === '전체미용') {
-    tips.push('미용 후 2~3일은 빗질을 부드럽게 해주세요.')
+    tips.push('미용 후 집에서 빗질을 꾸준히 해주시면 엉킴 예방과 스타일 유지에 도움이 됩니다.')
   }
   if (mainService === '목욕관리') {
-    tips.push('목욕 후 완전 건조가 중요합니다. 습한 상태로 방치하지 마세요.')
+    tips.push('가정에서 목욕하실 때는 린스를 꼭 사용해 주시고, 드라이는 피부 속까지 완전히 말려주셔야 피부 트러블 예방에 도움이 됩니다.')
   }
 
   // 스파 팁
   if (spaLevel) {
-    tips.push('스파 후 24시간은 목욕을 피해주세요. 영양 성분 흡수를 위해 필요합니다.')
+    tips.push('스파 후에는 혈액순환과 이완에 도움이 되어 피부와 컨디션 회복에 긍정적인 영향을 줄 수 있습니다. 오늘은 충분히 휴식할 수 있도록 편안한 시간을 주세요.')
   }
 
   // 피부 이슈
   const skinIssues = skin.filter((s) => s !== '좋음')
   if (skinIssues.includes('건조')) {
-    tips.push('보습 관리를 꾸준히 해주세요. 실내 가습기 사용을 권장합니다.')
+    tips.push('피부가 건조한 상태로 보여 보습 제품을 활용한 꾸준한 홈케어를 추천드립니다.')
   }
-  if (skinIssues.includes('민감') || skinIssues.includes('붉은반점')) {
-    tips.push('피부가 민감한 상태입니다. 자극이 적은 제품을 사용해주세요.')
+  if (skinIssues.includes('민감') || skinIssues.includes('붉은반점') || skinIssues.includes('붉음')) {
+    tips.push('피부가 예민해진 상태일 수 있어 긁거나 핥거나 바닥·가구 등에 비비지 않는지 잘 살펴봐 주세요.')
   }
   if (skinIssues.includes('각질') || skinIssues.includes('기름짐')) {
-    tips.push('주기적인 스킨 케어가 필요합니다. 다음 방문 시 스파를 추천드립니다.')
+    tips.push('피부 유수분 밸런스 관리가 필요한 상태입니다. 다음 방문 시 스파 또는 팩 케어를 함께 진행하시면 도움이 됩니다.')
   }
 
   // 엉킴
   const tangleIssues = tangles.filter((t) => t !== '없음')
   if (tangleIssues.length > 0) {
-    tips.push(`${tangleIssues.join(', ')} 부위에 엉킴이 있었습니다. 매일 빗질을 해주시면 좋겠습니다.`)
+    tips.push(`${tangleIssues.join(', ')} 부위에 엉킴이 있었습니다. 엉킨 부위를 긁거나 핥을 경우 자극으로 인해 상처나 2차 감염이 생길 수 있으니 잘 살펴봐 주세요.`)
+  }
+
+  // 눈
+  const hasEyeIssue = eyes.some((e) => e.includes('눈물') || e.includes('분비물'))
+  if (hasEyeIssue) {
+    tips.push('눈물이 많이 젖어 있으면 눈 주변 피부가 짓무르거나 착색될 수 있습니다. 자주 닦아주시고 항상 건조하고 청결하게 관리해 주세요.')
+  }
+
+  // 귀
+  const hasEarIssue = ears.some((e) => e.includes('냄새') || e.includes('귀지') || e.includes('부음'))
+  if (hasEarIssue) {
+    tips.push('귀에서 냄새가 심하게 나거나 귀지가 많아지거나 붓기가 보일 경우 염증 가능성이 있어 동물병원 검진을 추천드립니다.')
   }
 
   // 치아
   if (teethStatus === 'needs_care') {
-    tips.push('치석이 쌓이고 있습니다. 주 2~3회 양치를 권장합니다.')
+    tips.push('매일 강아지 전용 칫솔과 치약으로 양치해 주시면 구강 건강 유지에 도움이 됩니다.')
   }
 
   // 발톱
   if (nailStatus === 'needs_care') {
-    tips.push('발톱이 길었습니다. 2주마다 체크해주세요.')
+    tips.push('발톱은 2주 간격으로 체크해 주시면 보행 균형 유지와 발 건강 관리에 도움이 됩니다.')
   }
 
   if (tips.length === 0) {
-    tips.push('전반적으로 컨디션이 좋습니다. 다음 정기 방문을 추천드립니다.')
+    tips.push('오늘 전반적인 컨디션이 안정적이었습니다.')
   }
 
   return tips
@@ -770,6 +786,8 @@ function SessionForm() {
     spaLevel,
     skin,
     tangles,
+    eyes,
+    ears,
     teethStatus,
     nailStatus,
   })
