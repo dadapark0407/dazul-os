@@ -14,6 +14,14 @@ function s(obj: R, key: string): string {
   return typeof v === 'string' && v.trim() ? v.trim() : ''
 }
 
+/** id 등 숫자/문자 혼합 필드용 */
+function idStr(obj: R, key: string): string {
+  const v = obj[key]
+  if (typeof v === 'string') return v.trim()
+  if (typeof v === 'number' || typeof v === 'bigint') return String(v)
+  return ''
+}
+
 function parseGroomingStyle(obj: R): Record<string, string> {
   const gs = obj.grooming_style
   if (gs && typeof gs === 'object' && !Array.isArray(gs)) return gs as Record<string, string>
@@ -196,7 +204,7 @@ export default function CareHistoryTable({
               const cond = parseCondition(s(r, 'condition_status'))
               const svc = s(r, 'service') || s(r, 'service_type')
               const spa = s(r, 'spa_level')
-              const recordId = s(r, 'id')
+              const recordId = idStr(r, 'id')
               const rowKey = recordId || String(i)
               const isHover = hoverId === rowKey
               const baseBg = i % 2 === 1 ? '#FAFAFA' : '#FFFFFF'
