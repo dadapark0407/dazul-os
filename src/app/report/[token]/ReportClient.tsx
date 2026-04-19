@@ -155,7 +155,7 @@ const SH = ({ children }: { children: string }) => (
 )
 
 // ─── 기록 카드 ───
-function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string> }) {
+function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productCategoryMap }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string>; productCategoryMap: Record<string, string> }) {
   const rawSvc = rec.service ?? rec.service_type ?? null
   const svc = rawSvc ? tSvc(rawSvc, lang) : null
   const spa = rec.spa_level ? { ...SPA[rec.spa_level], label: tSpa(rec.spa_level, lang) } : null
@@ -253,6 +253,66 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap }: { rec:
             </div>
           )}
 
+          {/* PRODUCTS — 카테고리별 표시 */}
+          {(() => {
+            // care_actions 파싱 → 각 품목별 카테고리 분류
+            const items = (rec.care_actions ?? '')
+              .split(',')
+              .map((raw) => raw.trim())
+              .filter(Boolean)
+
+            const grouped: Record<string, { label: string; summary: string | null }[]> = {}
+            for (const label of items) {
+              const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
+              const cat = productCategoryMap[productName] || '기타'
+              const summary = productSummaryMap[productName] || null
+              if (!grouped[cat]) grouped[cat] = []
+              grouped[cat].push({ label, summary })
+            }
+
+            // 표시 카테고리 순서 — 스파/팩은 spa_level 있을 때만
+            const baseOrder = ['샴푸', '린스', '피부케어', '피모케어', '위생관리', '기타']
+            const spaOrder: string[] = rec.spa_level ? ['스파', '팩'] : []
+            const orderedCats = [...baseOrder.slice(0, 4), ...spaOrder, ...baseOrder.slice(4)]
+
+            // 데이터가 아예 없고 spa_level도 없으면 섹션 숨김
+            if (items.length === 0 && !rec.spa_level) return null
+
+            return (
+              <div style={{ marginBottom: 32 }}>
+                <SH>Products</SH>
+                {orderedCats.map((cat) => {
+                  const list = grouped[cat] ?? []
+                  return (
+                    <div key={cat} style={{ padding: '12px 0', borderBottom: `1px solid ${C.line}` }}>
+                      <div className="flex items-baseline">
+                        <span style={{ width: 72, fontSize: 11, color: C.sub, letterSpacing: '0.1em', flexShrink: 0 }}>
+                          {cat}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          {list.length === 0 ? (
+                            <span style={{ fontSize: 13, color: '#D0D0D0' }}>—</span>
+                          ) : (
+                            list.map((p, i) => (
+                              <div key={i} style={{ marginBottom: i < list.length - 1 ? 6 : 0 }}>
+                                <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, fontWeight: 400 }}>{p.label}</p>
+                                {p.summary && (
+                                  <p style={{ fontSize: 11, color: C.sub, lineHeight: 1.7, fontWeight: 300, marginTop: 2 }}>
+                                    {p.summary}
+                                  </p>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+
           {/* CONDITION */}
           {bodyItems.length > 0 && (
             <div style={{ marginBottom: 32 }}>
@@ -276,30 +336,6 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap }: { rec:
                   </span>
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* PRODUCTS */}
-          {rec.care_actions && (
-            <div style={{ marginBottom: 32 }}>
-              <SH>Products</SH>
-              {rec.care_actions.split(',').map((raw, i) => {
-                const label = raw.trim()
-                if (!label) return null
-                // "이름 (브랜드)" 형식에서 이름만 추출
-                const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
-                const summary = productSummaryMap[productName] || null
-                return (
-                  <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}>
-                    <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, fontWeight: 400 }}>{label}</p>
-                    {summary && (
-                      <p style={{ fontSize: 11, color: C.sub, lineHeight: 1.7, fontWeight: 300, marginTop: 4 }}>
-                        {summary}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
             </div>
           )}
 
@@ -358,11 +394,13 @@ export default function ReportClient({
   pets,
   records,
   productSummaryMap = {},
+  productCategoryMap = {},
 }: {
   guardianName: string | null
   pets: Pet[]
   records: Rec[]
   productSummaryMap?: Record<string, string>
+  productCategoryMap?: Record<string, string>
 }) {
   const [lang, setLang] = useLang()
   const t = T[lang]
@@ -478,6 +516,7 @@ export default function ReportClient({
             onToggle={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
             lang={lang}
             productSummaryMap={productSummaryMap}
+            productCategoryMap={productCategoryMap}
           />
         ))}
 

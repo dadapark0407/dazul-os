@@ -36,16 +36,27 @@ export default async function ReportPage({ params }: PageProps) {
 
   if (!records || records.length === 0) notFound()
 
-  // 제품 매핑 (이름 → 고객 안내 문구)
-  // care_actions 가 "이름 (브랜드)" 형식으로 저장되므로 이름으로 조회
-  const { data: productRows } = await supabase
-    .from('products')
-    .select('name, ai_summary')
+  // 제품 매핑
+  // care_actions 는 "이름 (브랜드), 이름2 (브랜드2)" 형식
+  // 이름으로 고객 안내 문구(ai_summary) + 카테고리를 조회
+  const [{ data: productRows }, { data: catRows }] = await Promise.all([
+    supabase.from('products').select('name, ai_summary, category_id'),
+    supabase.from('product_categories').select('id, name'),
+  ])
 
-  const productMap: Record<string, string> = {}
+  const categoryIdToName: Record<string, string> = {}
+  for (const c of catRows ?? []) {
+    if (c?.id && c?.name) categoryIdToName[String(c.id)] = String(c.name)
+  }
+
+  const productSummaryMap: Record<string, string> = {}
+  const productCategoryMap: Record<string, string> = {}
   for (const p of productRows ?? []) {
-    if (p?.name && p?.ai_summary) {
-      productMap[String(p.name)] = String(p.ai_summary)
+    if (!p?.name) continue
+    const name = String(p.name)
+    if (p.ai_summary) productSummaryMap[name] = String(p.ai_summary)
+    if (p.category_id && categoryIdToName[String(p.category_id)]) {
+      productCategoryMap[name] = categoryIdToName[String(p.category_id)]
     }
   }
 
@@ -55,7 +66,8 @@ export default async function ReportPage({ params }: PageProps) {
         guardianName={guardian.name}
         pets={(pets ?? []).map((p) => ({ id: p.id, name: p.name ?? '반려견', breed: p.breed }))}
         records={records}
-        productSummaryMap={productMap}
+        productSummaryMap={productSummaryMap}
+        productCategoryMap={productCategoryMap}
       />
     </Suspense>
   )
