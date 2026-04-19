@@ -89,8 +89,8 @@ export default function AdminProductNewPage() {
       category: selectedCat?.name ?? null,
       description: description.trim() || null,
       ai_summary: aiSummary.trim() || null,
-      target_skin_type: skinTypes.length > 0 ? skinTypes.join(', ') : null,
-      target_coat_type: coatTypes.length > 0 ? coatTypes.join(', ') : null,
+      target_skin_type: skinTypes.length > 0 ? skinTypes : null,
+      target_coat_type: coatTypes.length > 0 ? coatTypes : null,
       status,
       // 하위 호환: is_active 동기화 (active만 true)
       is_active: status === 'active',

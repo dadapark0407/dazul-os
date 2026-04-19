@@ -75,11 +75,16 @@ export default function AdminProductEditPage() {
       setDescription(data.description ?? '')
       setAiSummary(data.ai_summary ?? '')
 
-      // 피부/모질 타입: 콤마 분할, 알려진 옵션과 일치하는 것만 복원
-      const skinRaw = (data.target_skin_type ?? '').split(',').map((s: string) => s.trim()).filter(Boolean)
-      const coatRaw = (data.target_coat_type ?? '').split(',').map((s: string) => s.trim()).filter(Boolean)
-      setSkinTypes(skinRaw.filter((s: string) => (SKIN_TYPES as readonly string[]).includes(s)))
-      setCoatTypes(coatRaw.filter((s: string) => (COAT_TYPES as readonly string[]).includes(s)))
+      // 피부/모질 타입: 배열(text[]) 또는 문자열(콤마 분할) 둘 다 지원
+      const parseMulti = (v: unknown): string[] => {
+        if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean)
+        if (typeof v === 'string') return v.split(',').map((s) => s.trim()).filter(Boolean)
+        return []
+      }
+      const skinRaw = parseMulti(data.target_skin_type)
+      const coatRaw = parseMulti(data.target_coat_type)
+      setSkinTypes(skinRaw.filter((s) => (SKIN_TYPES as readonly string[]).includes(s)))
+      setCoatTypes(coatRaw.filter((s) => (COAT_TYPES as readonly string[]).includes(s)))
 
       // 상태: status 우선, 없으면 is_active에서 유도
       if (data.status === 'active' || data.status === 'hidden' || data.status === 'discontinued') {
@@ -119,8 +124,8 @@ export default function AdminProductEditPage() {
       category: selectedCat?.name ?? (categoryId ? null : oldCategory || null),
       description: description.trim() || null,
       ai_summary: aiSummary.trim() || null,
-      target_skin_type: skinTypes.length > 0 ? skinTypes.join(', ') : null,
-      target_coat_type: coatTypes.length > 0 ? coatTypes.join(', ') : null,
+      target_skin_type: skinTypes.length > 0 ? skinTypes : null,
+      target_coat_type: coatTypes.length > 0 ? coatTypes : null,
       status,
       is_active: status === 'active',
     }
