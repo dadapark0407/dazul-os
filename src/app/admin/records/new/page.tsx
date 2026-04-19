@@ -50,7 +50,7 @@ const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
 const NAIL_OPTIONS = ['적당함', '관리필요'] as const
 
 // 기본 카테고리 (DB category 값 기준 매칭)
-const BASE_PRODUCT_CATEGORIES = ['샴푸', '컨디셔너', '피부케어', '코트케어', '기타'] as const
+const BASE_PRODUCT_CATEGORIES = ['샴푸', '린스', '피부케어', '피모케어', '위생관리', '기타'] as const
 // 조건부 카테고리
 const SPA_BONUS_CATEGORIES = ['스파', '팩'] as const
 // 전체 (검색 매칭용)
@@ -641,6 +641,7 @@ function SessionForm() {
   const [categoryNameToId, setCategoryNameToId] = useState<Record<string, string>>({})
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
   const [productSearches, setProductSearches] = useState<Record<string, string>>({})
+  const [focusedCat, setFocusedCat] = useState<string | null>(null)
   const toggleProduct = (id: string) =>
     setSelectedProductIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
   const setProductSearch = (cat: string, val: string) =>
@@ -1272,7 +1273,8 @@ function SessionForm() {
                 <div className="space-y-3">
                   {visibleCategories.map((cat) => {
                     const q = productSearches[cat] ?? ''
-                    const results = q.length > 0 ? getProductsForCategory(cat) : []
+                    const isOpen = focusedCat === cat || q.length > 0
+                    const results = isOpen ? getProductsForCategory(cat) : []
                     const isBonus = SPA_BONUS_CATEGORIES.includes(cat as typeof SPA_BONUS_CATEGORIES[number])
                     return (
                       <div key={cat} style={{
@@ -1296,32 +1298,35 @@ function SessionForm() {
                               type="text"
                               value={q}
                               onChange={(e) => setProductSearch(cat, e.target.value)}
-                              placeholder={`${cat} 검색...`}
+                              onFocus={() => setFocusedCat(cat)}
+                              onBlur={() => setTimeout(() => setFocusedCat((cur) => (cur === cat ? null : cur)), 150)}
+                              placeholder={`${cat} 검색 또는 클릭하여 목록 보기`}
                               className={inputCls}
                             />
-                            {/* 검색 결과 드롭다운 */}
-                            {q.length > 0 && results.length > 0 && (
-                              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-40 overflow-y-auto border border-[#E8E8E8] bg-white shadow-sm">
+                            {/* 검색 결과 / 전체 목록 드롭다운 */}
+                            {isOpen && results.length > 0 && (
+                              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto border border-[#E8E8E8] bg-white shadow-sm">
                                 {results.map((p) => {
                                   const on = selectedProductIds.includes(p.id)
                                   return (
                                     <button
                                       key={p.id}
                                       type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
                                       onClick={() => { toggleProduct(p.id); setProductSearch(cat, '') }}
                                       className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs transition-colors ${on ? 'bg-[#0A0A0A] text-white' : 'text-stone-700 hover:bg-stone-50'}`}
                                     >
                                       <span className="font-medium">{p.name}</span>
-                                      {p.brand && <span className="text-stone-400">· {p.brand}</span>}
+                                      {p.brand && <span className={on ? 'text-white/60' : 'text-stone-400'}>· {p.brand}</span>}
                                       {on && <span className="ml-auto text-[10px]">✓</span>}
                                     </button>
                                   )
                                 })}
                               </div>
                             )}
-                            {q.length > 0 && results.length === 0 && (
+                            {isOpen && results.length === 0 && (
                               <div className="absolute left-0 right-0 top-full z-10 mt-1 border border-[#E8E8E8] bg-white px-3 py-3 text-center text-xs text-stone-400">
-                                검색 결과 없음
+                                {q.length > 0 ? '검색 결과 없음' : '등록된 제품이 없습니다'}
                               </div>
                             )}
                           </div>
