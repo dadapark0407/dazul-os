@@ -18,7 +18,7 @@ type CategoryOption = {
 type Status = 'active' | 'hidden' | 'discontinued'
 
 const SKIN_TYPES = ['건조', '민감', '지성', '복합', '정상'] as const
-const COAT_TYPES = ['단모', '장모', '곱슬', '직모', '이중모'] as const
+const COAT_TYPES = ['단모', '장모', '곱슬', '직모', '이중모', '손상모'] as const
 
 const STATUS_OPTIONS: { value: Status; label: string; desc: string }[] = [
   { value: 'active', label: '사용중', desc: '현재 판매/사용 중' },
