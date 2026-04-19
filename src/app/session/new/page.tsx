@@ -49,8 +49,8 @@ const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
 const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
 const NAIL_OPTIONS = ['적당함', '관리필요'] as const
 
-// 기본 카테고리 (DB category 값 기준 매칭)
-const BASE_PRODUCT_CATEGORIES = ['샴푸', '린스', '피부케어', '피모케어', '기타'] as const
+// 기본 카테고리 (product_categories.name 과 일치)
+const BASE_PRODUCT_CATEGORIES = ['샴푸', '컨디셔너', '피부케어', '코트케어', '기타'] as const
 // 조건부 카테고리
 const SPA_BONUS_CATEGORIES = ['스파', '팩'] as const
 // 전체 (검색 매칭용)
@@ -654,21 +654,33 @@ function SessionForm() {
 
   // ─── 제품 선택 (카테고리별 검색) ───
   const [allProducts, setAllProducts] = useState<Product[]>([])
+  const [categoryNameToId, setCategoryNameToId] = useState<Record<string, string>>({})
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
   const [productSearches, setProductSearches] = useState<Record<string, string>>({})
   const toggleProduct = (id: string) =>
     setSelectedProductIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
   const setProductSearch = (cat: string, val: string) =>
     setProductSearches((prev) => ({ ...prev, [cat]: val }))
-  /** 카테고리별 검색 결과 */
+  /** 카테고리별 검색 결과 — category_id FK 기준 */
   function getProductsForCategory(cat: string): Product[] {
     const q = (productSearches[cat] ?? '').toLowerCase()
-    const knownCats = ALL_PRODUCT_CATEGORIES.filter((c) => c !== '기타')
+    const targetId = categoryNameToId[cat] ?? null
+    const knownIds = ALL_PRODUCT_CATEGORIES
+      .filter((c) => c !== '기타')
+      .map((c) => categoryNameToId[c])
+      .filter((v): v is string => !!v)
+
     return allProducts.filter((p) => {
-      const pCat = (p as Record<string, unknown>).category as string | null
-      const matchCat = cat === '기타'
-        ? !knownCats.some((c) => pCat?.includes(c))
-        : pCat?.includes(cat)
+      let matchCat: boolean
+      if (cat === '기타') {
+        // "기타" 자체 id가 있으면 그걸로 매칭, 없으면 known 카테고리에 속하지 않은 것 모두
+        matchCat = targetId
+          ? p.category_id === targetId
+          : !p.category_id || !knownIds.includes(p.category_id)
+      } else {
+        if (!targetId) return false // 해당 카테고리가 DB에 없음
+        matchCat = p.category_id === targetId
+      }
       if (!matchCat) return false
       if (!q) return true
       return (p.name ?? '').toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q)
@@ -679,13 +691,16 @@ function SessionForm() {
   const visibleCategories = getVisibleProductCategories(spaLevel)
   useEffect(() => {
     const visible = getVisibleProductCategories(spaLevel)
+    const visibleIds = new Set(
+      visible.map((c) => categoryNameToId[c]).filter((v): v is string => !!v)
+    )
     // 보이지 않는 카테고리에 속한 제품 제거
     setSelectedProductIds((prev) => prev.filter((id) => {
       const p = allProducts.find((x) => x.id === id)
       if (!p) return true
-      const pCat = (p as Record<string, unknown>).category as string | null
-      if (!pCat) return true // 기타로 간주 — 항상 표시
-      return visible.some((c) => pCat.includes(c))
+      // category_id가 없거나 visible 카테고리에 속하면 유지
+      if (!p.category_id) return visible.includes('기타')
+      return visibleIds.has(p.category_id)
     }))
     // 검색어도 초기화
     setProductSearches((prev) => {
@@ -825,14 +840,21 @@ function SessionForm() {
   // ─── 초기 데이터 로드 ───
   useEffect(() => {
     async function load() {
-      const [gResult, pResult, prodResult] = await Promise.all([
+      const [gResult, pResult, prodResult, catResult] = await Promise.all([
         supabase.from('guardians').select('id, name, phone').order('name'),
         supabase.from('pets').select('id, guardian_id, name, breed').order('name'),
         supabase.from('products').select('id, name, brand, category, category_id').eq('is_active', true).order('name'),
+        supabase.from('product_categories').select('id, name').eq('is_active', true),
       ])
       setGuardians(gResult.data || [])
       setPets(pResult.data || [])
       setAllProducts(prodResult.data || [])
+      // 카테고리 이름 → id 맵 구축
+      const map: Record<string, string> = {}
+      for (const c of catResult.data ?? []) {
+        if (c?.name && c?.id) map[String(c.name)] = String(c.id)
+      }
+      setCategoryNameToId(map)
     }
     load()
   }, [])
