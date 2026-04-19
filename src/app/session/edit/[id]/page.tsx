@@ -1404,29 +1404,31 @@ function EditRecordForm() {
                 </div>
               </div>
 
-              {/* 사용 제품 (카테고리별 검색) */}
+              {/* 사용 제품 (카테고리별 검색 + 선택 배지) */}
               <div>
                 <label className="mb-3 block text-sm font-semibold text-stone-500">사용 제품</label>
-                {/* 선택된 제품 배지 (상단에 표시) */}
-                {selectedProductIds.length > 0 && (
-                  <div className="mb-4 flex flex-wrap gap-1.5">
-                    {selectedProductIds.map((id) => {
-                      const p = allProducts.find((x) => x.id === id)
-                      return p ? (
-                        <span key={id} className="inline-flex items-center gap-1.5 border border-[#0A0A0A] bg-[#0A0A0A] px-3 py-1.5 text-xs font-medium text-white">
-                          {p.name}{p.brand ? ` · ${p.brand}` : ''}
-                          <button type="button" onClick={() => toggleProduct(id)} className="text-white/50 hover:text-white">✕</button>
-                        </span>
-                      ) : null
-                    })}
-                  </div>
-                )}
-                {/* 카테고리별 행 */}
                 <div className="space-y-3">
                   {visibleCategories.map((cat) => {
                     const q = productSearches[cat] ?? ''
                     const isOpen = focusedCat === cat || q.length > 0
-                    const results = isOpen ? getProductsForCategory(cat) : []
+                    const allInCat = getProductsForCategory(cat)
+                    const results = isOpen ? allInCat.filter((p) => !selectedProductIds.includes(p.id)) : []
+                    const selectedInCat = selectedProductIds
+                      .map((id) => allProducts.find((p) => p.id === id))
+                      .filter((p): p is NonNullable<typeof p> => {
+                        if (!p) return false
+                        const targetId = categoryNameToId[cat] ?? null
+                        if (cat === '기타') {
+                          const knownIds = ALL_PRODUCT_CATEGORIES
+                            .filter((c) => c !== '기타')
+                            .map((c) => categoryNameToId[c])
+                            .filter((v): v is string => !!v)
+                          return targetId
+                            ? p.category_id === targetId
+                            : !p.category_id || !knownIds.includes(p.category_id)
+                        }
+                        return !!targetId && p.category_id === targetId
+                      })
                     const isBonus = SPA_BONUS_CATEGORIES.includes(cat as typeof SPA_BONUS_CATEGORIES[number])
                     return (
                       <div key={cat} style={{
@@ -1438,49 +1440,80 @@ function EditRecordForm() {
                         opacity: 1,
                         transition: 'opacity 0.2s ease, transform 0.2s ease',
                       }}>
-                        <div className="flex items-center gap-3">
-                          <span className={`flex w-20 shrink-0 items-center gap-1.5 text-xs font-bold ${isBonus ? 'text-[#C9A96E]' : 'text-[#6B6B6B]'}`}>
+                        <div className="flex items-start gap-3">
+                          <span className={`mt-2 flex w-20 shrink-0 items-center gap-1.5 text-xs font-bold ${isBonus ? 'text-[#C9A96E]' : 'text-[#6B6B6B]'}`}>
                             {cat}
                             {isBonus && (
                               <span style={{ background: '#C9A96E', color: '#FFFFFF', fontSize: 10, padding: '1px 5px', fontWeight: 500 }}>추천</span>
                             )}
                           </span>
-                          <div className="relative flex-1">
-                            <input
-                              type="text"
-                              value={q}
-                              onChange={(e) => setProductSearch(cat, e.target.value)}
-                              onFocus={() => setFocusedCat(cat)}
-                              onBlur={() => setTimeout(() => setFocusedCat((cur) => (cur === cat ? null : cur)), 150)}
-                              placeholder={`${cat} 검색 또는 클릭하여 목록 보기`}
-                              className={inputCls}
-                            />
-                            {/* 검색 결과 / 전체 목록 드롭다운 */}
-                            {isOpen && results.length > 0 && (
-                              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto border border-[#E8E8E8] bg-white shadow-sm">
-                                {results.map((p) => {
-                                  const on = selectedProductIds.includes(p.id)
-                                  return (
+                          <div className="relative flex flex-1 flex-wrap items-center gap-1.5">
+                            {selectedInCat.map((p) => (
+                              <span
+                                key={p.id}
+                                style={{
+                                  background: '#F4F4F4',
+                                  border: '1px solid #E8E5E0',
+                                  borderRadius: 0,
+                                  fontSize: 12,
+                                  padding: '4px 10px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  color: '#1A1A1A',
+                                }}
+                              >
+                                {p.name}{p.brand ? ` · ${p.brand}` : ''}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleProduct(p.id)}
+                                  style={{ color: '#8A8A7A', fontSize: 12, lineHeight: 1 }}
+                                  aria-label={`${p.name} 제거`}
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                            <div className="relative" style={{ flex: 1, minWidth: 140 }}>
+                              <input
+                                type="text"
+                                value={q}
+                                onChange={(e) => setProductSearch(cat, e.target.value)}
+                                onFocus={() => setFocusedCat(cat)}
+                                onBlur={() => setTimeout(() => setFocusedCat((cur) => (cur === cat ? null : cur)), 150)}
+                                placeholder={selectedInCat.length > 0 ? '추가 검색...' : `${cat} 검색 또는 클릭`}
+                                className={inputCls}
+                              />
+                              {isOpen && results.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto border border-[#E8E8E8] bg-white shadow-sm">
+                                  {results.map((p) => (
                                     <button
                                       key={p.id}
                                       type="button"
                                       onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => { toggleProduct(p.id); setProductSearch(cat, '') }}
-                                      className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs transition-colors ${on ? 'bg-[#0A0A0A] text-white' : 'text-stone-700 hover:bg-stone-50'}`}
+                                      onClick={() => {
+                                        toggleProduct(p.id)
+                                        setProductSearch(cat, '')
+                                        setFocusedCat(null)
+                                      }}
+                                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs text-stone-700 transition-colors hover:bg-stone-50"
                                     >
                                       <span className="font-medium">{p.name}</span>
-                                      {p.brand && <span className={on ? 'text-white/60' : 'text-stone-400'}>· {p.brand}</span>}
-                                      {on && <span className="ml-auto text-[10px]">✓</span>}
+                                      {p.brand && <span className="text-stone-400">· {p.brand}</span>}
                                     </button>
-                                  )
-                                })}
-                              </div>
-                            )}
-                            {isOpen && results.length === 0 && (
-                              <div className="absolute left-0 right-0 top-full z-10 mt-1 border border-[#E8E8E8] bg-white px-3 py-3 text-center text-xs text-stone-400">
-                                {q.length > 0 ? '검색 결과 없음' : '등록된 제품이 없습니다'}
-                              </div>
-                            )}
+                                  ))}
+                                </div>
+                              )}
+                              {isOpen && results.length === 0 && (
+                                <div className="absolute left-0 right-0 top-full z-10 mt-1 border border-[#E8E8E8] bg-white px-3 py-3 text-center text-xs text-stone-400">
+                                  {q.length > 0
+                                    ? '검색 결과 없음'
+                                    : allInCat.length > 0
+                                      ? '모두 선택됨'
+                                      : '등록된 제품이 없습니다'}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
