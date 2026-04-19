@@ -55,12 +55,30 @@ const GOLD = '#C9A96E'
 export default function CareHistoryTable({
   records,
   petName,
+  productCategoryMap = {},
 }: {
   records: R[]
   petName: string
+  productCategoryMap?: Record<string, string>
 }) {
   const router = useRouter()
   const [hoverId, setHoverId] = useState<string | null>(null)
+
+  // care_actions 에서 샴푸/스파/팩 항목만 추출
+  function extractKeyProducts(raw: string): { label: string; value: string }[] {
+    if (!raw) return []
+    const out: Record<string, string[]> = { '샴푸': [], '스파': [], '팩': [] }
+    for (const itemRaw of raw.split(',')) {
+      const label = itemRaw.trim()
+      if (!label) continue
+      const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
+      const cat = productCategoryMap[productName]
+      if (cat && out[cat]) out[cat].push(productName)
+    }
+    return (['샴푸', '스파', '팩'] as const)
+      .filter((k) => out[k].length > 0)
+      .map((k) => ({ label: k, value: out[k].join(', ') }))
+  }
 
   if (records.length === 0) {
     return (
@@ -204,8 +222,21 @@ export default function CareHistoryTable({
                   <td style={{ ...cell, color: spa ? GOLD : undefined, fontWeight: spa ? 500 : 400 }}>
                     {spa || '-'}
                   </td>
-                  <td style={{ ...cell, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {s(r, 'care_actions') || '-'}
+                  <td style={{ ...cell, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      const items = extractKeyProducts(s(r, 'care_actions'))
+                      if (items.length === 0) return '-'
+                      return (
+                        <span>
+                          {items.map((it, idx) => (
+                            <span key={it.label} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <span style={{ color: '#8A8A7A' }}>{it.label}:</span> {it.value}
+                              {idx < items.length - 1 ? null : null}
+                            </span>
+                          ))}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td style={cell}>{gs.face || '-'}</td>
                   <td style={cell}>{gs.body || '-'}</td>

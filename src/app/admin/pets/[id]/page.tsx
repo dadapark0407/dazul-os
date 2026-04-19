@@ -76,6 +76,22 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
   const records = visitRecords ?? []
   const totalVisits = records.length
 
+  // 제품 이름 → 카테고리명 맵 (케어 히스토리 테이블에서 사용제품 카테고리 분류용)
+  const [{ data: productRows }, { data: catRows }] = await Promise.all([
+    supabase.from('products').select('name, category_id'),
+    supabase.from('product_categories').select('id, name'),
+  ])
+  const categoryIdToName: Record<string, string> = {}
+  for (const c of catRows ?? []) {
+    if (c?.id && c?.name) categoryIdToName[String(c.id)] = String(c.name)
+  }
+  const productCategoryMap: Record<string, string> = {}
+  for (const p of productRows ?? []) {
+    if (!p?.name || !p?.category_id) continue
+    const catName = categoryIdToName[String(p.category_id)]
+    if (catName) productCategoryMap[String(p.name)] = catName
+  }
+
   // 안전한 필드 접근 헬퍼
   const str = (obj: Record<string, unknown> | null, key: string): string | null => {
     if (!obj) return null
@@ -227,6 +243,7 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
       <CareHistoryTable
         records={records as Record<string, unknown>[]}
         petName={str(pet, 'name') ?? '반려견'}
+        productCategoryMap={productCategoryMap}
       />
 
       {/* 상태 관리 */}
