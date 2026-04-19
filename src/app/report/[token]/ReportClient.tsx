@@ -155,7 +155,7 @@ const SH = ({ children }: { children: string }) => (
 )
 
 // ─── 기록 카드 ───
-function RecordCard({ rec, expanded, onToggle, lang }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang }) {
+function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string> }) {
   const rawSvc = rec.service ?? rec.service_type ?? null
   const svc = rawSvc ? tSvc(rawSvc, lang) : null
   const spa = rec.spa_level ? { ...SPA[rec.spa_level], label: tSpa(rec.spa_level, lang) } : null
@@ -283,7 +283,23 @@ function RecordCard({ rec, expanded, onToggle, lang }: { rec: Rec; expanded: boo
           {rec.care_actions && (
             <div style={{ marginBottom: 32 }}>
               <SH>Products</SH>
-              <p style={{ fontSize: 13, color: C.text, lineHeight: 2, fontWeight: 300 }}>{rec.care_actions}</p>
+              {rec.care_actions.split(',').map((raw, i) => {
+                const label = raw.trim()
+                if (!label) return null
+                // "이름 (브랜드)" 형식에서 이름만 추출
+                const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
+                const summary = productSummaryMap[productName] || null
+                return (
+                  <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}>
+                    <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, fontWeight: 400 }}>{label}</p>
+                    {summary && (
+                      <p style={{ fontSize: 11, color: C.sub, lineHeight: 1.7, fontWeight: 300, marginTop: 4 }}>
+                        {summary}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 
@@ -341,10 +357,12 @@ export default function ReportClient({
   guardianName,
   pets,
   records,
+  productSummaryMap = {},
 }: {
   guardianName: string | null
   pets: Pet[]
   records: Rec[]
+  productSummaryMap?: Record<string, string>
 }) {
   const [lang, setLang] = useLang()
   const t = T[lang]
@@ -459,6 +477,7 @@ export default function ReportClient({
             expanded={expandedId === rec.id}
             onToggle={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
             lang={lang}
+            productSummaryMap={productSummaryMap}
           />
         ))}
 

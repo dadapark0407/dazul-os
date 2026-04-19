@@ -6,8 +6,17 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 // TODO: 역할 기반 인증 추가 필요
-// TODO: 입력 유효성 검사 강화
-// TODO: 이미지 업로드 필드 추가 고려
+
+type Status = 'active' | 'hidden' | 'discontinued'
+
+const SKIN_TYPES = ['건조', '민감', '지성', '복합', '정상'] as const
+const COAT_TYPES = ['단모', '장모', '곱슬', '직모', '이중모'] as const
+
+const STATUS_OPTIONS: { value: Status; label: string; desc: string }[] = [
+  { value: 'active', label: '사용중', desc: '현재 판매/사용 중' },
+  { value: 'hidden', label: '숨김', desc: '일시 비공개' },
+  { value: 'discontinued', label: '단종', desc: '더 이상 사용하지 않음' },
+]
 
 export default function AdminProductEditPage() {
   const params = useParams()
@@ -18,26 +27,23 @@ export default function AdminProductEditPage() {
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [tableError, setTableError] = useState(false)
-  const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiError, setAiError] = useState('')
 
   const [productName, setProductName] = useState('')
   const [brand, setBrand] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [oldCategory, setOldCategory] = useState('') // 기존 enum 값 (읽기 전용 표시용)
+  const [oldCategory, setOldCategory] = useState('')
   const [categories, setCategories] = useState<{ id: string; name: string; parent_id: string | null; is_active: boolean }[]>([])
   const [description, setDescription] = useState('')
   const [aiSummary, setAiSummary] = useState('')
-  const [targetSkinType, setTargetSkinType] = useState('')
-  const [targetCoatType, setTargetCoatType] = useState('')
-  const [isActive, setIsActive] = useState(true)
+  const [skinTypes, setSkinTypes] = useState<string[]>([])
+  const [coatTypes, setCoatTypes] = useState<string[]>([])
+  const [status, setStatus] = useState<Status>('active')
 
   useEffect(() => {
     async function fetchProduct() {
       setLoading(true)
       setErrorMessage('')
 
-      // 제품 + 카테고리 목록 병렬 로드
       const [productResult, categoriesResult] = await Promise.all([
         supabase.from('products').select('*').eq('id', id).single(),
         supabase
@@ -47,20 +53,15 @@ export default function AdminProductEditPage() {
           .order('name'),
       ])
 
-      // 카테고리 테이블이 없어도 제품 편집은 가능하도록 안전 처리
       setCategories(categoriesResult.data ?? [])
 
       const { data, error } = productResult
-
       if (error) {
-        if (error.message.includes('does not exist')) {
-          setTableError(true)
-        }
+        if (error.message.includes('does not exist')) setTableError(true)
         setErrorMessage('제품 정보를 불러오지 못했습니다.')
         setLoading(false)
         return
       }
-
       if (!data) {
         setErrorMessage('제품을 찾을 수 없습니다.')
         setLoading(false)
@@ -73,14 +74,32 @@ export default function AdminProductEditPage() {
       setOldCategory(data.category ?? '')
       setDescription(data.description ?? '')
       setAiSummary(data.ai_summary ?? '')
-      setTargetSkinType(data.target_skin_type ?? '')
-      setTargetCoatType(data.target_coat_type ?? '')
-      setIsActive(data.is_active !== false)
+
+      // 피부/모질 타입: 콤마 분할, 알려진 옵션과 일치하는 것만 복원
+      const skinRaw = (data.target_skin_type ?? '').split(',').map((s: string) => s.trim()).filter(Boolean)
+      const coatRaw = (data.target_coat_type ?? '').split(',').map((s: string) => s.trim()).filter(Boolean)
+      setSkinTypes(skinRaw.filter((s: string) => (SKIN_TYPES as readonly string[]).includes(s)))
+      setCoatTypes(coatRaw.filter((s: string) => (COAT_TYPES as readonly string[]).includes(s)))
+
+      // 상태: status 우선, 없으면 is_active에서 유도
+      if (data.status === 'active' || data.status === 'hidden' || data.status === 'discontinued') {
+        setStatus(data.status)
+      } else {
+        setStatus(data.is_active === false ? 'hidden' : 'active')
+      }
+
       setLoading(false)
     }
 
     fetchProduct()
   }, [id])
+
+  function toggleSkin(val: string) {
+    setSkinTypes((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]))
+  }
+  function toggleCoat(val: string) {
+    setCoatTypes((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]))
+  }
 
   async function handleSave() {
     if (!productName.trim()) {
@@ -91,26 +110,22 @@ export default function AdminProductEditPage() {
     setSaving(true)
     setErrorMessage('')
 
-    // category_id 선택 시 기존 category 텍스트도 동기화 (하위 호환)
     const selectedCat = categories.find((c) => c.id === categoryId)
 
     const payload: Record<string, unknown> = {
       name: productName.trim(),
       brand: brand.trim() || null,
       category_id: categoryId || null,
-      // 기존 category enum도 함께 업데이트 — 아직 이 컬럼을 읽는 코드가 있을 수 있음
       category: selectedCat?.name ?? (categoryId ? null : oldCategory || null),
       description: description.trim() || null,
       ai_summary: aiSummary.trim() || null,
-      target_skin_type: targetSkinType.trim() || null,
-      target_coat_type: targetCoatType.trim() || null,
-      is_active: isActive,
+      target_skin_type: skinTypes.length > 0 ? skinTypes.join(', ') : null,
+      target_coat_type: coatTypes.length > 0 ? coatTypes.join(', ') : null,
+      status,
+      is_active: status === 'active',
     }
 
-    const { error } = await supabase
-      .from('products')
-      .update(payload)
-      .eq('id', id)
+    const { error } = await supabase.from('products').update(payload).eq('id', id)
 
     setSaving(false)
 
@@ -122,56 +137,10 @@ export default function AdminProductEditPage() {
     router.push(`/admin/products/${id}`)
   }
 
-  async function handleGenerateAiSummary() {
-    setAiError('')
-    if (!productName.trim() || !description.trim()) {
-      setAiError('제품명과 설명을 먼저 입력해주세요.')
-      return
-    }
-    setAiGenerating(true)
-    try {
-      const res = await fetch('/api/ai-summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productName: productName.trim(),
-          brand: brand.trim(),
-          description: description.trim(),
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.summary) {
-        setAiError(data.error ?? '요약 생성에 실패했습니다')
-        setAiGenerating(false)
-        return
-      }
-      setAiSummary(data.summary)
-    } catch (e) {
-      setAiError(e instanceof Error ? e.message : '요약 생성에 실패했습니다')
-    } finally {
-      setAiGenerating(false)
-    }
-  }
-
-  const canGenerateAi = productName.trim().length > 0 && description.trim().length > 0
-
-  // 카테고리 드롭다운에서 현재 표시할 이름 (안내용)
-  const currentCategoryLabel = (() => {
-    if (categoryId) {
-      const cat = categories.find((c) => c.id === categoryId)
-      if (cat) return cat.name
-    }
-    if (oldCategory) return `${oldCategory} (기존)`
-    return '미분류'
-  })()
-
   if (loading) {
     return (
       <div className="space-y-4">
-        <Link
-          href="/admin/products"
-          className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
-        >
+        <Link href="/admin/products" className="text-sm font-medium text-neutral-500 hover:text-neutral-700">
           ← 돌아가기
         </Link>
         <h1 className="text-2xl font-bold text-neutral-900">제품 수정</h1>
@@ -185,20 +154,12 @@ export default function AdminProductEditPage() {
   if (tableError) {
     return (
       <div className="space-y-4">
-        <Link
-          href="/admin/products"
-          className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
-        >
+        <Link href="/admin/products" className="text-sm font-medium text-neutral-500 hover:text-neutral-700">
           ← 제품 목록
         </Link>
         <h1 className="text-2xl font-bold text-neutral-900">제품 수정</h1>
         <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 px-6 py-10 text-center">
-          <p className="text-sm font-medium text-amber-800">
-            products 테이블이 존재하지 않습니다.
-          </p>
-          <p className="mt-2 text-xs text-amber-600">
-            Supabase 대시보드에서 테이블을 확인해주세요.
-          </p>
+          <p className="text-sm font-medium text-amber-800">products 테이블이 존재하지 않습니다.</p>
         </div>
       </div>
     )
@@ -207,10 +168,7 @@ export default function AdminProductEditPage() {
   if (errorMessage && !productName) {
     return (
       <div className="space-y-4">
-        <Link
-          href="/admin/products"
-          className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
-        >
+        <Link href="/admin/products" className="text-sm font-medium text-neutral-500 hover:text-neutral-700">
           ← 제품 목록
         </Link>
         <h1 className="text-2xl font-bold text-neutral-900">제품 수정</h1>
@@ -225,10 +183,7 @@ export default function AdminProductEditPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Link
-            href={`/admin/products/${id}`}
-            className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
-          >
+          <Link href={`/admin/products/${id}`} className="text-sm font-medium text-neutral-500 hover:text-neutral-700">
             ← 상세로 돌아가기
           </Link>
           <h1 className="mt-1 text-2xl font-bold text-neutral-900">제품 수정</h1>
@@ -253,23 +208,19 @@ export default function AdminProductEditPage() {
 
           {/* 브랜드 */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              브랜드
-            </label>
+            <label className="mb-1.5 block text-sm font-medium text-neutral-700">브랜드</label>
             <input
               type="text"
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
-              placeholder="예: 이즈리얼, 로얄캐닌"
+              placeholder="예: 이즈리얼"
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
             />
           </div>
 
           {/* 카테고리 */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              카테고리
-            </label>
+            <label className="mb-1.5 block text-sm font-medium text-neutral-700">카테고리</label>
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
@@ -277,139 +228,121 @@ export default function AdminProductEditPage() {
             >
               <option value="">미분류</option>
               {categories
-                .filter((c) => {
-                  // 활성 카테고리 표시 + 현재 제품에 할당된 비활성 카테고리도 유지
-                  return c.is_active || c.id === categoryId
-                })
+                .filter((c) => c.is_active || c.id === categoryId)
                 .map((c) => {
                   const parent = categories.find((p) => p.id === c.parent_id)
                   const label = parent ? `${parent.name} > ${c.name}` : c.name
                   const suffix = !c.is_active ? ' (비활성)' : ''
                   return (
-                    <option key={c.id} value={c.id}>{label}{suffix}</option>
+                    <option key={c.id} value={c.id}>
+                      {label}{suffix}
+                    </option>
                   )
                 })}
             </select>
-            {categories.length === 0 && oldCategory && (
-              <p className="mt-1.5 text-xs text-neutral-400">
-                현재 값: {oldCategory} (기존 분류). 카테고리 관리에서 새 카테고리를 추가하면 여기에 표시됩니다.
-              </p>
-            )}
-            {categories.length === 0 && !oldCategory && (
-              <p className="mt-1.5 text-xs text-neutral-400">
-                카테고리가 아직 등록되지 않았습니다. 관리 &gt; 카테고리에서 추가하세요.
-              </p>
-            )}
             {categories.length > 0 && !categoryId && oldCategory && (
-              <p className="mt-1.5 text-xs text-amber-500">
-                기존 분류: {oldCategory} — 위에서 새 카테고리를 선택하면 자동 전환됩니다.
-              </p>
+              <p className="mt-1.5 text-xs text-amber-500">기존 분류: {oldCategory}</p>
             )}
           </div>
 
-          {/* 대상 피부 타입 */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              대상 피부 타입
-            </label>
-            <input
-              type="text"
-              value={targetSkinType}
-              onChange={(e) => setTargetSkinType(e.target.value)}
-              placeholder="예: 건조, 민감, 지성"
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            />
-          </div>
-
-          {/* 대상 모질 타입 */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              대상 모질 타입
-            </label>
-            <input
-              type="text"
-              value={targetCoatType}
-              onChange={(e) => setTargetCoatType(e.target.value)}
-              placeholder="예: 곱슬, 직모, 이중모"
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            />
-          </div>
-
-          {/* 설명 */}
+          {/* 피부 타입 */}
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              설명
-            </label>
+            <label className="mb-1.5 block text-sm font-medium text-neutral-700">대상 피부 타입</label>
+            <div className="flex flex-wrap gap-2">
+              {SKIN_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => toggleSkin(t)}
+                  className={`rounded-full border px-4 py-2 text-sm transition ${
+                    skinTypes.includes(t)
+                      ? 'border-neutral-900 bg-neutral-900 text-white'
+                      : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 모질 타입 */}
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-neutral-700">대상 모질 타입</label>
+            <div className="flex flex-wrap gap-2">
+              {COAT_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => toggleCoat(t)}
+                  className={`rounded-full border px-4 py-2 text-sm transition ${
+                    coatTypes.includes(t)
+                      ? 'border-neutral-900 bg-neutral-900 text-white'
+                      : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 설명 (내부) */}
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-neutral-700">설명 (내부)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="제품 설명"
+              placeholder="제품 성분, 특징 등 내부 참고용"
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
             />
           </div>
 
-          {/* AI 요약 */}
+          {/* 고객 안내 문구 */}
           <div className="sm:col-span-2">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <label className="block text-sm font-medium text-neutral-700">
-                AI 요약
-              </label>
-              <button
-                type="button"
-                onClick={handleGenerateAiSummary}
-                disabled={!canGenerateAi || aiGenerating}
-                style={{
-                  border: '1px solid #C9A96E',
-                  color: '#C9A96E',
-                  background: '#FFFFFF',
-                  borderRadius: 0,
-                  fontSize: 11,
-                  letterSpacing: '0.1em',
-                  padding: '8px 16px',
-                  opacity: !canGenerateAi || aiGenerating ? 0.4 : 1,
-                  cursor: !canGenerateAi || aiGenerating ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {aiGenerating ? '생성 중...' : '✨ AI 요약 생성'}
-              </button>
-            </div>
+            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
+              고객 안내 문구 <span className="text-xs font-normal" style={{ color: '#C9A96E' }}>· 보호자 리포트에 표시됩니다</span>
+            </label>
             <textarea
               value={aiSummary}
               onChange={(e) => setAiSummary(e.target.value)}
               rows={3}
-              placeholder="AI가 생성한 제품 요약 또는 직접 입력"
+              placeholder="보호자에게 보여질 제품 설명을 입력해주세요. 예) 연어에서 추출한 PDRN 성분으로 예민한 피부를 진정시키는 프리미엄 샴푸예요."
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
             />
-            {aiError && (
-              <p className="mt-1.5 text-xs text-red-600">{aiError}</p>
-            )}
-            {!canGenerateAi && !aiError && (
-              <p className="mt-1.5 text-xs text-neutral-400">
-                제품명과 설명이 입력되면 AI 요약을 자동 생성할 수 있습니다.
-              </p>
-            )}
           </div>
 
-          {/* 활성 상태 */}
+          {/* 상태 */}
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="h-4 w-4 rounded border-neutral-300"
-              />
-              <span className="text-sm font-medium text-neutral-700">
-                활성 상태 {isActive ? '(사용 중)' : '(비활성)'}
-              </span>
-            </label>
+            <label className="mb-2 block text-sm font-medium text-neutral-700">상태</label>
+            <div className="flex flex-wrap gap-3">
+              {STATUS_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex cursor-pointer items-start gap-2 rounded-xl border px-4 py-3 transition ${
+                    status === opt.value ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="status"
+                    value={opt.value}
+                    checked={status === opt.value}
+                    onChange={() => setStatus(opt.value)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-neutral-900">{opt.label}</span>
+                    <span className="block text-xs text-neutral-500">{opt.desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
         </div>
 
-        {errorMessage && (
-          <p className="mt-4 text-sm text-red-600">{errorMessage}</p>
-        )}
+        {errorMessage && <p className="mt-4 text-sm text-red-600">{errorMessage}</p>}
 
         <div className="mt-6 flex gap-3">
           <button

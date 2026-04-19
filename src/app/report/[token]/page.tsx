@@ -36,12 +36,26 @@ export default async function ReportPage({ params }: PageProps) {
 
   if (!records || records.length === 0) notFound()
 
+  // 제품 매핑 (이름 → 고객 안내 문구)
+  // care_actions 가 "이름 (브랜드)" 형식으로 저장되므로 이름으로 조회
+  const { data: productRows } = await supabase
+    .from('products')
+    .select('name, ai_summary')
+
+  const productMap: Record<string, string> = {}
+  for (const p of productRows ?? []) {
+    if (p?.name && p?.ai_summary) {
+      productMap[String(p.name)] = String(p.ai_summary)
+    }
+  }
+
   return (
     <Suspense fallback={<div style={{ minHeight: '100vh', background: '#FAFAF8' }} />}>
       <ReportClient
         guardianName={guardian.name}
         pets={(pets ?? []).map((p) => ({ id: p.id, name: p.name ?? '반려견', breed: p.breed }))}
         records={records}
+        productSummaryMap={productMap}
       />
     </Suspense>
   )
