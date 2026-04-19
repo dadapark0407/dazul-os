@@ -182,6 +182,21 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
   const nextWeeks = nextWeeksN > 0 ? T[lang].inWeeks.replace('{n}', String(nextWeeksN)) : ''
   const weight = rec.weight ? `${rec.weight}kg` : null
 
+  // care_actions 파싱 → 카테고리별 그룹
+  type ProductItem = { label: string; summary: string | null }
+  const productItems = (rec.care_actions ?? '')
+    .split(',')
+    .map((raw) => raw.trim())
+    .filter(Boolean)
+  const productsByCat: Record<string, ProductItem[]> = {}
+  for (const label of productItems) {
+    const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
+    const cat = productCategoryMap[productName] || '기타'
+    const summary = productSummaryMap[productName] || null
+    if (!productsByCat[cat]) productsByCat[cat] = []
+    productsByCat[cat].push({ label, summary })
+  }
+
   return (
     <div style={{ background: C.card, borderTop: `1px solid ${C.border}` }}>
       {/* 날짜 헤더 */}
@@ -243,6 +258,50 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                       {spa.desc}
                     </p>
                   )}
+                  {/* 스파코스에서 사용한 제품 — 스파/팩 카테고리 제품 */}
+                  {(() => {
+                    const spaList = productsByCat['스파'] ?? []
+                    const packList = productsByCat['팩'] ?? []
+                    if (spaList.length === 0 && packList.length === 0) return null
+                    return (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          paddingTop: 12,
+                          borderTop: `1px solid ${C.border}`,
+                        }}
+                      >
+                        {[
+                          { label: '스파', items: spaList },
+                          { label: '팩', items: packList },
+                        ].map(({ label, items }) => {
+                          if (items.length === 0) return null
+                          return (
+                            <div key={label} style={{ display: 'flex', alignItems: 'baseline', padding: '4px 0' }}>
+                              <span style={{ width: 44, fontSize: 11, color: C.sub, flexShrink: 0, letterSpacing: '0.05em' }}>
+                                {label}
+                              </span>
+                              <div style={{ flex: 1 }}>
+                                {items.map((p, i) => (
+                                  <p
+                                    key={i}
+                                    style={{
+                                      fontSize: 12,
+                                      color: C.gold,
+                                      lineHeight: 1.7,
+                                      marginBottom: i < items.length - 1 ? 2 : 0,
+                                    }}
+                                  >
+                                    {p.label}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
               {weight && (
@@ -253,44 +312,22 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
             </div>
           )}
 
-          {/* PRODUCTS — 카테고리별 표시 */}
+          {/* PRODUCTS — 카테고리별 표시 (스파/팩은 SERVICE 카드 내부에 표시됨) */}
           {(() => {
-            // care_actions 파싱 → 각 품목별 카테고리 분류
-            const items = (rec.care_actions ?? '')
-              .split(',')
-              .map((raw) => raw.trim())
-              .filter(Boolean)
-
-            const grouped: Record<string, { label: string; summary: string | null }[]> = {}
-            for (const label of items) {
-              const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
-              const cat = productCategoryMap[productName] || '기타'
-              const summary = productSummaryMap[productName] || null
-              if (!grouped[cat]) grouped[cat] = []
-              grouped[cat].push({ label, summary })
-            }
+            const grouped = productsByCat
 
             // 표시 규칙:
             // 항상 표시 (빈 경우 '—'): 샴푸, 린스
             // 값 있을 때만 표시: 피부케어, 피모케어, 위생관리, 기타
-            // spa_level 있을 때만 표시: 스파, 팩
             const ALWAYS = ['샴푸', '린스']
             const ON_VALUE = ['피부케어', '피모케어', '위생관리', '기타']
-            const SPA_ONLY = ['스파', '팩']
 
             const orderedCats: string[] = []
-            // 샴푸, 린스 (항상)
             for (const c of ALWAYS) orderedCats.push(c)
-            // 스파, 팩 (spa_level 있을 때만)
-            if (rec.spa_level) {
-              for (const c of SPA_ONLY) orderedCats.push(c)
-            }
-            // 피부/피모/위생/기타 (값 있을 때만)
             for (const c of ON_VALUE) {
               if ((grouped[c]?.length ?? 0) > 0) orderedCats.push(c)
             }
 
-            // 출력할 행이 0개면 섹션 자체 숨김
             if (orderedCats.length === 0) return null
 
             return (
