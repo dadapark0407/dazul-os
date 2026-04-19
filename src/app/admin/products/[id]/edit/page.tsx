@@ -115,13 +115,11 @@ export default function AdminProductEditPage() {
     setSaving(true)
     setErrorMessage('')
 
-    const selectedCat = categories.find((c) => c.id === categoryId)
-
     const payload: Record<string, unknown> = {
       name: productName.trim(),
       brand: brand.trim() || null,
       category_id: categoryId || null,
-      category: selectedCat?.name ?? (categoryId ? null : oldCategory || null),
+      // legacy enum `category` 컬럼은 product_categories 이관 완료로 사용하지 않음
       description: description.trim() || null,
       ai_summary: aiSummary.trim() || null,
       target_skin_type: skinTypes.length > 0 ? skinTypes : null,
