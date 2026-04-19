@@ -18,6 +18,8 @@ export default function AdminProductEditPage() {
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [tableError, setTableError] = useState(false)
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   const [productName, setProductName] = useState('')
   const [brand, setBrand] = useState('')
@@ -119,6 +121,39 @@ export default function AdminProductEditPage() {
 
     router.push(`/admin/products/${id}`)
   }
+
+  async function handleGenerateAiSummary() {
+    setAiError('')
+    if (!productName.trim() || !description.trim()) {
+      setAiError('제품명과 설명을 먼저 입력해주세요.')
+      return
+    }
+    setAiGenerating(true)
+    try {
+      const res = await fetch('/api/ai-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: productName.trim(),
+          brand: brand.trim(),
+          description: description.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.summary) {
+        setAiError(data.error ?? '요약 생성에 실패했습니다')
+        setAiGenerating(false)
+        return
+      }
+      setAiSummary(data.summary)
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : '요약 생성에 실패했습니다')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
+  const canGenerateAi = productName.trim().length > 0 && description.trim().length > 0
 
   // 카테고리 드롭다운에서 현재 표시할 이름 (안내용)
   const currentCategoryLabel = (() => {
@@ -316,9 +351,29 @@ export default function AdminProductEditPage() {
 
           {/* AI 요약 */}
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              AI 요약
-            </label>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <label className="block text-sm font-medium text-neutral-700">
+                AI 요약
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerateAiSummary}
+                disabled={!canGenerateAi || aiGenerating}
+                style={{
+                  border: '1px solid #C9A96E',
+                  color: '#C9A96E',
+                  background: '#FFFFFF',
+                  borderRadius: 0,
+                  fontSize: 11,
+                  letterSpacing: '0.1em',
+                  padding: '8px 16px',
+                  opacity: !canGenerateAi || aiGenerating ? 0.4 : 1,
+                  cursor: !canGenerateAi || aiGenerating ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {aiGenerating ? '생성 중...' : '✨ AI 요약 생성'}
+              </button>
+            </div>
             <textarea
               value={aiSummary}
               onChange={(e) => setAiSummary(e.target.value)}
@@ -326,6 +381,14 @@ export default function AdminProductEditPage() {
               placeholder="AI가 생성한 제품 요약 또는 직접 입력"
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
             />
+            {aiError && (
+              <p className="mt-1.5 text-xs text-red-600">{aiError}</p>
+            )}
+            {!canGenerateAi && !aiError && (
+              <p className="mt-1.5 text-xs text-neutral-400">
+                제품명과 설명이 입력되면 AI 요약을 자동 생성할 수 있습니다.
+              </p>
+            )}
           </div>
 
           {/* 활성 상태 */}
