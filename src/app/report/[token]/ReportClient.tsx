@@ -270,13 +270,28 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
               grouped[cat].push({ label, summary })
             }
 
-            // 표시 카테고리 순서 — 스파/팩은 spa_level 있을 때만
-            const baseOrder = ['샴푸', '린스', '피부케어', '피모케어', '위생관리', '기타']
-            const spaOrder: string[] = rec.spa_level ? ['스파', '팩'] : []
-            const orderedCats = [...baseOrder.slice(0, 4), ...spaOrder, ...baseOrder.slice(4)]
+            // 표시 규칙:
+            // 항상 표시 (빈 경우 '—'): 샴푸, 린스
+            // 값 있을 때만 표시: 피부케어, 피모케어, 위생관리, 기타
+            // spa_level 있을 때만 표시: 스파, 팩
+            const ALWAYS = ['샴푸', '린스']
+            const ON_VALUE = ['피부케어', '피모케어', '위생관리', '기타']
+            const SPA_ONLY = ['스파', '팩']
 
-            // 데이터가 아예 없고 spa_level도 없으면 섹션 숨김
-            if (items.length === 0 && !rec.spa_level) return null
+            const orderedCats: string[] = []
+            // 샴푸, 린스 (항상)
+            for (const c of ALWAYS) orderedCats.push(c)
+            // 스파, 팩 (spa_level 있을 때만)
+            if (rec.spa_level) {
+              for (const c of SPA_ONLY) orderedCats.push(c)
+            }
+            // 피부/피모/위생/기타 (값 있을 때만)
+            for (const c of ON_VALUE) {
+              if ((grouped[c]?.length ?? 0) > 0) orderedCats.push(c)
+            }
+
+            // 출력할 행이 0개면 섹션 자체 숨김
+            if (orderedCats.length === 0) return null
 
             return (
               <div style={{ marginBottom: 32 }}>
