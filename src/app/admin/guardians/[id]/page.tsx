@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { buildSiteUrl } from '@/lib/siteUrl'
 import StatusAction from '@/components/admin/StatusAction'
 import CopyTextButton from '@/components/CopyTextButton'
+import GuardianPetTabs from '@/components/admin/GuardianPetTabs'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -72,27 +73,34 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
 
   const pets = (petsData ?? []) as Array<Record<string, unknown>>
 
-  // 반려견 ID 목록으로 방문 기록 가져오기
+  // 반려견 ID 목록으로 방문 기록 전체 조회 (케어 히스토리 테이블용)
   const petIds = pets.map((p) => p.id as string).filter(Boolean)
   let records: Array<Record<string, unknown>> = []
 
   if (petIds.length > 0) {
     const { data: recordsData } = await supabase
       .from('visit_records')
-      .select('id, visit_date, service_type, pet_id')
+      .select('*')
       .in('pet_id', petIds)
       .order('visit_date', { ascending: false })
-      .limit(20)
 
     records = recordsData ?? []
   }
 
-  // pet 이름 매핑
-  const petNameMap: Record<string, string> = {}
-  for (const p of pets) {
-    const pid = p.id as string
-    const pname = str(p, 'name')
-    if (pid) petNameMap[pid] = pname ?? '이름 없음'
+  // 제품 카테고리 매핑 (케어 히스토리 테이블에서 제품 분류용)
+  const [{ data: productRows }, { data: catRows }] = await Promise.all([
+    supabase.from('products').select('name, category_id'),
+    supabase.from('product_categories').select('id, name'),
+  ])
+  const categoryIdToName: Record<string, string> = {}
+  for (const c of catRows ?? []) {
+    if (c?.id && c?.name) categoryIdToName[String(c.id)] = String(c.name)
+  }
+  const productCategoryMap: Record<string, string> = {}
+  for (const p of productRows ?? []) {
+    if (p?.name && p?.category_id && categoryIdToName[String(p.category_id)]) {
+      productCategoryMap[String(p.name)] = categoryIdToName[String(p.category_id)]
+    }
   }
 
   const totalPets = pets.length
@@ -198,101 +206,14 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
           )}
         </section>
 
-        {/* 반려견 목록 */}
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            반려견
-          </h2>
-          {pets.length === 0 ? (
-            <p className="py-4 text-sm text-neutral-400">등록된 반려견이 없습니다.</p>
-          ) : (
-            <div className="divide-y divide-neutral-100">
-              {pets.map((pet) => {
-                const petId = pet.id as string
-                return (
-                  <Link
-                    key={petId}
-                    href={`/admin/pets/${petId}`}
-                    className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-3 transition hover:bg-neutral-50"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-neutral-900">
-                        {str(pet, 'name') ?? '이름 없음'}
-                      </p>
-                      <p className="text-xs text-neutral-500">
-                        {str(pet, 'breed') ?? '품종 미입력'}
-                      </p>
-                    </div>
-                    <span className="text-xs text-neutral-400">→</span>
-                  </Link>
-                )
-              })}
-            </div>
-          )}
-        </section>
       </div>
 
-      {/* 방문 기록 */}
-      <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-neutral-900">최근 방문 기록</h2>
-          <span className="text-sm text-neutral-500">최근 20건</span>
-        </div>
-
-        {records.length === 0 ? (
-          <div className="mt-6 rounded-xl border border-dashed border-neutral-300 py-10 text-center">
-            <p className="text-sm text-neutral-500">방문 기록이 아직 없습니다.</p>
-          </div>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 text-left text-neutral-500">
-                  <th className="px-3 py-2 font-semibold">방문일</th>
-                  <th className="px-3 py-2 font-semibold">반려견</th>
-                  <th className="px-3 py-2 font-semibold">서비스</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r) => {
-                  const rid = r.id as string
-                  const petId = r.pet_id as string
-                  return (
-                    <tr
-                      key={rid}
-                      className="border-b border-neutral-100 transition hover:bg-neutral-50"
-                    >
-                      <td className="px-3 py-3 text-neutral-700">
-                        <Link
-                          href={`/admin/records/${rid}`}
-                          className="underline-offset-4 hover:underline"
-                        >
-                          {formatDate(str(r, 'visit_date'))}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-3">
-                        {petId ? (
-                          <Link
-                            href={`/admin/pets/${petId}`}
-                            className="font-medium text-neutral-900 underline-offset-4 hover:underline"
-                          >
-                            {petNameMap[petId] ?? '-'}
-                          </Link>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-neutral-500">
-                        {str(r, 'service_type') ?? '-'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {/* 반려견 케어 히스토리 (탭) */}
+      <GuardianPetTabs
+        pets={pets}
+        records={records}
+        productCategoryMap={productCategoryMap}
+      />
 
       {/* 상태 관리 */}
       <StatusAction
