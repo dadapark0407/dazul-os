@@ -149,7 +149,7 @@ function isIssue(v: string | null): boolean {
 
 // ─── 섹션 헤더 ───
 const SH = ({ children }: { children: string }) => (
-  <p style={{ fontSize: 9, letterSpacing: '0.3em', fontWeight: 400, color: C.sub, textTransform: 'uppercase' as const, marginBottom: 24 }}>
+  <p style={{ fontSize: 10, letterSpacing: '0.1em', fontWeight: 400, color: C.sub, textTransform: 'uppercase' as const, marginBottom: 16 }}>
     {children}
   </p>
 )
@@ -207,7 +207,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
         onClick={onToggle}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+          padding: '18px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
         }}
       >
         <div>
@@ -225,12 +225,12 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
 
       {/* 상세 */}
       {expanded && (
-        <div style={{ padding: '0 24px 32px' }}>
-          <div style={{ height: 1, background: C.line, marginBottom: 28 }} />
+        <div style={{ padding: '0 20px 28px' }}>
+          <div style={{ height: 1, background: C.line, marginBottom: 24 }} />
 
           {/* SERVICE */}
           {svc && (
-            <div style={{ marginBottom: 32 }}>
+            <div style={{ marginBottom: 28 }}>
               <SH>Service</SH>
               <p style={{ fontSize: 15, fontWeight: 300, color: C.text, letterSpacing: '0.03em' }}>
                 {svc}
@@ -306,11 +306,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                   })()}
                 </div>
               )}
-              {weight && (
-                <p style={{ fontSize: 11, color: C.sub, marginTop: 8, letterSpacing: '0.05em' }}>
-                  {weight}
-                </p>
-              )}
+              {/* 몸무게는 헤더 날짜 옆에만 표시 (중복 제거) */}
             </div>
           )}
 
@@ -333,14 +329,14 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
             if (orderedCats.length === 0) return null
 
             return (
-              <div style={{ marginBottom: 32 }}>
+              <div style={{ marginBottom: 28 }}>
                 <SH>Products</SH>
                 {orderedCats.map((cat) => {
                   const list = grouped[cat] ?? []
                   return (
-                    <div key={cat} style={{ padding: '12px 0', borderBottom: `1px solid ${C.line}` }}>
+                    <div key={cat} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}>
                       <div className="flex items-baseline">
-                        <span style={{ width: 72, fontSize: 11, color: C.sub, letterSpacing: '0.1em', flexShrink: 0 }}>
+                        <span style={{ minWidth: 60, fontSize: 11, color: C.sub, letterSpacing: '0.08em', flexShrink: 0 }}>
                           {cat}
                         </span>
                         <div style={{ flex: 1 }}>
@@ -351,7 +347,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                               <div key={i} style={{ marginBottom: i < list.length - 1 ? 6 : 0 }}>
                                 <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, fontWeight: 400 }}>{p.label}</p>
                                 {p.summary && (
-                                  <p style={{ fontSize: 11, color: C.sub, lineHeight: 1.7, fontWeight: 300, marginTop: 2 }}>
+                                  <p style={{ fontSize: 11, color: C.sub, lineHeight: 1.6, fontWeight: 300, marginTop: 2 }}>
                                     {p.summary}
                                   </p>
                                 )}
@@ -369,7 +365,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
 
           {/* CONDITION */}
           {hasAnyBody && (
-            <div style={{ marginBottom: 32 }}>
+            <div style={{ marginBottom: 28 }}>
               <SH>Condition</SH>
               {bodyItems.map((item) => {
                 const display = item.value && item.value.trim() ? item.value : '—'
@@ -379,16 +375,16 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                   <div
                     key={item.label}
                     className="flex items-baseline"
-                    style={{ padding: '14px 0', borderBottom: `1px solid ${C.line}` }}
+                    style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}
                   >
-                    <span style={{ width: 48, fontSize: 9, color: C.sub, letterSpacing: '0.2em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
+                    <span style={{ minWidth: 60, fontSize: 10, color: C.sub, letterSpacing: '0.1em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
                       {item.label}
                     </span>
                     <span style={{
                       fontSize: 13,
                       color: empty ? C.sub : gold ? C.gold : C.text,
                       fontWeight: gold ? 400 : 300,
-                      lineHeight: 2,
+                      lineHeight: 1.7,
                       opacity: empty ? 0.5 : 1,
                     }}>
                       {display}
@@ -401,12 +397,12 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
 
           {/* HOME CARE */}
           {tips.length > 0 && (
-            <div style={{ marginBottom: 32 }}>
+            <div style={{ marginBottom: 28 }}>
               <SH>Home Care</SH>
               {tips.map((tip, i) => (
-                <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 12 }}>
+                <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 10 }}>
                   <span style={{ color: C.gold, fontSize: 13, flexShrink: 0 }}>—</span>
-                  <p style={{ fontSize: 13, color: C.text, lineHeight: 2, fontWeight: 300 }}>{tip}</p>
+                  <p style={{ fontSize: 13, color: C.text, lineHeight: 1.8, fontWeight: 300 }}>{tip}</p>
                 </div>
               ))}
             </div>
