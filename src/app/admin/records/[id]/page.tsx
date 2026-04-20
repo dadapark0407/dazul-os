@@ -56,6 +56,15 @@ function str(obj: Record<string, unknown> | null, key: string): string | null {
   return typeof v === 'string' ? v : null
 }
 
+// 숫자/문자 혼합 필드용
+function numStr(obj: Record<string, unknown> | null, key: string): string | null {
+  if (!obj) return null
+  const v = obj[key]
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+  if (typeof v === 'string' && v.trim()) return v.trim()
+  return null
+}
+
 export default async function AdminRecordDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
@@ -133,6 +142,7 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
   const spaLevel = str(record, 'spa_level')
   const nextVisitDate = str(record, 'next_visit_date')
   const comment = str(record, 'comment')
+  const weightStr = numStr(record, 'weight')
 
   // grooming_style JSON 파싱
   const rawGS = record.grooming_style
@@ -190,11 +200,16 @@ export default async function AdminRecordDetailPage({ params }: PageProps) {
           <h1 className="mt-1 text-2xl font-bold text-neutral-900">
             방문 기록 상세
           </h1>
-          <p className="mt-1 flex items-center gap-2 text-sm text-neutral-500">
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
             <span>{formatDate(visitDate)} · {serviceType ?? '서비스 미입력'}</span>
             {spaLabel && (
               <span className="inline-block px-2 py-0.5 text-xs font-semibold" style={{ color: '#C9A96E', border: '1px solid #C9A96E' }}>
                 {spaLabel}
+              </span>
+            )}
+            {weightStr && (
+              <span className="inline-block rounded bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                체중 {weightStr} kg
               </span>
             )}
           </p>
