@@ -18,7 +18,7 @@ export type PetProfile = {
   name?: string | null;
   breed?: string | null;
   gender?: string | null;
-  birth_date?: string | null;
+  birthdate?: string | null;
   weight?: number | null;
   memo?: string | null;
 };

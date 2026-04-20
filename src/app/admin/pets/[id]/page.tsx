@@ -164,7 +164,7 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
           <InfoRow label="성별" value={str(pet, 'gender')} />
           <InfoRow
             label="생년월일"
-            value={formatDate(str(pet, 'birth_date'))}
+            value={formatDate(str(pet, 'birthdate'))}
           />
           <InfoRow
             label="체중"

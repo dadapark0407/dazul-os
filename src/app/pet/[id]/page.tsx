@@ -24,7 +24,7 @@ type Pet = {
   name: string | null
   breed?: string | null
   gender?: string | null
-  birth_date?: string | null
+  birthdate?: string | null
   weight?: number | null
   memo?: string | null
 }
@@ -221,7 +221,7 @@ export default async function PetTimelinePage({ params }: PageProps) {
 
   // 웰니스 분석
   const analysis = analyzePet(pet, records)
-  const age = calculateAge(pet.birth_date)
+  const age = calculateAge(pet.birthdate)
   const latestRecord = records[0] ?? null
   const groups = groupByMonth(records)
 

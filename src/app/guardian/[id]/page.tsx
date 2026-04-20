@@ -26,7 +26,7 @@ type Pet = {
   name: string | null;
   breed?: string | null;
   gender?: string | null;
-  birth_date?: string | null;
+  birthdate?: string | null;
   weight?: number | null;
   memo?: string | null;
 };
@@ -414,7 +414,7 @@ export default async function GuardianHistoryPage({ params }: PageProps) {
                   <p className="mt-3 text-sm text-gray-600">
                     {joinNonEmpty([
                       item.pet.gender,
-                      item.pet.birth_date ? `생일 ${formatDate(item.pet.birth_date)}` : null,
+                      item.pet.birthdate ? `생일 ${formatDate(item.pet.birthdate)}` : null,
                       item.pet.weight ? `${item.pet.weight}kg` : null,
                     ]) || "기본 정보가 아직 충분하지 않습니다."}
                   </p>

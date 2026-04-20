@@ -51,7 +51,7 @@ export default function AdminPetEditPage() {
       setName(data.name ?? '')
       setBreed(data.breed ?? '')
       setGender(data.gender ?? '')
-      setBirthDate(data.birth_date ?? '')
+      setBirthDate(data.birthdate ?? '')
       setWeight(data.weight != null ? String(data.weight) : '')
       setMemo(data.memo ?? '')
       setCautionNotes(data.caution_notes ?? '')
@@ -88,7 +88,7 @@ export default function AdminPetEditPage() {
       name: name.trim(),
       breed: breed.trim() || null,
       gender: gender.trim() || null,
-      birth_date: birthDate || null,
+      birthdate: birthDate || null,
       weight: weight ? parseFloat(weight) : null,
       memo: memo.trim() || null,
       caution_notes: cautionNotes.trim() || null,
