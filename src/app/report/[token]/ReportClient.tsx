@@ -437,7 +437,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
               >
                 <p>소중한 가족을 믿고 맡겨주셔서 감사드리며,</p>
                 <p>앞으로도 최선을 다하겠습니다.</p>
-                <p style={{ color: '#C9A96E', letterSpacing: '0.15em', marginTop: 8 }}>— 살롱 드 다줄 —</p>
+                <p style={{ color: '#C9A96E', letterSpacing: '0.15em', marginTop: 8 }}>— 살롱드다줄 —</p>
               </div>
             </div>
           )}
