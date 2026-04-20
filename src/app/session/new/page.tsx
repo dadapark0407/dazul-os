@@ -986,6 +986,177 @@ function SessionForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [petId, pets])
 
+  // ─────────────────────────────────────────────
+  // 임시저장 (localStorage)
+  // ─────────────────────────────────────────────
+  const DRAFT_KEY = 'dazul_care_draft'
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null)
+  const [draftAvailable, setDraftAvailable] = useState(false)
+  const [showRestoreBanner, setShowRestoreBanner] = useState(false)
+  const [manualDraftMessage, setManualDraftMessage] = useState('')
+  const draftInitialLoadRef = useRef(false)
+  const draftHydratingRef = useRef(false)
+
+  function collectDraftState() {
+    return {
+      // 고객
+      guardianId, petId, petName, guardianName, guardianPhone,
+      sessionDate, weight,
+      // 서비스
+      mainService, spaLevel, styleNotes,
+      groomingStyle, groomingPrefilled,
+      // 제품
+      selectedProductIds, productSearches, focusedCat,
+      // 신체 상태
+      skin, skinMemos, tangles, tangleMemos,
+      eyes, eyeMemos, ears, earMemos,
+      teeth, teethMemos, nails, nailMemos,
+      teethStatus, teethMemo, nailStatus,
+      // 메모
+      internalMemo, comment, needsFollowUp, followUpDate,
+      // 다음 방문
+      nextVisitOption, nextVisitDate, nextVisitCustom,
+      // 커스텀 팁
+      customCareTips,
+    }
+  }
+
+  function persistDraftToStorage() {
+    if (typeof window === 'undefined') return
+    try {
+      const payload = {
+        savedAt: new Date().toISOString(),
+        state: collectDraftState(),
+      }
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
+      setDraftSavedAt(new Date(payload.savedAt))
+    } catch (e) {
+      console.warn('draft save failed:', e)
+    }
+  }
+
+  function clearDraftFromStorage() {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.removeItem(DRAFT_KEY)
+      setDraftSavedAt(null)
+      setDraftAvailable(false)
+      setShowRestoreBanner(false)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 페이지 접속 시 기존 draft 감지
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (draftInitialLoadRef.current) return
+    draftInitialLoadRef.current = true
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (parsed?.state) {
+        setDraftAvailable(true)
+        setShowRestoreBanner(true)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  function restoreDraft() {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      const s = parsed?.state
+      if (!s) return
+      draftHydratingRef.current = true
+
+      if (typeof s.guardianId === 'string') setGuardianId(s.guardianId)
+      if (typeof s.petId === 'string') setPetId(s.petId)
+      if (typeof s.petName === 'string') setPetName(s.petName)
+      if (typeof s.guardianName === 'string') setGuardianName(s.guardianName)
+      if (typeof s.guardianPhone === 'string') setGuardianPhone(s.guardianPhone)
+      if (typeof s.sessionDate === 'string') setSessionDate(s.sessionDate)
+      if (typeof s.weight === 'string') setWeight(s.weight)
+      if (typeof s.mainService === 'string') setMainService(s.mainService)
+      if (s.spaLevel === null || typeof s.spaLevel === 'string') setSpaLevel(s.spaLevel as SpaLevel)
+      if (typeof s.styleNotes === 'string') setStyleNotes(s.styleNotes)
+      if (s.groomingStyle && typeof s.groomingStyle === 'object') setGroomingStyle(s.groomingStyle)
+      if (typeof s.groomingPrefilled === 'boolean') setGroomingPrefilled(s.groomingPrefilled)
+      if (Array.isArray(s.selectedProductIds)) setSelectedProductIds(s.selectedProductIds)
+      if (s.productSearches && typeof s.productSearches === 'object') setProductSearches(s.productSearches)
+      if (s.focusedCat === null || typeof s.focusedCat === 'string') setFocusedCat(s.focusedCat)
+      if (Array.isArray(s.skin)) setSkin(s.skin)
+      if (s.skinMemos && typeof s.skinMemos === 'object') setSkinMemos(s.skinMemos)
+      if (Array.isArray(s.tangles)) setTangles(s.tangles)
+      if (s.tangleMemos && typeof s.tangleMemos === 'object') setTangleMemos(s.tangleMemos)
+      if (Array.isArray(s.eyes)) setEyes(s.eyes)
+      if (s.eyeMemos && typeof s.eyeMemos === 'object') setEyeMemos(s.eyeMemos)
+      if (Array.isArray(s.ears)) setEars(s.ears)
+      if (s.earMemos && typeof s.earMemos === 'object') setEarMemos(s.earMemos)
+      if (Array.isArray(s.teeth)) setTeeth(s.teeth)
+      if (s.teethMemos && typeof s.teethMemos === 'object') setTeethMemos(s.teethMemos)
+      if (Array.isArray(s.nails)) setNails(s.nails)
+      if (s.nailMemos && typeof s.nailMemos === 'object') setNailMemos(s.nailMemos)
+      // teethStatus / teethMemo / nailStatus 는 teeth/teethMemos/nails 에서 파생되므로
+      // 별도 복원이 필요 없음
+      if (typeof s.internalMemo === 'string') setInternalMemo(s.internalMemo)
+      if (typeof s.comment === 'string') setComment(s.comment)
+      if (typeof s.needsFollowUp === 'boolean') setNeedsFollowUp(s.needsFollowUp)
+      if (typeof s.followUpDate === 'string') setFollowUpDate(s.followUpDate)
+      if (typeof s.nextVisitOption === 'string') setNextVisitOption(s.nextVisitOption)
+      if (typeof s.nextVisitDate === 'string') setNextVisitDate(s.nextVisitDate)
+      if (typeof s.nextVisitCustom === 'string') setNextVisitCustom(s.nextVisitCustom)
+      if (s.customCareTips === null || Array.isArray(s.customCareTips)) setCustomCareTips(s.customCareTips)
+
+      if (parsed.savedAt) setDraftSavedAt(new Date(parsed.savedAt))
+      setShowRestoreBanner(false)
+      // 일시적으로 hydrating 플래그 유지 (자동저장 중복 방지)
+      setTimeout(() => { draftHydratingRef.current = false }, 500)
+    } catch (e) {
+      console.warn('draft restore failed:', e)
+      draftHydratingRef.current = false
+    }
+  }
+
+  // 자동 저장 (30초)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (draftHydratingRef.current) return
+      // 완전히 비어있는 폼은 저장하지 않음
+      const hasAnyInput =
+        !!petId || !!guardianId ||
+        !!mainService || !!spaLevel ||
+        !!weight || !!internalMemo || !!comment ||
+        skin.length > 0 || tangles.length > 0 ||
+        selectedProductIds.length > 0
+      if (!hasAnyInput) return
+      persistDraftToStorage()
+    }, 30000)
+    return () => clearInterval(interval)
+  // 의존성: 상태값 전부를 걸면 불필요한 재생성이 많으므로
+  // interval 내부에서 항상 최신 state 스냅샷을 사용
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleManualDraftSave() {
+    persistDraftToStorage()
+    setManualDraftMessage('저장됨 ✓')
+    setTimeout(() => setManualDraftMessage(''), 1500)
+  }
+
+  function formatDraftTime(d: Date) {
+    const h = d.getHours()
+    const m = String(d.getMinutes()).padStart(2, '0')
+    const period = h < 12 ? '오전' : '오후'
+    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+    return `${period} ${hour12}:${m}`
+  }
+
   // ─── 저장 ───
   function handleSave() {
     if (!petId) {
@@ -1156,6 +1327,8 @@ function SessionForm() {
         setSavedShareUrl(shareUrl)
         setSavedPetId(petId)
         setShowModal(true)
+        // 저장 성공 시 임시저장 제거
+        clearDraftFromStorage()
       } catch {
         setError('저장 중 예상치 못한 오류가 발생했습니다.')
       } finally {
@@ -1193,6 +1366,61 @@ function SessionForm() {
           방문 기록과 신체 상태를 입력합니다
         </p>
       </div>
+
+      {/* 임시저장 복원 배너 */}
+      {showRestoreBanner && draftAvailable && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3"
+          style={{
+            background: '#FDFBF7',
+            border: '1px solid #C9A96E',
+            padding: '12px 16px',
+            fontSize: 12,
+            color: '#1A1A1A',
+          }}
+        >
+          <span>이전에 작성하던 내용이 있어요. 불러올까요?</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={restoreDraft}
+              style={{
+                background: '#0A0A0A',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '6px 14px',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                cursor: 'pointer',
+              }}
+            >
+              불러오기
+            </button>
+            <button
+              type="button"
+              onClick={clearDraftFromStorage}
+              style={{
+                background: '#FFFFFF',
+                color: '#8A8A7A',
+                border: '1px solid #E8E5E0',
+                padding: '6px 14px',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                cursor: 'pointer',
+              }}
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 임시저장 시각 표시 */}
+      {draftSavedAt && !showRestoreBanner && (
+        <p style={{ fontSize: 11, color: '#8A8A7A', marginTop: -8 }}>
+          {manualDraftMessage || `임시저장됨 ${formatDraftTime(draftSavedAt)}`}
+        </p>
+      )}
 
       <div className="flex flex-col gap-5">
           {/* ① 고객 검색 */}
@@ -1834,14 +2062,34 @@ function SessionForm() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending}
-            className="w-full bg-[#0A0A0A] py-4 text-[11px] font-normal uppercase tracking-[0.1em] text-white transition-all duration-300 hover:bg-[#0A0A0A]/85 disabled:opacity-40"
-          >
-            {isPending ? '저장 중…' : '기록 저장'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleManualDraftSave}
+              disabled={isPending}
+              style={{
+                flex: '0 0 auto',
+                background: '#FFFFFF',
+                color: '#8A8A7A',
+                border: '1px solid #E8E5E0',
+                padding: '14px 20px',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                cursor: isPending ? 'not-allowed' : 'pointer',
+                opacity: isPending ? 0.5 : 1,
+              }}
+            >
+              {manualDraftMessage || '임시저장'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending}
+              className="flex-1 bg-[#0A0A0A] py-4 text-[11px] font-normal uppercase tracking-[0.1em] text-white transition-all duration-300 hover:bg-[#0A0A0A]/85 disabled:opacity-40"
+            >
+              {isPending ? '저장 중…' : '기록 저장'}
+            </button>
+          </div>
       </div>
       </div>
     </div>
