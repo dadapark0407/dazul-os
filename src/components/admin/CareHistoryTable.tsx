@@ -11,7 +11,19 @@ type R = Record<string, unknown>
 
 function s(obj: R, key: string): string {
   const v = obj[key]
-  return typeof v === 'string' && v.trim() ? v.trim() : ''
+  if (typeof v === 'string') return v.trim()
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+  if (typeof v === 'bigint') return String(v)
+  return ''
+}
+
+/** 몸무게 포맷: 값 있으면 'N kg', 없으면 빈 문자열 */
+function fmtWeight(obj: R): string {
+  const raw = s(obj, 'weight')
+  if (!raw) return ''
+  // 이미 'kg' 포함되어 있으면 그대로
+  if (/kg/i.test(raw)) return raw
+  return `${raw} kg`
 }
 
 /** id 등 숫자/문자 혼합 필드용 */
@@ -108,7 +120,7 @@ export default function CareHistoryTable({
       const spa = s(r, 'spa_level')
       return [
         s(r, 'visit_date'),
-        s(r, 'weight'),
+        fmtWeight(r),
         svc,
         spa,
         s(r, 'care_actions'),
@@ -224,7 +236,7 @@ export default function CareHistoryTable({
                     {s(r, 'visit_date') ? formatDate(s(r, 'visit_date')) : '-'}
                   </td>
                   <td style={{ ...cell, ...STICKY2, background: oddBg }}>
-                    {s(r, 'weight') || '-'}
+                    {fmtWeight(r) || '-'}
                   </td>
                   <td style={cell}>{svc || '-'}</td>
                   <td style={{ ...cell, color: spa ? GOLD : undefined, fontWeight: spa ? 500 : 400 }}>

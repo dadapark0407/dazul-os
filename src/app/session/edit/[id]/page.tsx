@@ -886,7 +886,7 @@ function EditRecordForm() {
 
       const d = recResult.data
 
-      // 기본 필드 세팅
+      // ─── 기본 필드 세팅 ───
       setGuardianId(d.guardian_id ?? '')
       setPetId(d.pet_id ?? '')
       setPetName(d.pet_name ?? '')
@@ -897,46 +897,75 @@ function EditRecordForm() {
       setComment(d.comment ?? '')
       setInternalMemo(d.special_notes ?? '')
 
-      // 피부 파싱: "건조, 민감(다리)" → ['건조', '민감'], skinMemos: { 민감: '다리' }
-      if (d.skin_status) {
-        const parts = d.skin_status.split(',').map((s: string) => s.trim())
+      // ─── 몸무게 복원 ───
+      if (d.weight !== null && d.weight !== undefined && d.weight !== '') {
+        setWeight(String(d.weight))
+      }
+
+      // ─── 스타일 메모 복원 ───
+      if (d.care_summary) setStyleNotes(String(d.care_summary))
+
+      // ─── 다음 방문 직접 입력 복원 ───
+      if (d.next_visit_recommendation) setNextVisitCustom(String(d.next_visit_recommendation))
+
+      // ─── 공통 파싱 헬퍼: "건조, 민감(다리), 탈모(정수리)" → items + memos ───
+      function parseItemsWithMemos(raw: string): { items: string[]; memos: Record<string, string> } {
         const items: string[] = []
         const memos: Record<string, string> = {}
-        for (const p of parts) {
-          const match = p.match(/^(.+?)\((.+)\)$/)
-          if (match) { items.push(match[1]); memos[match[1]] = match[2] }
-          else items.push(p)
+        for (const part of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
+          const m = part.match(/^(.+?)\((.+)\)$/)
+          if (m) { items.push(m[1].trim()); memos[m[1].trim()] = m[2].trim() }
+          else items.push(part)
         }
+        return { items, memos }
+      }
+
+      // ─── 피부 ───
+      if (d.skin_status) {
+        const { items, memos } = parseItemsWithMemos(String(d.skin_status))
         setSkin(items)
         setSkinMemos(memos)
       }
 
-      // 엉킴 파싱: "엉킴: 머리, 꼬리" → ['머리', '꼬리']
+      // ─── 엉킴 (coat_status) — 메모도 복원 ───
       if (d.coat_status) {
-        const raw = d.coat_status.replace(/^엉킴:\s*/, '')
-        setTangles(raw.split(',').map((s: string) => s.trim()).filter(Boolean))
+        const raw = String(d.coat_status).replace(/^엉킴:\s*/, '')
+        const { items, memos } = parseItemsWithMemos(raw)
+        setTangles(items)
+        setTangleMemos(memos)
       }
 
-      // condition_status 파싱: "눈: 붉음 / 귀: 노란귀지 / 치아: 관리필요 / 발톱: 관리필요"
+      // ─── condition_status 파싱: "눈: 붉음(오른쪽) / 귀: 노란귀지 / 치아: 관리필요(어금니) / 발톱: 관리필요" ───
+      // 각 부위 내부는 ", "로 여러 값이 올 수 있고 "값(메모)" 형식을 지원
       if (d.condition_status) {
-        const parts = d.condition_status.split('/').map((s: string) => s.trim())
-        for (const p of parts) {
-          if (p.startsWith('눈:')) { const v = p.slice(2).trim(); if (v) setEyes([v]) }
-          else if (p.startsWith('귀:')) { const v = p.slice(2).trim(); if (v) setEars([v]) }
-          else if (p.startsWith('치아:')) {
-            const v = p.slice(3).trim()
-            if (v && v !== '깨끗함') setTeeth(['관리필요'])
-            else if (v === '깨끗함') setTeeth(['깨끗함'])
-          }
-          else if (p.startsWith('발톱:')) {
-            const v = p.slice(3).trim()
-            if (v && v !== '적당함') setNails(['관리필요'])
-            else if (v === '적당함') setNails(['적당함'])
+        const sections = String(d.condition_status).split('/').map((s) => s.trim())
+        for (const p of sections) {
+          if (p.startsWith('눈:')) {
+            const { items, memos } = parseItemsWithMemos(p.slice(2).trim())
+            if (items.length > 0) { setEyes(items); setEyeMemos(memos) }
+          } else if (p.startsWith('귀:')) {
+            const { items, memos } = parseItemsWithMemos(p.slice(2).trim())
+            if (items.length > 0) { setEars(items); setEarMemos(memos) }
+          } else if (p.startsWith('치아:')) {
+            const { items, memos } = parseItemsWithMemos(p.slice(3).trim())
+            if (items.length > 0) {
+              // 단순 '깨끗함'이면 그대로 / 그 외 값이면 '관리필요'로 정규화하되 메모는 보존
+              const isClean = items.length === 1 && items[0] === '깨끗함'
+              setTeeth(isClean ? ['깨끗함'] : ['관리필요'])
+              if (!isClean) setTeethMemos(memos)
+            }
+          } else if (p.startsWith('발톱:')) {
+            const { items, memos } = parseItemsWithMemos(p.slice(3).trim())
+            if (items.length > 0) {
+              const isOk = items.length === 1 && items[0] === '적당함'
+              setNails(isOk ? ['적당함'] : ['관리필요'])
+              if (!isOk) setNailMemos(memos)
+            }
           }
         }
       }
 
-      // grooming_style JSON
+      // ─── grooming_style JSON ───
       if (d.grooming_style && typeof d.grooming_style === 'object') {
         const gs = d.grooming_style as Record<string, string>
         setGroomingStyle({
@@ -945,13 +974,46 @@ function EditRecordForm() {
         })
       }
 
-      // 다음 방문
+      // ─── 다음 방문 날짜 ───
       if (d.next_visit_date) {
         setNextVisitOption('custom')
         setNextVisitDate(d.next_visit_date)
       }
 
-      // 케어 팁은 자동 생성이므로 로드 불필요
+      // ─── 케어 팁 ───
+      // session/edit 페이지는 currently 자동 생성만 지원 (customCareTips state 없음).
+      // TODO: session/edit에 케어 팁 편집 UI 추가 시 next_care_guide 복원 로직도 추가 필요.
+
+      // ─── 사용 제품(care_actions) 복원 — "이름 (브랜드), 이름2 (브랜드2)" ───
+      if (d.care_actions && typeof d.care_actions === 'string') {
+        const parts = d.care_actions.split(',').map((s: string) => s.trim()).filter(Boolean)
+        const matchedIds: string[] = []
+        for (const part of parts) {
+          // "이름 (브랜드)"에서 이름만 분리
+          const name = part.replace(/\s*\([^)]*\)\s*$/, '').trim()
+          const matched = (prodResult.data ?? []).find((p) => p?.name === name)
+          if (matched?.id) matchedIds.push(matched.id)
+        }
+        if (matchedIds.length > 0) setSelectedProductIds(matchedIds)
+      }
+
+      // ─── 보호자 전화번호 복원 ───
+      if (d.guardian_id) {
+        const guardianMatch = (gResult.data ?? []).find((g) => g.id === d.guardian_id)
+        if (guardianMatch?.phone) setGuardianPhone(guardianMatch.phone)
+      }
+
+      // ─── 팔로업 존재 여부 → needsFollowUp ───
+      try {
+        const { data: fups } = await supabase
+          .from('followups')
+          .select('id')
+          .eq('related_record_id', recordId)
+          .limit(1)
+        if (fups && fups.length > 0) setNeedsFollowUp(true)
+      } catch {
+        /* followups 테이블 부재 시 무시 */
+      }
 
       setDataLoading(false)
     }
@@ -1160,6 +1222,7 @@ function EditRecordForm() {
           spa_level: spaLevel || null,
           next_visit_date: nextVisitDate || null,
           comment: comment.trim() || null,
+          weight: weight.trim() ? (Number.isFinite(parseFloat(weight)) ? parseFloat(weight) : null) : null,
         }
 
         // TODO: 사진 업로드 (supabase.storage)
