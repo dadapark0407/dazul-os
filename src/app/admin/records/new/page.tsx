@@ -199,8 +199,8 @@ function generateCareTips({
     tips.push('가정에서 목욕하실 때는 린스를 꼭 사용해 주시고, 드라이는 피부 속까지 완전히 말려주셔야 피부 트러블 예방에 도움이 됩니다.')
   }
 
-  // 스파 팁
-  if (spaLevel) {
+  // 스파 팁 — 에센셜(premium) / 프레스티지(prestige) 코스에서만 생성
+  if (spaLevel === 'premium' || spaLevel === 'prestige') {
     tips.push('스파 후에는 혈액순환과 이완에 도움이 되어 피부와 컨디션 회복에 긍정적인 영향을 줄 수 있습니다. 오늘은 충분히 휴식할 수 있도록 편안한 시간을 주세요.')
   }
 
