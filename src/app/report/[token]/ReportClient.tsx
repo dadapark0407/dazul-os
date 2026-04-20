@@ -164,16 +164,15 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
   const coatValue = rec.coat_status
     ? rec.coat_status.replace(/^\s*엉킴\s*:\s*/, '').trim() || null
     : null
-  // 6개 행 항상 표시 (값 없으면 '—')
+  // 6개 행 항상 표시 — 값 없으면 '깨끗함'으로 기본 표시
   const bodyItems = [
-    { label: '피부', value: rec.skin_status || null },
-    { label: '엉킴', value: coatValue },
-    { label: '눈', value: cond.eyes ?? null },
-    { label: '귀', value: cond.ears ?? null },
-    { label: '치아', value: cond.teeth ?? null },
-    { label: '발톱', value: cond.nail ?? null },
+    { label: '피부', value: rec.skin_status || '깨끗함' },
+    { label: '엉킴', value: coatValue || '깨끗함' },
+    { label: '눈', value: cond.eyes || '깨끗함' },
+    { label: '귀', value: cond.ears || '깨끗함' },
+    { label: '치아', value: cond.teeth || '깨끗함' },
+    { label: '발톱', value: cond.nail || '깨끗함' },
   ]
-  const hasAnyBody = bodyItems.some((i) => i.value)
 
   const tips = rec.next_care_guide
     ? rec.next_care_guide.split('\n').map((s) => s.trim()).filter(Boolean)
@@ -363,37 +362,32 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
             )
           })()}
 
-          {/* CONDITION */}
-          {hasAnyBody && (
-            <div style={{ marginBottom: 28 }}>
-              <SH>Condition</SH>
-              {bodyItems.map((item) => {
-                const display = item.value && item.value.trim() ? item.value : '—'
-                const empty = !item.value
-                const gold = !empty && isIssue(item.value)
-                return (
-                  <div
-                    key={item.label}
-                    className="flex items-baseline"
-                    style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}
-                  >
-                    <span style={{ minWidth: 60, fontSize: 10, color: C.sub, letterSpacing: '0.1em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
-                      {item.label}
-                    </span>
-                    <span style={{
-                      fontSize: 13,
-                      color: empty ? C.sub : gold ? C.gold : C.text,
-                      fontWeight: gold ? 400 : 300,
-                      lineHeight: 1.7,
-                      opacity: empty ? 0.5 : 1,
-                    }}>
-                      {display}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          {/* CONDITION — 6개 항목 항상 표시 */}
+          <div style={{ marginBottom: 28 }}>
+            <SH>Condition</SH>
+            {bodyItems.map((item) => {
+              const gold = isIssue(item.value)
+              return (
+                <div
+                  key={item.label}
+                  className="flex items-baseline"
+                  style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}
+                >
+                  <span style={{ minWidth: 60, fontSize: 10, color: C.sub, letterSpacing: '0.1em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
+                    {item.label}
+                  </span>
+                  <span style={{
+                    fontSize: 13,
+                    color: gold ? C.gold : C.sub,
+                    fontWeight: gold ? 400 : 300,
+                    lineHeight: 1.7,
+                  }}>
+                    {item.value}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
 
           {/* HOME CARE */}
           {tips.length > 0 && (
