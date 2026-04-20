@@ -530,15 +530,43 @@ export default function ReportClient({
             </p>
           )}
 
-          {/* 몸무게 강조 행 */}
-          {latest?.weight !== null && latest?.weight !== undefined && latest?.weight !== '' && (
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 10 }}>
-              <span style={{ fontSize: 10, color: '#8A8A7A', letterSpacing: '0.15em' }}>체중</span>
-              <span style={{ fontSize: 16, fontWeight: 500, color: '#1A1A1A', letterSpacing: '0.05em' }}>
-                {latest.weight} kg
-              </span>
-            </div>
-          )}
+          {/* 몸무게 강조 행 + 이전 방문 대비 증감 */}
+          {latest?.weight !== null && latest?.weight !== undefined && latest?.weight !== '' && (() => {
+            const parseW = (v: unknown): number | null => {
+              if (typeof v === 'number' && Number.isFinite(v)) return v
+              if (typeof v === 'string' && v.trim()) {
+                const n = parseFloat(v)
+                return Number.isFinite(n) ? n : null
+              }
+              return null
+            }
+            const currentW = parseW(latest.weight)
+            // 같은 반려견의 이전 방문 중 weight가 기록된 가장 최근 건
+            const prevRec = past.find((r) => parseW(r.weight) !== null)
+            const prevW = prevRec ? parseW(prevRec.weight) : null
+            const diff = currentW !== null && prevW !== null ? currentW - prevW : null
+            // 소수 1자리 반올림
+            const diffRounded = diff !== null ? Math.round(diff * 10) / 10 : null
+            return (
+              <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 10 }}>
+                <span style={{ fontSize: 10, color: '#8A8A7A', letterSpacing: '0.15em' }}>체중</span>
+                <span style={{ fontSize: 16, fontWeight: 500, color: '#1A1A1A', letterSpacing: '0.05em' }}>
+                  {latest.weight} kg
+                </span>
+                {diffRounded !== null && diffRounded !== 0 && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: diffRounded > 0 ? '#C9A96E' : '#7A9E8A',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {diffRounded > 0 ? '▲' : '▼'} {diffRounded > 0 ? '+' : ''}{diffRounded}kg
+                  </span>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
         {/* 다견 가정 — 반려견 전환 탭 */}
