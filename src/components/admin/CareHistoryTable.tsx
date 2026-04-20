@@ -68,7 +68,7 @@ function formatDateFull(v: string): string {
 const HD = { background: '#0A0A0A', color: '#FFFFFF', fontSize: 11, letterSpacing: '0.1em', fontWeight: 500 as const, padding: '8px 14px', whiteSpace: 'nowrap' as const, borderRight: '1px solid #2A2A2A' }
 const GH = { ...HD, background: '#2A2A2A', textAlign: 'center' as const }
 const TD = { fontSize: 12, padding: '10px 14px', whiteSpace: 'nowrap' as const, borderRight: '1px solid #E8E8E8', borderBottom: '1px solid #E8E8E8', verticalAlign: 'top' as const }
-const STICKY = { position: 'sticky' as const, left: 0, zIndex: 2, background: '#FFFFFF', borderRight: '1px solid #E8E8E8', boxShadow: '2px 0 4px rgba(0,0,0,0.04)' }
+const STICKY = { position: 'sticky' as const, left: 0, zIndex: 2, background: '#FAFAF8', borderRight: '1px solid #E8E5E0', boxShadow: '2px 0 4px rgba(0,0,0,0.04)' }
 const STICKY2 = { ...STICKY, left: 60 }
 const GOLD = '#C9A96E'
 
@@ -222,6 +222,9 @@ export default function CareHistoryTable({
               const baseBg = i % 2 === 1 ? '#FAFAFA' : '#FFFFFF'
               const oddBg = isHover ? '#FAFAF8' : baseBg
               const cell = { ...TD, background: oddBg }
+              // sticky 컬럼 전용 배경 (흰색이면 스크롤 시 텍스트가 묻혀서 크림톤 사용)
+              const stickyBaseBg = i % 2 === 1 ? '#F5F4F0' : '#FAFAF8'
+              const stickyBg = isHover ? '#EFEDE8' : stickyBaseBg
               const hasIssue = (v: string) => v && !['좋음', '깨끗함', '없음', '적당함', '양호'].includes(v)
 
               return (
@@ -232,10 +235,10 @@ export default function CareHistoryTable({
                   onMouseLeave={() => setHoverId((cur) => (cur === rowKey ? null : cur))}
                   style={{ cursor: recordId ? 'pointer' : 'default' }}
                 >
-                  <td style={{ ...cell, ...STICKY, background: oddBg, fontWeight: 500 }}>
+                  <td style={{ ...cell, ...STICKY, background: stickyBg, fontWeight: 500 }}>
                     {s(r, 'visit_date') ? formatDate(s(r, 'visit_date')) : '-'}
                   </td>
-                  <td style={{ ...cell, ...STICKY2, background: oddBg }}>
+                  <td style={{ ...cell, ...STICKY2, background: stickyBg }}>
                     {fmtWeight(r) || '-'}
                   </td>
                   <td style={cell}>{svc || '-'}</td>
