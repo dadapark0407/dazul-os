@@ -9,10 +9,13 @@ import { supabase } from '@/lib/supabase'
 
 type ActiveFilter = '전체' | '활성' | '비활성'
 
+type UsageEntry = { name: string; count: number }
+
 export default function AdminProductsPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [products, setProducts] = useState<Record<string, any>[]>([])
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({})
+  const [visitRecords, setVisitRecords] = useState<Array<{ care_actions: string | null; visit_date: string | null }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -62,11 +65,113 @@ export default function AdminProductsPage() {
       }
       setCategoryMap(cMap)
 
+      // 3) 방문 기록 care_actions 조회 (통계용)
+      const { data: visits } = await supabase
+        .from('visit_records')
+        .select('care_actions, visit_date')
+      setVisitRecords((visits ?? []) as Array<{ care_actions: string | null; visit_date: string | null }>)
+
       setLoading(false)
     }
 
     fetchData()
   }, [])
+
+  // ─── 제품 사용 통계 ───
+  const stats = useMemo(() => {
+    // "이름 (브랜드)" 에서 이름만 추출
+    function parseProductNames(raw: string | null): string[] {
+      if (!raw) return []
+      return raw
+        .split(',')
+        .map((part) => part.trim().replace(/\s*\([^)]*\)\s*$/, '').trim())
+        .filter(Boolean)
+    }
+
+    const now = new Date()
+    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
+
+    const overall: Record<string, number> = {}
+    const thisMonth: Record<string, number> = {}
+    const prevMonth: Record<string, number> = {}
+
+    for (const v of visitRecords) {
+      const names = parseProductNames(v.care_actions)
+      const vd = v.visit_date ?? ''
+      const monthKey = vd.slice(0, 7)
+      for (const n of names) {
+        overall[n] = (overall[n] ?? 0) + 1
+        if (monthKey === thisMonthKey) thisMonth[n] = (thisMonth[n] ?? 0) + 1
+        else if (monthKey === lastMonthKey) prevMonth[n] = (prevMonth[n] ?? 0) + 1
+      }
+    }
+
+    // 제품명 → {브랜드, 카테고리} 맵
+    const productInfo: Record<string, { brand: string | null; category: string }> = {}
+    for (const p of products) {
+      const name = (p.name as string) ?? (p.product_name as string) ?? null
+      if (!name) continue
+      productInfo[name] = {
+        brand: (p.brand as string) ?? null,
+        category: getCategoryName(p),
+      }
+    }
+
+    // 전체 TOP5
+    const overallTop5: Array<UsageEntry & { brand: string | null; category: string }> = Object.entries(overall)
+      .map(([name, count]) => ({
+        name,
+        count,
+        brand: productInfo[name]?.brand ?? null,
+        category: productInfo[name]?.category ?? '미분류',
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+
+    // 카테고리별 TOP3
+    const byCategory: Record<string, Array<UsageEntry & { brand: string | null }>> = {}
+    for (const [name, count] of Object.entries(overall)) {
+      const cat = productInfo[name]?.category ?? '미분류'
+      if (!byCategory[cat]) byCategory[cat] = []
+      byCategory[cat].push({
+        name,
+        count,
+        brand: productInfo[name]?.brand ?? null,
+      })
+    }
+    const categoryTop3: Record<string, Array<UsageEntry & { brand: string | null }>> = {}
+    for (const [cat, items] of Object.entries(byCategory)) {
+      categoryTop3[cat] = items.sort((a, b) => b.count - a.count).slice(0, 3)
+    }
+
+    // 이번달 vs 저번달 — 사용량 변화가 큰 제품 TOP5 (증가/감소)
+    const allNamesInRange = new Set([...Object.keys(thisMonth), ...Object.keys(prevMonth)])
+    const deltas = [...allNamesInRange]
+      .map((name) => ({
+        name,
+        brand: productInfo[name]?.brand ?? null,
+        thisCount: thisMonth[name] ?? 0,
+        prevCount: prevMonth[name] ?? 0,
+        delta: (thisMonth[name] ?? 0) - (prevMonth[name] ?? 0),
+      }))
+      .filter((d) => d.delta !== 0)
+    const topIncrease = deltas.filter((d) => d.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 3)
+    const topDecrease = deltas.filter((d) => d.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 3)
+
+    const maxOverall = overallTop5.length > 0 ? overallTop5[0].count : 0
+
+    return {
+      overallTop5,
+      categoryTop3,
+      topIncrease,
+      topDecrease,
+      maxOverall,
+      hasData: Object.keys(overall).length > 0,
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitRecords, products, categoryMap])
 
   // 카테고리명 해석: category_id → old category → 미분류
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,6 +245,144 @@ export default function AdminProductsPage() {
           + 제품 추가
         </Link>
       </div>
+
+      {/* 제품 사용 통계 */}
+      {stats.hasData && (
+        <section style={{ border: '1px solid #E8E5E0', padding: 24, background: '#FFFFFF' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#8A8A7A', textTransform: 'uppercase' as const }}>
+            Product Analytics
+          </p>
+
+          <div className="mt-4 grid gap-6 lg:grid-cols-3">
+            {/* 전체 TOP5 */}
+            <div>
+              <p style={{ fontSize: 11, letterSpacing: '0.1em', color: '#8A8A7A', marginBottom: 12 }}>
+                전체 사용 TOP 5
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {stats.overallTop5.length === 0 && (
+                  <p style={{ fontSize: 12, color: '#8A8A7A' }}>사용 기록이 없습니다</p>
+                )}
+                {stats.overallTop5.map((p, i) => {
+                  const pct = stats.maxOverall > 0 ? Math.round((p.count / stats.maxOverall) * 100) : 0
+                  return (
+                    <div key={p.name}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ fontSize: 20, fontWeight: 300, color: '#C9A96E', minWidth: 24 }}>
+                          {i + 1}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.name}
+                          </p>
+                          <p style={{ fontSize: 10, color: '#8A8A7A' }}>
+                            {p.brand ? `${p.brand} · ` : ''}{p.category}
+                          </p>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#1A1A1A', fontWeight: 500 }}>
+                          {p.count}회
+                        </span>
+                      </div>
+                      <div style={{ marginTop: 4, background: '#F5F4F0', height: 4, marginLeft: 32 }}>
+                        <div
+                          style={{
+                            width: `${pct}%`,
+                            background: '#1A1A1A',
+                            height: 4,
+                            transition: 'width 0.3s ease',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 카테고리별 TOP3 */}
+            <div>
+              <p style={{ fontSize: 11, letterSpacing: '0.1em', color: '#8A8A7A', marginBottom: 12 }}>
+                카테고리별 TOP 3
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {Object.keys(stats.categoryTop3).length === 0 && (
+                  <p style={{ fontSize: 12, color: '#8A8A7A' }}>데이터 없음</p>
+                )}
+                {Object.entries(stats.categoryTop3).map(([cat, items]) => (
+                  <div key={cat}>
+                    <p style={{ fontSize: 11, color: '#1A1A1A', fontWeight: 500, marginBottom: 6 }}>
+                      {cat}
+                    </p>
+                    <ol style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 0, margin: 0, listStyle: 'none' }}>
+                      {items.map((p, i) => (
+                        <li key={p.name} style={{ fontSize: 12, color: '#1A1A1A', display: 'flex', gap: 8 }}>
+                          <span style={{ color: '#C9A96E', minWidth: 14 }}>{i + 1}</span>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.name}
+                            {p.brand && <span style={{ color: '#8A8A7A', marginLeft: 4 }}>· {p.brand}</span>}
+                          </span>
+                          <span style={{ color: '#8A8A7A' }}>{p.count}회</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 이번달 vs 저번달 */}
+            <div>
+              <p style={{ fontSize: 11, letterSpacing: '0.1em', color: '#8A8A7A', marginBottom: 12 }}>
+                이번달 vs 저번달
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <p style={{ fontSize: 11, color: '#7A9E8A', fontWeight: 500, marginBottom: 6 }}>
+                    ▲ 많이 늘어난 제품
+                  </p>
+                  {stats.topIncrease.length === 0 ? (
+                    <p style={{ fontSize: 11, color: '#8A8A7A' }}>증가한 제품 없음</p>
+                  ) : (
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 0, margin: 0, listStyle: 'none' }}>
+                      {stats.topIncrease.map((p) => (
+                        <li key={p.name} style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.name}
+                          </span>
+                          <span style={{ color: '#7A9E8A', whiteSpace: 'nowrap' }}>
+                            ▲ {p.delta} ({p.prevCount}→{p.thisCount})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, color: '#C9A96E', fontWeight: 500, marginBottom: 6 }}>
+                    ▼ 줄어든 제품
+                  </p>
+                  {stats.topDecrease.length === 0 ? (
+                    <p style={{ fontSize: 11, color: '#8A8A7A' }}>감소한 제품 없음</p>
+                  ) : (
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 0, margin: 0, listStyle: 'none' }}>
+                      {stats.topDecrease.map((p) => (
+                        <li key={p.name} style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.name}
+                          </span>
+                          <span style={{ color: '#C9A96E', whiteSpace: 'nowrap' }}>
+                            ▼ {Math.abs(p.delta)} ({p.prevCount}→{p.thisCount})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 검색 + 필터 */}
       <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-neutral-200">
