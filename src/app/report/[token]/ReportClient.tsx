@@ -424,9 +424,21 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
               <p style={{ fontSize: 13, color: C.text, lineHeight: 2, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
                 {rec.comment}
               </p>
-              <p style={{ fontSize: 9, color: C.sub, textAlign: 'right', marginTop: 20, letterSpacing: '0.2em' }}>
-                — DAZUL
-              </p>
+              <div
+                style={{
+                  textAlign: 'center',
+                  marginTop: 20,
+                  paddingTop: 16,
+                  borderTop: '1px solid #E8E5E0',
+                  fontSize: 11,
+                  color: '#8A8A7A',
+                  lineHeight: 2,
+                }}
+              >
+                <p>소중한 가족을 믿고 맡겨주셔서 감사드리며,</p>
+                <p>앞으로도 최선을 다하겠습니다.</p>
+                <p style={{ color: '#C9A96E', letterSpacing: '0.15em', marginTop: 8 }}>— 살롱 드 다줄 —</p>
+              </div>
             </div>
           )}
         </div>
@@ -649,13 +661,6 @@ export default function ReportClient({
           </>
         )}
       </main>
-
-      {/* ═══ 푸터 ═══ */}
-      <footer style={{ padding: '48px 0', textAlign: 'center' }}>
-        <p style={{ fontSize: 10, letterSpacing: '0.3em', fontWeight: 300, color: C.gold }}>
-          SALON DE DAZUL
-        </p>
-      </footer>
     </div>
   )
 }
