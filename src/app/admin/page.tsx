@@ -138,6 +138,119 @@ export default async function AdminDashboardPage() {
     value: today,
   })
 
+  // ─── 통계: 재방문율 / 스파코스 선택률 / 이탈 위험 ───
+  const now = new Date()
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
+
+  type StatRecord = { guardian_id: string | null; spa_level: string | null; visit_date: string | null }
+
+  const [{ data: thisMonthVisits }, { data: lastMonthVisits }] = await Promise.all([
+    supabase
+      .from('visit_records')
+      .select('guardian_id, spa_level, visit_date')
+      .gte('visit_date', thisMonthStart)
+      .lt('visit_date', nextMonthStart),
+    supabase
+      .from('visit_records')
+      .select('guardian_id, visit_date')
+      .gte('visit_date', lastMonthStart)
+      .lt('visit_date', thisMonthStart),
+  ])
+
+  const thisMonth = (thisMonthVisits ?? []) as StatRecord[]
+  const lastMonth = (lastMonthVisits ?? []) as StatRecord[]
+
+  function computeRevisitRate(rows: StatRecord[]): { total: number; revisitCount: number; rate: number } {
+    const byGuardian: Record<string, number> = {}
+    for (const r of rows) {
+      const g = r.guardian_id
+      if (!g) continue
+      byGuardian[g] = (byGuardian[g] ?? 0) + 1
+    }
+    const total = Object.values(byGuardian).reduce((a, b) => a + b, 0)
+    const revisitCount = Object.values(byGuardian).reduce((a, b) => a + (b >= 2 ? b : 0), 0)
+    const rate = total > 0 ? Math.round((revisitCount / total) * 100) : 0
+    return { total, revisitCount, rate }
+  }
+
+  const thisRev = computeRevisitRate(thisMonth)
+  const lastRev = computeRevisitRate(lastMonth)
+  const revisitDelta = thisRev.rate - lastRev.rate
+
+  // 스파코스 선택률
+  const SPA_LABELS: Record<string, string> = {
+    basic: '베이직',
+    premium: '에센셜',
+    essential: '에센셜',
+    deep: '시그니처',
+    signature: '시그니처',
+    prestige: '프레스티지',
+  }
+  const spaCounts: Record<string, number> = { 베이직: 0, 에센셜: 0, 시그니처: 0, 프레스티지: 0 }
+  let spaTotal = 0
+  for (const r of thisMonth) {
+    if (!r.spa_level) continue
+    const key = SPA_LABELS[r.spa_level]
+    if (!key) continue
+    spaCounts[key] = (spaCounts[key] ?? 0) + 1
+    spaTotal++
+  }
+  const spaOverallRate = thisMonth.length > 0 ? Math.round((spaTotal / thisMonth.length) * 100) : 0
+  const spaBreakdown = (['베이직', '에센셜', '시그니처', '프레스티지'] as const).map((label) => ({
+    label,
+    count: spaCounts[label] ?? 0,
+    rate: spaTotal > 0 ? Math.round(((spaCounts[label] ?? 0) / spaTotal) * 100) : 0,
+  }))
+
+  // 이탈 위험: 마지막 방문 6주 이상 경과한 반려견
+  const sixWeeksAgo = new Date()
+  sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42)
+
+  const { data: allVisits } = await supabase
+    .from('visit_records')
+    .select('pet_id, visit_date')
+    .not('pet_id', 'is', null)
+    .order('visit_date', { ascending: false })
+
+  const latestVisitByPet: Record<string, string> = {}
+  for (const v of allVisits ?? []) {
+    const pid = v.pet_id as string | null
+    const vd = v.visit_date as string | null
+    if (!pid || !vd) continue
+    if (!latestVisitByPet[pid]) latestVisitByPet[pid] = vd
+  }
+
+  const atRiskPetIds = Object.entries(latestVisitByPet)
+    .filter(([, d]) => new Date(d) < sixWeeksAgo)
+    .map(([pid, d]) => ({ petId: pid, lastVisit: d }))
+    .sort((a, b) => a.lastVisit.localeCompare(b.lastVisit))
+
+  let atRiskPets: Array<{ petId: string; name: string; guardianId: string | null; lastVisit: string; weeksAgo: number }> = []
+  if (atRiskPetIds.length > 0) {
+    const ids = atRiskPetIds.slice(0, 20).map((x) => x.petId)
+    const { data: petsAtRisk } = await supabase
+      .from('pets')
+      .select('id, name, guardian_id')
+      .in('id', ids)
+    const petMap: Record<string, { name: string; guardian_id: string | null }> = {}
+    for (const p of petsAtRisk ?? []) {
+      petMap[p.id as string] = { name: (p.name as string) ?? '이름 없음', guardian_id: (p.guardian_id as string) ?? null }
+    }
+    atRiskPets = atRiskPetIds.slice(0, 10).map((x) => {
+      const info = petMap[x.petId]
+      const weeks = Math.floor((now.getTime() - new Date(x.lastVisit).getTime()) / (7 * 24 * 60 * 60 * 1000))
+      return {
+        petId: x.petId,
+        name: info?.name ?? '이름 없음',
+        guardianId: info?.guardian_id ?? null,
+        lastVisit: x.lastVisit,
+        weeksAgo: weeks,
+      }
+    })
+  }
+
   // ─── KPI 카드 구성 ───
   type KpiCard = {
     label: string
@@ -236,6 +349,102 @@ export default async function AdminDashboardPage() {
             </p>
           </Link>
         ))}
+      </section>
+
+      {/* 통계 섹션 */}
+      <section className="grid gap-5 lg:grid-cols-3">
+        {/* 재방문율 */}
+        <div style={{ border: '1px solid #E8E5E0', borderRadius: 0, padding: 24, background: '#FFFFFF' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#8A8A7A', textTransform: 'uppercase' as const }}>
+            재방문율
+          </p>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <p style={{ fontSize: 32, fontWeight: 300, color: '#1A1A1A', letterSpacing: '0.02em' }}>
+              {thisRev.rate}%
+            </p>
+            {lastRev.total > 0 && (
+              <p style={{ fontSize: 11, color: revisitDelta >= 0 ? '#7A9E8A' : '#C9A96E', letterSpacing: '0.05em' }}>
+                {revisitDelta >= 0 ? '▲' : '▼'} {Math.abs(revisitDelta)}%p
+              </p>
+            )}
+          </div>
+          <p style={{ fontSize: 11, color: '#8A8A7A', marginTop: 8 }}>
+            이번달 방문 {thisMonth.length}건 · 재방문 {thisRev.revisitCount}건
+          </p>
+        </div>
+
+        {/* 스파코스 선택률 */}
+        <div style={{ border: '1px solid #E8E5E0', borderRadius: 0, padding: 24, background: '#FFFFFF' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#8A8A7A', textTransform: 'uppercase' as const }}>
+            스파코스 선택률
+          </p>
+          <div style={{ marginTop: 16 }}>
+            <p style={{ fontSize: 32, fontWeight: 300, color: '#1A1A1A', letterSpacing: '0.02em' }}>
+              {spaOverallRate}%
+            </p>
+          </div>
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {spaBreakdown.map((row) => (
+              <div key={row.label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#8A8A7A' }}>
+                  <span>{row.label}</span>
+                  <span>{row.count}건 · {row.rate}%</span>
+                </div>
+                <div style={{ marginTop: 4, background: '#F5F4F0', height: 4, borderRadius: 0 }}>
+                  <div
+                    style={{
+                      width: `${row.rate}%`,
+                      background: '#1A1A1A',
+                      height: 4,
+                      borderRadius: 0,
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 이탈 위험 고객 */}
+        <div style={{ border: '1px solid #E8E5E0', borderRadius: 0, padding: 24, background: '#FFFFFF' }}>
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#8A8A7A', textTransform: 'uppercase' as const }}>
+            이탈 위험 고객
+          </p>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <p style={{ fontSize: 32, fontWeight: 300, color: '#1A1A1A', letterSpacing: '0.02em' }}>
+              {atRiskPets.length}
+            </p>
+            <p style={{ fontSize: 11, color: '#8A8A7A' }}>6주+ 미방문</p>
+          </div>
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
+            {atRiskPets.length === 0 && (
+              <p style={{ fontSize: 12, color: '#8A8A7A' }}>6주 이상 미방문 고객 없음</p>
+            )}
+            {atRiskPets.map((p) => {
+              const href = p.guardianId ? `/admin/guardians/${p.guardianId}` : `/admin/pets/${p.petId}`
+              return (
+                <Link
+                  key={p.petId}
+                  href={href}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    padding: '6px 0',
+                    borderBottom: '1px solid #F5F4F0',
+                    textDecoration: 'none',
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: '#1A1A1A' }}>{p.name}</span>
+                  <span style={{ fontSize: 11, color: '#8A8A7A' }}>
+                    {formatDate(p.lastVisit)} · {p.weeksAgo}주 전
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
       </section>
 
       {/* 빠른 액션 */}
