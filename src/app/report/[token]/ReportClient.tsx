@@ -459,15 +459,13 @@ export default function ReportClient({
   productCategoryMap?: Record<string, string>
 }) {
   const [lang, setLang] = useLang()
-  const t = T[lang]
-  const [activePetId, setActivePetId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | number | null>(records[0]?.id ?? null)
+  const [showPast, setShowPast] = useState(false)
 
-  const filtered = activePetId ? records.filter((r) => r.pet_id === activePetId) : records
+  const filtered = records
   const latest = filtered[0]
-  const petName = activePetId
-    ? pets.find((p) => p.id === activePetId)?.name ?? latest?.pet_name ?? '반려견'
-    : latest?.pet_name ?? '반려견'
+  const past = filtered.slice(1)
+  const petName = latest?.pet_name ?? '반려견'
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, paddingBottom: 80 }}>
@@ -524,58 +522,84 @@ export default function ReportClient({
             </p>
           )}
 
-          {/* 다견 탭 */}
-          {pets.length > 1 && (
-            <div className="flex justify-center" style={{ marginTop: 32, gap: 0 }}>
-              {[{ id: null as string | null, name: t.all }, ...pets.map((p) => ({ id: p.id as string | null, name: p.name }))].map((tab) => {
-                const active = activePetId === tab.id || (!activePetId && !tab.id)
-                return (
-                  <button
-                    key={tab.id ?? 'all'}
-                    type="button"
-                    onClick={() => setActivePetId(tab.id)}
-                    style={{
-                      fontSize: 10, letterSpacing: '0.15em', padding: '10px 20px',
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      color: active ? C.text : C.sub,
-                      borderBottom: active ? `1px solid ${C.gold}` : '1px solid transparent',
-                      fontWeight: active ? 400 : 300,
-                      transition: 'all 0.4s ease',
-                    }}
-                  >
-                    {tab.name}
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          {/* 다견 탭 제거됨 — 새 구조에서는 오늘 케어 + 지난 기록 토글로 대체 */}
         </div>
       </header>
 
       {/* ═══ 기록 ═══ */}
-      <main className="mx-auto max-w-[480px]" style={{ padding: '32px 0 0' }}>
-        {/* 카운트 */}
-        <div className="flex items-center gap-3" style={{ marginBottom: 20, padding: '0 24px' }}>
-          <div style={{ flex: 1, height: 0.5, background: C.border }} />
-          <p style={{ fontSize: 9, letterSpacing: '0.3em', color: C.sub, flexShrink: 0 }}>
-            CARE HISTORY · {filtered.length}
-          </p>
-          <div style={{ flex: 1, height: 0.5, background: C.border }} />
-        </div>
+      <main className="mx-auto max-w-[480px]" style={{ padding: '0' }}>
+        {/* 오늘의 케어 리포트 — 강조 헤더 */}
+        {latest && (
+          <>
+            <div
+              style={{
+                borderTop: `1px solid ${C.gold}`,
+                borderBottom: `1px solid ${C.gold}`,
+                padding: '12px 0',
+                textAlign: 'center',
+                fontSize: 11,
+                letterSpacing: '0.2em',
+                color: C.gold,
+                fontWeight: 300,
+                marginTop: 32,
+              }}
+            >
+              오늘의 케어 리포트
+            </div>
 
-        {/* 카드 목록 (간격 0, 상단 보더만) */}
-        {filtered.map((rec) => (
-          <RecordCard
-            key={rec.id}
-            rec={rec}
-            expanded={expandedId === rec.id}
-            onToggle={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
-            lang={lang}
-            productSummaryMap={productSummaryMap}
-            productCategoryMap={productCategoryMap}
-          />
-        ))}
+            <RecordCard
+              key={latest.id}
+              rec={latest}
+              expanded={expandedId === latest.id}
+              onToggle={() => setExpandedId(expandedId === latest.id ? null : latest.id)}
+              lang={lang}
+              productSummaryMap={productSummaryMap}
+              productCategoryMap={productCategoryMap}
+            />
+          </>
+        )}
 
+        {/* 지난 방문 기록 토글 */}
+        {past.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowPast((v) => !v)}
+              style={{
+                width: '100%',
+                borderTop: `1px solid ${C.border}`,
+                borderBottom: `1px solid ${C.border}`,
+                background: 'transparent',
+                padding: '16px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: 11,
+                letterSpacing: '0.15em',
+                color: C.sub,
+                cursor: 'pointer',
+                marginTop: 24,
+              }}
+            >
+              <span>지난 방문 기록 ({past.length}회)</span>
+              <span style={{ color: C.gold, fontSize: 9, transition: 'transform 0.3s ease', transform: showPast ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                ▼
+              </span>
+            </button>
+
+            {showPast && past.map((rec) => (
+              <RecordCard
+                key={rec.id}
+                rec={rec}
+                expanded={expandedId === rec.id}
+                onToggle={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
+                lang={lang}
+                productSummaryMap={productSummaryMap}
+                productCategoryMap={productCategoryMap}
+              />
+            ))}
+          </>
+        )}
       </main>
 
       {/* ═══ 푸터 ═══ */}
