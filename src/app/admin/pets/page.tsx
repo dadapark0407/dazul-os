@@ -11,7 +11,6 @@ type Pet = {
   name: string | null
   breed: string | null
   guardian_id: string | null
-  active?: boolean | null
   created_at?: string | null
 }
 
@@ -43,10 +42,14 @@ export default function AdminPetsPage() {
     async function fetchData() {
       setLoading(true)
 
-      const { data: petsData } = await supabase
+      const { data: petsData, error: petsErr } = await supabase
         .from('pets')
-        .select('id, name, breed, guardian_id, active, created_at')
+        .select('id, name, breed, guardian_id, created_at')
         .order('name')
+
+      if (petsErr) {
+        console.warn('pets fetch error:', petsErr.message)
+      }
 
       const safePets = petsData ?? []
       setPets(safePets)
@@ -215,7 +218,6 @@ export default function AdminPetsPage() {
                 <th className="px-4 py-3 font-semibold">품종</th>
                 <th className="px-4 py-3 font-semibold">보호자</th>
                 <th className="px-4 py-3 font-semibold">최근 방문일</th>
-                <th className="px-4 py-3 font-semibold">상태</th>
               </tr>
             </thead>
             <tbody>
@@ -247,17 +249,6 @@ export default function AdminPetsPage() {
                   </td>
                   <td className="px-4 py-3 text-neutral-500">
                     {formatDate(latestVisitMap[pet.id])}
-                  </td>
-                  <td className="px-4 py-3">
-                    {pet.active === false ? (
-                      <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
-                        비활성
-                      </span>
-                    ) : (
-                      <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                        활성
-                      </span>
-                    )}
                   </td>
                 </tr>
               ))}
