@@ -450,13 +450,19 @@ export default function ReportClient({
   productCategoryMap?: Record<string, string>
 }) {
   const [lang, setLang] = useLang()
+  // 선택된 반려견 — 기본: 최신 레코드의 pet_id (가장 최근 방문한 아이)
+  const [activePetId, setActivePetId] = useState<string | null>(records[0]?.pet_id ?? null)
   const [expandedId, setExpandedId] = useState<string | number | null>(records[0]?.id ?? null)
   const [showPast, setShowPast] = useState(false)
 
-  const filtered = records
+  // 선택된 반려견 기준으로 필터 (pet_id 없는 레코드는 전체 노출)
+  const filtered = activePetId
+    ? records.filter((r) => r.pet_id === activePetId)
+    : records
   const latest = filtered[0]
   const past = filtered.slice(1)
-  const petName = latest?.pet_name ?? '반려견'
+  const currentPet = pets.find((p) => p.id === activePetId)
+  const petName = currentPet?.name ?? latest?.pet_name ?? '반려견'
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, paddingBottom: 80 }}>
@@ -505,16 +511,68 @@ export default function ReportClient({
             {petName}
           </h1>
 
-          {/* 날짜 + 몸무게 */}
+          {/* 날짜 */}
           {latest?.visit_date && (
             <p style={{ fontSize: 11, color: C.sub, letterSpacing: '0.2em', marginTop: 20 }}>
               {fmtShort(latest.visit_date)}
-              {latest.weight ? `  ·  ${latest.weight}kg` : ''}
             </p>
           )}
 
-          {/* 다견 탭 제거됨 — 새 구조에서는 오늘 케어 + 지난 기록 토글로 대체 */}
+          {/* 몸무게 강조 행 */}
+          {latest?.weight !== null && latest?.weight !== undefined && latest?.weight !== '' && (
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 10 }}>
+              <span style={{ fontSize: 10, color: '#8A8A7A', letterSpacing: '0.15em' }}>체중</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: '#1A1A1A', letterSpacing: '0.05em' }}>
+                {latest.weight} kg
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* 다견 가정 — 반려견 전환 탭 */}
+        {pets.length > 1 && (
+          <div
+            className="mx-auto max-w-[480px]"
+            style={{
+              display: 'flex',
+              gap: 24,
+              justifyContent: 'center',
+              fontSize: 12,
+              letterSpacing: '0.1em',
+              borderBottom: '1px solid #E8E5E0',
+              paddingBottom: 12,
+            }}
+          >
+            {pets.map((p) => {
+              const active = p.id === activePetId
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setActivePetId(p.id)
+                    // 새 반려견의 최신 레코드를 자동 펼치기
+                    const nextLatest = records.find((r) => r.pet_id === p.id)
+                    setExpandedId(nextLatest?.id ?? null)
+                    setShowPast(false)
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '8px 0',
+                    borderBottom: active ? '1px solid #1A1A1A' : '1px solid transparent',
+                    color: active ? '#1A1A1A' : '#8A8A7A',
+                    fontWeight: active ? 500 : 300,
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  {p.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </header>
 
       {/* ═══ 기록 ═══ */}
@@ -535,7 +593,7 @@ export default function ReportClient({
                 marginTop: 32,
               }}
             >
-              오늘의 케어 리포트
+              오늘의 웰니스 케어 기록
             </div>
 
             <RecordCard
