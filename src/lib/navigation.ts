@@ -10,7 +10,7 @@ export type NavItem = {
 export const ALL_NAV_ITEMS: NavItem[] = [
   // ─── 메인 메뉴 (사이드바에 표시) ───
   { id: 'dashboard', label: '대시보드', href: '/admin', icon: 'LayoutDashboard', category: 'main' },
-  { id: 'new-customer', label: '신규 고객', href: '/admin/customers/new', icon: 'UserPlus', category: 'main' },
+  { id: 'new-customer', label: '고객 등록', href: '/admin/customers/new', icon: 'UserPlus', category: 'main' },
   { id: 'pets', label: '반려견 관리', href: '/admin/pets', icon: 'PawPrint', category: 'main' },
   { id: 'guardians', label: '보호자 관리', href: '/admin/guardians', icon: 'Users', category: 'main' },
   { id: 'records', label: '케어 기록', href: '/admin/records', icon: 'ClipboardList', category: 'main' },
