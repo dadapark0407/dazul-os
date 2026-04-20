@@ -520,9 +520,19 @@ function CompleteModal({
   const router = useRouter()
   const [copied, setCopied] = useState(false)
 
+  // shareUrl 이 상대 경로로 넘어온 경우 브라우저 origin으로 보강 (방어적 처리)
+  const absoluteShareUrl = (() => {
+    if (!shareUrl) return ''
+    if (/^https?:\/\//.test(shareUrl)) return shareUrl
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}${shareUrl.startsWith('/') ? shareUrl : `/${shareUrl}`}`
+    }
+    return shareUrl
+  })()
+
   function handleCopy() {
-    if (!shareUrl) return
-    navigator.clipboard.writeText(shareUrl).then(() => {
+    if (!absoluteShareUrl) return
+    navigator.clipboard.writeText(absoluteShareUrl).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -536,11 +546,11 @@ function CompleteModal({
           title: 'DAZUL 케어 리포트',
           description: '케어 리포트가 업데이트되었습니다.',
           imageUrl: '',
-          link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
+          link: { mobileWebUrl: absoluteShareUrl, webUrl: absoluteShareUrl },
         },
-        buttons: [{ title: '리포트 보기', link: { mobileWebUrl: shareUrl, webUrl: shareUrl } }],
+        buttons: [{ title: '리포트 보기', link: { mobileWebUrl: absoluteShareUrl, webUrl: absoluteShareUrl } }],
       })
-    } else if (shareUrl) {
+    } else if (absoluteShareUrl) {
       handleCopy()
     }
   }
@@ -553,9 +563,9 @@ function CompleteModal({
           <h2 className="mt-2 text-lg font-bold text-stone-800">기록이 저장되었습니다</h2>
         </div>
 
-        {shareUrl && (
+        {absoluteShareUrl && (
           <div className="space-y-2">
-            <p className="break-all bg-[#FAFAFA] px-3 py-2 text-xs text-[#888]" style={{ border: '1px solid #E8E8E8' }}>{shareUrl}</p>
+            <p className="break-all bg-[#FAFAFA] px-3 py-2 text-xs text-[#888]" style={{ border: '1px solid #E8E8E8' }}>{absoluteShareUrl}</p>
             {/* 링크 복사 */}
             <button
               type="button"
@@ -567,7 +577,7 @@ function CompleteModal({
             {/* 리포트 미리보기 */}
             <button
               type="button"
-              onClick={() => window.open(shareUrl, '_blank')}
+              onClick={() => window.open(absoluteShareUrl, '_blank')}
               style={{ width: '100%', border: '1px solid #0A0A0A', background: '#FFFFFF', color: '#0A0A0A', fontSize: 11, letterSpacing: '0.1em', padding: 14, cursor: 'pointer' }}
             >
               리포트 미리보기
@@ -1313,12 +1323,20 @@ function SessionForm() {
           }
         }
 
-        // 공유 링크
+        // 공유 링크 — 항상 절대 URL 보장
         let shareUrl = ''
         if (guardianId) {
           try {
             const { data: gData } = await supabase.from('guardians').select('share_token').eq('id', guardianId).maybeSingle()
-            if (gData?.share_token) shareUrl = buildSiteUrl(`/report/${gData.share_token}`)
+            if (gData?.share_token) {
+              const built = buildSiteUrl(`/report/${gData.share_token}`)
+              // buildSiteUrl 이 상대 경로를 반환한 경우(env 미설정 + SSR) 브라우저 origin으로 보강
+              shareUrl = /^https?:\/\//.test(built)
+                ? built
+                : typeof window !== 'undefined'
+                  ? `${window.location.origin}${built.startsWith('/') ? built : `/${built}`}`
+                  : built
+            }
           } catch {
             /* ignore */
           }
