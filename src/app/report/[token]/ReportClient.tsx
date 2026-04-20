@@ -335,7 +335,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                   return (
                     <div key={cat} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}>
                       <div className="flex items-baseline">
-                        <span style={{ minWidth: 60, fontSize: 11, color: C.sub, letterSpacing: '0.08em', flexShrink: 0 }}>
+                        <span style={{ minWidth: 60, fontSize: 13, color: '#8A8A7A', letterSpacing: '0.05em', flexShrink: 0 }}>
                           {cat}
                         </span>
                         <div style={{ flex: 1 }}>
@@ -362,31 +362,28 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
             )
           })()}
 
-          {/* CONDITION — 6개 항목 항상 표시 */}
+          {/* CONDITION — 6개 항목 항상 표시, 색상 통일 */}
           <div style={{ marginBottom: 28 }}>
             <SH>Condition</SH>
-            {bodyItems.map((item) => {
-              const gold = isIssue(item.value)
-              return (
-                <div
-                  key={item.label}
-                  className="flex items-baseline"
-                  style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}
-                >
-                  <span style={{ minWidth: 60, fontSize: 10, color: C.sub, letterSpacing: '0.1em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
-                    {item.label}
-                  </span>
-                  <span style={{
-                    fontSize: 13,
-                    color: gold ? C.gold : C.sub,
-                    fontWeight: gold ? 400 : 300,
-                    lineHeight: 1.7,
-                  }}>
-                    {item.value}
-                  </span>
-                </div>
-              )
-            })}
+            {bodyItems.map((item) => (
+              <div
+                key={item.label}
+                className="flex items-baseline"
+                style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}
+              >
+                <span style={{ minWidth: 60, fontSize: 13, color: '#8A8A7A', letterSpacing: '0.05em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
+                  {item.label}
+                </span>
+                <span style={{
+                  fontSize: 13,
+                  color: C.sub,
+                  fontWeight: 300,
+                  lineHeight: 1.7,
+                }}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* HOME CARE */}
