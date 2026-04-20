@@ -164,14 +164,16 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
   const coatValue = rec.coat_status
     ? rec.coat_status.replace(/^\s*엉킴\s*:\s*/, '').trim() || null
     : null
+  // 6개 행 항상 표시 (값 없으면 '—')
   const bodyItems = [
-    { label: '피부', value: rec.skin_status },
+    { label: '피부', value: rec.skin_status || null },
     { label: '엉킴', value: coatValue },
     { label: '눈', value: cond.eyes ?? null },
     { label: '귀', value: cond.ears ?? null },
     { label: '치아', value: cond.teeth ?? null },
     { label: '발톱', value: cond.nail ?? null },
-  ].filter((item) => item.value)
+  ]
+  const hasAnyBody = bodyItems.some((i) => i.value)
 
   const tips = rec.next_care_guide
     ? rec.next_care_guide.split('\n').map((s) => s.trim()).filter(Boolean)
@@ -366,28 +368,34 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
           })()}
 
           {/* CONDITION */}
-          {bodyItems.length > 0 && (
+          {hasAnyBody && (
             <div style={{ marginBottom: 32 }}>
               <SH>Condition</SH>
-              {bodyItems.map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-baseline"
-                  style={{ padding: '14px 0', borderBottom: `1px solid ${C.line}` }}
-                >
-                  <span style={{ width: 48, fontSize: 9, color: C.sub, letterSpacing: '0.2em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
-                    {item.label}
-                  </span>
-                  <span style={{
-                    fontSize: 13,
-                    color: isIssue(item.value) ? C.gold : C.text,
-                    fontWeight: isIssue(item.value) ? 400 : 300,
-                    lineHeight: 2,
-                  }}>
-                    {item.value}
-                  </span>
-                </div>
-              ))}
+              {bodyItems.map((item) => {
+                const display = item.value && item.value.trim() ? item.value : '—'
+                const empty = !item.value
+                const gold = !empty && isIssue(item.value)
+                return (
+                  <div
+                    key={item.label}
+                    className="flex items-baseline"
+                    style={{ padding: '14px 0', borderBottom: `1px solid ${C.line}` }}
+                  >
+                    <span style={{ width: 48, fontSize: 9, color: C.sub, letterSpacing: '0.2em', textTransform: 'uppercase' as const, flexShrink: 0 }}>
+                      {item.label}
+                    </span>
+                    <span style={{
+                      fontSize: 13,
+                      color: empty ? C.sub : gold ? C.gold : C.text,
+                      fontWeight: gold ? 400 : 300,
+                      lineHeight: 2,
+                      opacity: empty ? 0.5 : 1,
+                    }}>
+                      {display}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           )}
 
