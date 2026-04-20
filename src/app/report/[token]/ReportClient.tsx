@@ -376,7 +376,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                 </span>
                 <span style={{
                   fontSize: 13,
-                  color: C.sub,
+                  color: C.text,
                   fontWeight: 300,
                   lineHeight: 1.7,
                 }}>
