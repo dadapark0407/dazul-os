@@ -635,7 +635,14 @@ function SessionForm() {
 
   // ─── 검색 ───
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<{ type: 'guardian' | 'pet'; id: string; name: string; sub: string }[]>([])
+  const [searchResults, setSearchResults] = useState<{
+    petId: string
+    petName: string
+    breed: string | null
+    guardianId: string
+    guardianName: string
+    guardianPhone: string | null
+  }[]>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null)
 
@@ -866,16 +873,61 @@ function SessionForm() {
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
     searchTimeout.current = setTimeout(async () => {
       const q = searchQuery.trim()
+      // 보호자명/반려견명 각각 매칭 후, 매칭된 보호자의 반려견 전체 + 매칭된 반려견 결합
       const [gRes, pRes] = await Promise.all([
-        supabase.from('guardians').select('id, name, phone').ilike('name', `%${q}%`).limit(5),
-        supabase.from('pets').select('id, guardian_id, name, breed').ilike('name', `%${q}%`).limit(5),
+        supabase.from('guardians').select('id, name, phone').ilike('name', `%${q}%`).limit(10),
+        supabase.from('pets').select('id, guardian_id, name, breed').ilike('name', `%${q}%`).limit(10),
       ])
-      const results: typeof searchResults = []
-      for (const g of gRes.data ?? []) results.push({ type: 'guardian', id: g.id, name: g.name, sub: g.phone ?? '' })
-      for (const p of pRes.data ?? []) {
-        const gName = guardians.find((g) => g.id === p.guardian_id)?.name ?? ''
-        results.push({ type: 'pet', id: p.id, name: p.name, sub: `${p.breed ?? ''} ${gName ? `· ${gName}` : ''}`.trim() })
+
+      // 보호자명 매칭 시 해당 보호자의 모든 반려견을 포함
+      const matchedGuardianIds = (gRes.data ?? []).map((g) => g.id)
+      let petsByGuardian: typeof pRes.data = []
+      if (matchedGuardianIds.length > 0) {
+        const extra = await supabase
+          .from('pets')
+          .select('id, guardian_id, name, breed')
+          .in('guardian_id', matchedGuardianIds)
+          .limit(30)
+        petsByGuardian = extra.data ?? []
       }
+
+      const guardianMap: Record<string, { id: string; name: string; phone: string | null }> = {}
+      for (const g of gRes.data ?? []) guardianMap[g.id] = g
+      for (const g of guardians) if (!guardianMap[g.id]) guardianMap[g.id] = g
+
+      // 반려견 기반 결과 구성 (중복 제거)
+      const seen = new Set<string>()
+      const results: typeof searchResults = []
+      for (const p of [...(pRes.data ?? []), ...(petsByGuardian ?? [])]) {
+        if (!p?.id || seen.has(p.id)) continue
+        seen.add(p.id)
+        const g = p.guardian_id ? guardianMap[p.guardian_id] : null
+        if (!g) continue
+        results.push({
+          petId: p.id,
+          petName: p.name ?? '',
+          breed: p.breed ?? null,
+          guardianId: g.id,
+          guardianName: g.name ?? '',
+          guardianPhone: g.phone ?? null,
+        })
+      }
+
+      // 보호자만 매칭되고 반려견 없는 경우도 한 줄 남기기 (pet 없음 표시)
+      for (const g of gRes.data ?? []) {
+        const hasPet = results.some((r) => r.guardianId === g.id)
+        if (!hasPet) {
+          results.push({
+            petId: '',
+            petName: '',
+            breed: null,
+            guardianId: g.id,
+            guardianName: g.name ?? '',
+            guardianPhone: g.phone ?? null,
+          })
+        }
+      }
+
       setSearchResults(results)
       setShowSearchResults(results.length > 0)
     }, 300)
@@ -1158,35 +1210,41 @@ function SessionForm() {
                 />
                 {showSearchResults && searchResults.length > 0 && (
                   <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-lg">
-                    {searchResults.map((r) => (
+                    {searchResults.map((r, i) => (
                       <button
-                        key={`${r.type}-${r.id}`}
+                        key={`${r.guardianId}-${r.petId || 'no-pet'}-${i}`}
                         type="button"
                         className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50"
                         onClick={() => {
-                          if (r.type === 'guardian') {
-                            setGuardianId(r.id)
-                            setGuardianName(r.name)
+                          setGuardianId(r.guardianId)
+                          setGuardianName(r.guardianName)
+                          setGuardianPhone(r.guardianPhone ?? '')
+                          if (r.petId) {
+                            setPetId(r.petId)
+                            setPetName(r.petName)
                           } else {
-                            setPetId(r.id)
-                            setPetName(r.name)
-                            const pet = pets.find((p) => p.id === r.id)
-                            if (pet?.guardian_id) {
-                              setGuardianId(pet.guardian_id)
-                              const g = guardians.find((g) => g.id === pet.guardian_id)
-                              if (g) { setGuardianName(g.name); setGuardianPhone(g.phone ?? '') }
-                            }
+                            setPetId('')
+                            setPetName('')
                           }
                           setSearchQuery('')
                           setShowSearchResults(false)
                         }}
                       >
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-xs">
-                          {r.type === 'guardian' ? '👤' : '🐾'}
-                        </span>
                         <div>
-                          <p className="text-sm font-semibold text-stone-800">{r.name}</p>
-                          <p className="text-xs text-stone-400">{r.type === 'guardian' ? '보호자' : '반려견'} · {r.sub}</p>
+                          <p className="text-sm">
+                            <span style={{ fontWeight: 500, color: '#1A1A1A' }}>{r.guardianName || '이름 없음'}</span>
+                            {r.petName && (
+                              <>
+                                <span style={{ color: '#1A1A1A' }}>{' · '}{r.petName}</span>
+                                {r.breed && (
+                                  <span style={{ fontSize: 11, color: '#8A8A7A', marginLeft: 4 }}>({r.breed})</span>
+                                )}
+                              </>
+                            )}
+                            {!r.petName && (
+                              <span style={{ fontSize: 11, color: '#8A8A7A', marginLeft: 4 }}>(반려견 없음)</span>
+                            )}
+                          </p>
                         </div>
                       </button>
                     ))}
