@@ -582,14 +582,13 @@ export default function ReportClient({
           <>
             <div
               style={{
-                borderTop: `1px solid ${C.gold}`,
-                borderBottom: `1px solid ${C.gold}`,
-                padding: '12px 0',
+                background: '#FFFFFF',
+                padding: '16px 0',
                 textAlign: 'center',
                 fontSize: 11,
                 letterSpacing: '0.2em',
-                color: C.gold,
-                fontWeight: 300,
+                color: '#1A1A1A',
+                fontWeight: 400,
                 marginTop: 32,
               }}
             >
