@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import StatusAction from '@/components/admin/StatusAction'
 import CareHistoryTable from '@/components/admin/CareHistoryTable'
+import HealthTrend from '@/components/admin/HealthTrend'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -238,6 +239,9 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
           )}
         </section>
       </div>
+
+      {/* 건강 트렌드 */}
+      <HealthTrend records={records as Record<string, unknown>[]} />
 
       {/* 케어 히스토리 테이블 */}
       <CareHistoryTable
