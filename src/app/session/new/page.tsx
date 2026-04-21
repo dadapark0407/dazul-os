@@ -662,7 +662,10 @@ function SessionForm() {
   const [petId, setPetId] = useState(searchParams.get('petId') ?? '')
   const [petName, setPetName] = useState('')
   const [sessionDate, setSessionDate] = useState(today)
-  const [weight, setWeight] = useState('')
+  const [weight, setWeight] = useState(() => {
+    console.log('setWeight 호출:', '', '호출 위치:', '초기값')
+    return ''
+  })
   const [guardianName, setGuardianName] = useState('')
   const [guardianPhone, setGuardianPhone] = useState('')
 
@@ -1012,6 +1015,7 @@ function SessionForm() {
         }
         // 몸무게도 이전 값 프리필 (사용자가 이미 입력했으면 유지)
         if (data?.weight) {
+          console.log('setWeight 호출:', String(data.weight), '호출 위치:', '프리필')
           setWeight((prev) => prev || String(data.weight))
         }
       })()
@@ -1114,7 +1118,10 @@ function SessionForm() {
       if (typeof s.guardianName === 'string') setGuardianName(s.guardianName)
       if (typeof s.guardianPhone === 'string') setGuardianPhone(s.guardianPhone)
       if (typeof s.sessionDate === 'string') setSessionDate(s.sessionDate)
-      if (typeof s.weight === 'string') setWeight(s.weight)
+      if (typeof s.weight === 'string') {
+        console.log('setWeight 호출:', s.weight, '호출 위치:', '임시저장복원')
+        setWeight(s.weight)
+      }
       if (typeof s.mainService === 'string') setMainService(s.mainService)
       if (s.spaLevel === null || typeof s.spaLevel === 'string') setSpaLevel(s.spaLevel as SpaLevel)
       if (typeof s.styleNotes === 'string') setStyleNotes(s.styleNotes)
@@ -1574,7 +1581,10 @@ function SessionForm() {
                   step="0.1"
                   min="0"
                   value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
+                  onChange={(e) => {
+                    console.log('setWeight 호출:', e.target.value, '호출 위치:', '사용자입력')
+                    setWeight(e.target.value)
+                  }}
                   placeholder="0.0"
                   className={inputCls}
                 />
