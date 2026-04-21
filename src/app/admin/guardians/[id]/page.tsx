@@ -213,6 +213,8 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
         pets={pets}
         records={records}
         productCategoryMap={productCategoryMap}
+        guardianId={id}
+        branchId={typeof guardian.branch_id === 'string' ? guardian.branch_id : null}
       />
 
       {/* 상태 관리 */}

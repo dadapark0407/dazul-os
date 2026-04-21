@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import CareHistoryTable from './CareHistoryTable'
 
 type R = Record<string, unknown>
@@ -10,6 +12,8 @@ type Props = {
   pets: R[]
   records: R[]
   productCategoryMap?: Record<string, string>
+  guardianId?: string
+  branchId?: string | null
 }
 
 function str(obj: R | null | undefined, key: string): string | null {
@@ -50,10 +54,70 @@ function calculateAge(birthdate?: string | null, birthYear?: number | null): str
   return null
 }
 
-export default function GuardianPetTabs({ pets, records, productCategoryMap = {} }: Props) {
+export default function GuardianPetTabs({ pets, records, productCategoryMap = {}, guardianId, branchId }: Props) {
+  const router = useRouter()
   const [activePetId, setActivePetId] = useState<string | null>(
     pets.length > 0 ? String(pets[0].id) : null
   )
+
+  // ─── 반려견 추가 폼 상태 ───
+  const [addOpen, setAddOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [fName, setFName] = useState('')
+  const [fBreed, setFBreed] = useState('')
+  const [fGender, setFGender] = useState('')
+  const [fBirthdate, setFBirthdate] = useState('')
+  const [fNeutered, setFNeutered] = useState('')
+  const [fMemo, setFMemo] = useState('')
+
+  function resetForm() {
+    setFName('')
+    setFBreed('')
+    setFGender('')
+    setFBirthdate('')
+    setFNeutered('')
+    setFMemo('')
+    setFormError('')
+  }
+
+  async function handleAddPet() {
+    if (!guardianId) {
+      setFormError('보호자 정보가 없어 저장할 수 없습니다.')
+      return
+    }
+    if (!fName.trim()) {
+      setFormError('이름은 필수입니다.')
+      return
+    }
+    setSaving(true)
+    setFormError('')
+
+    const payload: Record<string, unknown> = {
+      guardian_id: guardianId,
+      name: fName.trim(),
+      breed: fBreed.trim() || null,
+      gender: fGender || null,
+      birthdate: fBirthdate || null,
+      memo: fMemo.trim() || null,
+    }
+    if (branchId) payload.branch_id = branchId
+    if (fNeutered === '예') payload.neutered = true
+    else if (fNeutered === '아니오') payload.neutered = false
+
+    const { error } = await supabase.from('pets').insert(payload)
+
+    setSaving(false)
+
+    if (error) {
+      setFormError(`저장 실패: ${error.message}`)
+      return
+    }
+
+    resetForm()
+    setAddOpen(false)
+    router.refresh()
+  }
 
   const activePet = useMemo(
     () => pets.find((p) => String(p.id) === activePetId) ?? null,
@@ -84,8 +148,157 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
   const lastVisit = petRecords[0] ? str(petRecords[0], 'visit_date') : null
   const petName = str(activePet, 'name') ?? '이름 없음'
 
+  const canAddPet = !!guardianId
+
   return (
     <section className="space-y-5">
+      {/* 반려견 추가 버튼 */}
+      {canAddPet && !addOpen && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            style={{
+              border: '1px solid #C9A96E',
+              color: '#C9A96E',
+              background: '#FFFFFF',
+              borderRadius: 0,
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              padding: '8px 16px',
+              cursor: 'pointer',
+            }}
+          >
+            + 반려견 추가
+          </button>
+        </div>
+      )}
+
+      {/* 인라인 추가 폼 */}
+      {canAddPet && addOpen && (
+        <div
+          style={{
+            border: '1px solid #E8E5E0',
+            padding: 20,
+            background: '#FAFAF8',
+          }}
+        >
+          <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#8A8A7A', marginBottom: 16 }}>
+            반려견 추가
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">
+                이름 <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={fName}
+                onChange={(e) => setFName(e.target.value)}
+                placeholder="반려견 이름"
+                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">견종</label>
+              <input
+                type="text"
+                value={fBreed}
+                onChange={(e) => setFBreed(e.target.value)}
+                placeholder="예: 말티즈"
+                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">성별</label>
+              <select
+                value={fGender}
+                onChange={(e) => setFGender(e.target.value)}
+                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+              >
+                <option value="">미선택</option>
+                <option value="수컷">수컷</option>
+                <option value="암컷">암컷</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">생년월일</label>
+              <input
+                type="date"
+                value={fBirthdate}
+                onChange={(e) => setFBirthdate(e.target.value)}
+                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">중성화</label>
+              <select
+                value={fNeutered}
+                onChange={(e) => setFNeutered(e.target.value)}
+                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+              >
+                <option value="">미선택</option>
+                <option value="예">예</option>
+                <option value="아니오">아니오</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">메모</label>
+              <textarea
+                value={fMemo}
+                onChange={(e) => setFMemo(e.target.value)}
+                rows={2}
+                placeholder="특이사항, 알레르기 등"
+                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+              />
+            </div>
+          </div>
+
+          {formError && <p className="mt-3 text-xs text-red-600">{formError}</p>}
+
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                resetForm()
+                setAddOpen(false)
+              }}
+              disabled={saving}
+              style={{
+                border: '1px solid #E8E5E0',
+                color: '#8A8A7A',
+                background: '#FFFFFF',
+                borderRadius: 0,
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                padding: '8px 16px',
+                cursor: saving ? 'not-allowed' : 'pointer',
+              }}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={handleAddPet}
+              disabled={saving}
+              style={{
+                background: '#0A0A0A',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: 0,
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                padding: '8px 20px',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 반려견 탭 (2마리 이상일 때) */}
       {pets.length > 1 && (
         <div
