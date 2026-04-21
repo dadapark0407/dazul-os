@@ -1000,7 +1000,7 @@ function SessionForm() {
       (async () => {
         const { data } = await supabase
           .from('visit_records')
-          .select('grooming_style, weight')
+          .select('grooming_style')
           .eq('pet_id', petId)
           .order('visit_date', { ascending: false })
           .limit(1)
@@ -1013,11 +1013,7 @@ function SessionForm() {
             setGroomingPrefilled(true)
           }
         }
-        // 몸무게도 이전 값 프리필 (사용자가 이미 입력했으면 유지)
-        if (data?.weight) {
-          console.log('setWeight 호출:', String(data.weight), '호출 위치:', '프리필')
-          setWeight((prev) => prev || String(data.weight))
-        }
+        // 몸무게 프리필 제거 — 매 방문마다 직접 입력
       })()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
