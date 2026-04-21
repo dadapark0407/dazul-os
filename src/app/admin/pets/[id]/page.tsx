@@ -210,33 +210,55 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
             </div>
             <div className="rounded-xl bg-neutral-50 p-4">
               <p className="text-xs text-neutral-500">최근 방문일</p>
-              <p className="mt-1 text-lg font-bold text-neutral-900">
+              <p className="mt-1 whitespace-nowrap text-base font-bold text-neutral-900">
                 {records.length > 0 ? formatDate(records[0].visit_date) : '-'}
               </p>
             </div>
           </div>
 
           {/* 최근 상태 스냅샷 */}
-          {records.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold text-neutral-500">최근 상태</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: '피부', value: records[0].skin_status },
-                  { label: '모질', value: records[0].coat_status },
-                  { label: '컨디션', value: records[0].condition_status },
-                  { label: '스트레스', value: records[0].stress_status },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-lg bg-neutral-50 px-3 py-2">
-                    <p className="text-xs text-neutral-400">{item.label}</p>
-                    <p className="mt-0.5 text-xs font-medium text-neutral-700">
-                      {item.value ?? '-'}
-                    </p>
-                  </div>
-                ))}
+          {records.length > 0 && (() => {
+            // condition_status 파싱 → 눈/귀/치아/발톱
+            const cond: Record<string, string | null> = { eyes: null, ears: null, teeth: null, nail: null }
+            const rawCondVal = (records[0] as Record<string, unknown>).condition_status
+            const rawCond: string = typeof rawCondVal === 'string' ? rawCondVal : ''
+            if (rawCond) {
+              for (const p of rawCond.split('/').map((x: string) => x.trim())) {
+                if (p.startsWith('눈:')) cond.eyes = p.slice(2).trim()
+                else if (p.startsWith('귀:')) cond.ears = p.slice(2).trim()
+                else if (p.startsWith('치아:')) cond.teeth = p.slice(3).trim()
+                else if (p.startsWith('발톱:')) cond.nail = p.slice(3).trim()
+              }
+            }
+            const nailVal = (records[0] as Record<string, unknown>).nail_status
+            const nailStatus =
+              typeof nailVal === 'string' && nailVal.trim() ? nailVal : cond.nail
+
+            const items = [
+              { label: '피부', value: records[0].skin_status },
+              { label: '엉킴', value: records[0].coat_status },
+              { label: '눈', value: cond.eyes },
+              { label: '귀', value: cond.ears },
+              { label: '치아', value: cond.teeth },
+              { label: '발톱', value: nailStatus },
+            ]
+
+            return (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-semibold text-neutral-500">최근 상태</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {items.map((item) => (
+                    <div key={item.label} className="rounded-lg bg-neutral-50 px-3 py-2">
+                      <p className="text-xs text-neutral-400">{item.label}</p>
+                      <p className="mt-0.5 text-xs font-medium text-neutral-700">
+                        {item.value && String(item.value).trim() ? item.value : '—'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </section>
       </div>
 
