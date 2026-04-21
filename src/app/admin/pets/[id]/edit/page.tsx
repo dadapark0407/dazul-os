@@ -52,10 +52,25 @@ export default function AdminPetEditPage() {
       setBreed(data.breed ?? '')
       setGender(data.gender ?? '')
       setBirthDate(data.birthdate ?? '')
-      setWeight(data.weight != null ? String(data.weight) : '')
-      setMemo(data.memo ?? '')
-      setCautionNotes(data.caution_notes ?? '')
       setGuardianId(data.guardian_id ?? null)
+
+      // pets 테이블에는 weight/caution_notes 컬럼이 없어 memo에 병합 저장됨
+      // ('체중: Nkg', '주의사항: ...') 을 memo 에서 분리
+      const rawMemo = typeof data.memo === 'string' ? data.memo : ''
+      const lines = rawMemo.split('\n')
+      let extractedWeight = ''
+      let extractedCaution = ''
+      const remainingLines: string[] = []
+      for (const line of lines) {
+        const wMatch = line.match(/^체중\s*:\s*([\d.]+)\s*kg\s*$/)
+        const cMatch = line.match(/^주의사항\s*:\s*(.*)$/)
+        if (wMatch) extractedWeight = wMatch[1]
+        else if (cMatch) extractedCaution = cMatch[1].trim()
+        else remainingLines.push(line)
+      }
+      setWeight(extractedWeight)
+      setCautionNotes(extractedCaution)
+      setMemo(remainingLines.join('\n').trim())
 
       // 보호자 이름 가져오기
       if (data.guardian_id) {
@@ -83,15 +98,19 @@ export default function AdminPetEditPage() {
     setSaving(true)
     setErrorMessage('')
 
-    // 업데이트 페이로드 — Supabase는 존재하지 않는 컬럼을 무시
+    // pets 테이블에 weight/caution_notes 컬럼이 없어 memo 에 병합 저장
+    const baseMemo = memo.trim()
+    const weightNote = weight.trim() ? `체중: ${weight.trim()}kg` : ''
+    const cautionNote = cautionNotes.trim() ? `주의사항: ${cautionNotes.trim()}` : ''
+    const mergedMemo =
+      [baseMemo, weightNote, cautionNote].filter(Boolean).join('\n').trim() || null
+
     const payload: Record<string, unknown> = {
       name: name.trim(),
       breed: breed.trim() || null,
       gender: gender.trim() || null,
       birthdate: birthDate || null,
-      weight: weight ? parseFloat(weight) : null,
-      memo: memo.trim() || null,
-      caution_notes: cautionNotes.trim() || null,
+      memo: mergedMemo,
     }
 
     const { error } = await supabase
