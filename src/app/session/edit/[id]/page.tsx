@@ -1113,7 +1113,7 @@ function EditRecordForm() {
       (async () => {
         const { data } = await supabase
           .from('visit_records')
-          .select('grooming_style, weight')
+          .select('grooming_style')
           .eq('pet_id', petId)
           .order('visit_date', { ascending: false })
           .limit(1)
@@ -1126,10 +1126,7 @@ function EditRecordForm() {
             setGroomingPrefilled(true)
           }
         }
-        // 몸무게도 이전 값 프리필
-        if (data?.weight && !weight) {
-          setWeight(String(data.weight))
-        }
+        // 몸무게 프리필 제거 — 레코드 본인 weight 는 line 902 에서 복원됨
       })()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
