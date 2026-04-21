@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 // ─── 다국어 ───
@@ -15,6 +15,15 @@ const T: Record<Lang, Record<string, string>> = {
     copyLink: '링크 복사', copied: '복사됨 ✓',
     kakao: '카카오톡 문의', call: '전화 예약',
     all: '전체',
+    todaysReport: '오늘의 웰니스 케어 기록',
+    homeCare: 'HOME CARE',
+    nextGrooming: '다음 미용 권장일',
+    nextBath: '다음 목욕 권장일',
+    pastVisits: '지난 방문 기록',
+    clean: '깨끗함',
+    signoff1: '소중한 가족을 믿고 맡겨주셔서 감사드리며,',
+    signoff2: '앞으로도 최선을 다하겠습니다.',
+    signoffSalon: '— 살롱드다줄 —',
   },
   en: {
     good: 'Good', attention: 'Attention',
@@ -24,6 +33,15 @@ const T: Record<Lang, Record<string, string>> = {
     copyLink: 'Copy Link', copied: 'Copied ✓',
     kakao: 'Book via KakaoTalk', call: 'Call to Book',
     all: 'All',
+    todaysReport: "Today's Wellness Care",
+    homeCare: 'HOME CARE TIPS',
+    nextGrooming: 'Next Grooming',
+    nextBath: 'Next Bath',
+    pastVisits: 'Past Visits',
+    clean: 'Clean',
+    signoff1: 'Thank you for trusting us with your precious family.',
+    signoff2: 'We will always do our best.',
+    signoffSalon: '— Salon de Dazul —',
   },
   ja: {
     good: '良好', attention: '注意',
@@ -33,7 +51,81 @@ const T: Record<Lang, Record<string, string>> = {
     copyLink: 'リンクをコピー', copied: 'コピー済み ✓',
     kakao: 'カカオで予約', call: 'お電話で予約',
     all: '全体',
+    todaysReport: '本日のウェルネスケア',
+    homeCare: 'ホームケアのヒント',
+    nextGrooming: '次回グルーミング推奨日',
+    nextBath: '次回バス推奨日',
+    pastVisits: '過去の来店記録',
+    clean: 'きれい',
+    signoff1: '大切なご家族をお預けいただきありがとうございます。',
+    signoff2: 'これからも精一杯努めてまいります。',
+    signoffSalon: '— サロン・ド・ダジュル —',
   },
+}
+
+// ─── 동적 번역 훅 (ko → en/ja, DB값 번역) ───
+// 번역 결과를 Record<ko, 번역된 텍스트>로 반환.
+// lang === 'ko' 이면 빈 map 반환 (원본 사용).
+function useTranslations(texts: string[], lang: Lang): { map: Record<string, string>; loading: boolean } {
+  const [map, setMap] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(false)
+  const key = useMemo(() => Array.from(new Set(texts.filter((t) => t && t.trim()))).sort().join('|'), [texts])
+
+  useEffect(() => {
+    if (lang === 'ko' || !key) {
+      setMap({})
+      setLoading(false)
+      return
+    }
+    const unique = key.split('|').filter(Boolean)
+    if (unique.length === 0) {
+      setMap({})
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts: unique, targetLang: lang }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const translations: unknown = data?.translations
+        if (!Array.isArray(translations)) {
+          setMap({})
+          setLoading(false)
+          return
+        }
+        const m: Record<string, string> = {}
+        for (let i = 0; i < unique.length; i++) {
+          const t = translations[i]
+          if (typeof t === 'string' && t.trim()) m[unique[i]] = t
+        }
+        setMap(m)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMap({})
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [lang, key])
+
+  return { map, loading }
+}
+
+function tr(text: string | null | undefined, map: Record<string, string>, lang: Lang): string {
+  if (!text) return ''
+  if (lang === 'ko') return text
+  return map[text] || text
 }
 
 function useLang(): [Lang, (l: Lang) => void] {
@@ -155,7 +247,8 @@ const SH = ({ children }: { children: string }) => (
 )
 
 // ─── 기록 카드 ───
-function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productCategoryMap }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string>; productCategoryMap: Record<string, string> }) {
+function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productCategoryMap, trMap }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string>; productCategoryMap: Record<string, string>; trMap: Record<string, string> }) {
+  const t = T[lang]
   const rawSvc = rec.service ?? rec.service_type ?? null
   const svc = rawSvc ? tSvc(rawSvc, lang) : null
   const spa = rec.spa_level ? { ...SPA[rec.spa_level], label: tSpa(rec.spa_level, lang) } : null
@@ -164,19 +257,27 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
   const coatValue = rec.coat_status
     ? rec.coat_status.replace(/^\s*엉킴\s*:\s*/, '').trim() || null
     : null
+  // 한국어 fallback '깨끗함' 을 언어별로 치환
+  const cleanFallback = t.clean
+  const translate = (v: string | null): string => {
+    if (!v) return cleanFallback
+    if (v === '깨끗함' || v === '없음' || v === '양호') return cleanFallback
+    return tr(v, trMap, lang) || v
+  }
   // 6개 행 항상 표시 — 값 없으면 '깨끗함'으로 기본 표시
   const bodyItems = [
-    { label: '피부', value: rec.skin_status || '깨끗함' },
-    { label: '엉킴', value: coatValue || '깨끗함' },
-    { label: '눈', value: cond.eyes || '깨끗함' },
-    { label: '귀', value: cond.ears || '깨끗함' },
-    { label: '치아', value: cond.teeth || '깨끗함' },
-    { label: '발톱', value: cond.nail || '깨끗함' },
+    { label: '피부', value: translate(rec.skin_status) },
+    { label: '엉킴', value: translate(coatValue) },
+    { label: '눈', value: translate(cond.eyes) },
+    { label: '귀', value: translate(cond.ears) },
+    { label: '치아', value: translate(cond.teeth) },
+    { label: '발톱', value: translate(cond.nail) },
   ]
 
-  const tips = rec.next_care_guide
+  const rawTips = rec.next_care_guide
     ? rec.next_care_guide.split('\n').map((s) => s.trim()).filter(Boolean)
     : []
+  const tips = rawTips.map((tip) => tr(tip, trMap, lang))
 
   const nextDate = rec.next_visit_date ? fmtDate(rec.next_visit_date) : null
   const nextWeeksN = rec.next_visit_date ? Math.ceil((new Date(rec.next_visit_date).getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000)) : 0
@@ -389,7 +490,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
           {/* HOME CARE */}
           {tips.length > 0 && (
             <div style={{ marginBottom: 28 }}>
-              <SH>Home Care</SH>
+              <SH>{t.homeCare}</SH>
               {tips.map((tip, i) => (
                 <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 10 }}>
                   <span style={{ color: C.gold, fontSize: 13, flexShrink: 0 }}>—</span>
@@ -422,7 +523,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
             <div style={{ padding: '24px', background: C.cream, marginTop: 8 }}>
               <SH>Message</SH>
               <p style={{ fontSize: 13, color: C.text, lineHeight: 2, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
-                {rec.comment}
+                {tr(rec.comment, trMap, lang)}
               </p>
               <div
                 style={{
@@ -435,9 +536,9 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                   lineHeight: 2,
                 }}
               >
-                <p>소중한 가족을 믿고 맡겨주셔서 감사드리며,</p>
-                <p>앞으로도 최선을 다하겠습니다.</p>
-                <p style={{ color: '#C9A96E', letterSpacing: '0.15em', marginTop: 8 }}>— 살롱드다줄 —</p>
+                <p>{t.signoff1}</p>
+                <p>{t.signoff2}</p>
+                <p style={{ color: '#C9A96E', letterSpacing: '0.15em', marginTop: 8 }}>{t.signoffSalon}</p>
               </div>
             </div>
           )}
@@ -462,10 +563,44 @@ export default function ReportClient({
   productCategoryMap?: Record<string, string>
 }) {
   const [lang, setLang] = useLang()
+  const t = T[lang]
   // 선택된 반려견 — 기본: 최신 레코드의 pet_id (가장 최근 방문한 아이)
   const [activePetId, setActivePetId] = useState<string | null>(records[0]?.pet_id ?? null)
   const [expandedId, setExpandedId] = useState<string | number | null>(records[0]?.id ?? null)
   const [showPast, setShowPast] = useState(false)
+
+  // 동적 번역 대상 — 모든 레코드에서 번역이 필요한 한국어 문자열 수집
+  const translatableTexts = useMemo(() => {
+    if (lang === 'ko') return []
+    const list: string[] = []
+    const CLEAN_SET = new Set(['깨끗함', '없음', '양호'])
+    for (const r of records) {
+      // 신체 상태 값
+      if (r.skin_status && !CLEAN_SET.has(r.skin_status)) list.push(r.skin_status)
+      if (r.coat_status) {
+        const v = r.coat_status.replace(/^\s*엉킴\s*:\s*/, '').trim()
+        if (v && !CLEAN_SET.has(v)) list.push(v)
+      }
+      // condition_status 파싱
+      if (r.condition_status) {
+        for (const p of r.condition_status.split('/').map((x) => x.trim())) {
+          const m = p.match(/^(?:눈|귀|치아|발톱)\s*:\s*(.+)$/)
+          if (m && m[1] && !CLEAN_SET.has(m[1])) list.push(m[1])
+        }
+      }
+      // 홈케어 팁
+      if (r.next_care_guide) {
+        for (const tip of r.next_care_guide.split('\n').map((s) => s.trim()).filter(Boolean)) {
+          list.push(tip)
+        }
+      }
+      // 보호자 메시지
+      if (r.comment) list.push(r.comment)
+    }
+    return list
+  }, [records, lang])
+
+  const { map: trMap } = useTranslations(translatableTexts, lang)
 
   // 선택된 반려견 기준으로 필터 (pet_id 없는 레코드는 전체 노출)
   const filtered = activePetId
@@ -632,7 +767,7 @@ export default function ReportClient({
                 marginTop: 32,
               }}
             >
-              오늘의 웰니스 케어 기록
+              {t.todaysReport}
             </div>
 
             <RecordCard
@@ -643,6 +778,7 @@ export default function ReportClient({
               lang={lang}
               productSummaryMap={productSummaryMap}
               productCategoryMap={productCategoryMap}
+              trMap={trMap}
             />
           </>
         )}
@@ -669,7 +805,7 @@ export default function ReportClient({
                 marginTop: 24,
               }}
             >
-              <span>지난 방문 기록 ({past.length}회)</span>
+              <span>{t.pastVisits} ({past.length})</span>
               <span style={{ color: C.gold, fontSize: 9, transition: 'transform 0.3s ease', transform: showPast ? 'rotate(180deg)' : 'rotate(0deg)' }}>
                 ▼
               </span>
@@ -684,6 +820,7 @@ export default function ReportClient({
                 lang={lang}
                 productSummaryMap={productSummaryMap}
                 productCategoryMap={productCategoryMap}
+                trMap={trMap}
               />
             ))}
           </>
