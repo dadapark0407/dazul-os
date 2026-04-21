@@ -988,9 +988,9 @@ function SessionForm() {
             setGroomingPrefilled(true)
           }
         }
-        // 몸무게도 이전 값 프리필
-        if (data?.weight && !weight) {
-          setWeight(String(data.weight))
+        // 몸무게도 이전 값 프리필 (사용자가 이미 입력했으면 유지)
+        if (data?.weight) {
+          setWeight((prev) => prev || String(data.weight))
         }
       })()
     }
