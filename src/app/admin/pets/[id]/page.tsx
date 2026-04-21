@@ -68,11 +68,12 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
     guardian = data
   }
 
-  // 방문 기록 (전체 조회)
+  // 방문 기록 (전체 조회) — 삭제되지 않은 것만
   const { data: visitRecords } = await supabase
     .from('visit_records')
     .select('*')
     .eq('pet_id', id)
+    .is('deleted_at', null)
     .order('visit_date', { ascending: false })
 
   const records = visitRecords ?? []

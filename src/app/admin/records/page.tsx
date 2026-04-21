@@ -80,6 +80,7 @@ export default function AdminRecordsPage() {
       const { data: recordsData } = await supabase
         .from('visit_records')
         .select('id, visit_date, service_type, pet_id, guardian_id, created_at')
+        .is('deleted_at', null)
         .order('visit_date', { ascending: false })
         .limit(200)
 

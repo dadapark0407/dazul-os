@@ -16,6 +16,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'records', label: '케어 기록', href: '/admin/records', icon: 'ClipboardList', category: 'main' },
   { id: 'products', label: '제품 관리', href: '/admin/products', icon: 'Package', category: 'main' },
   { id: 'followups', label: '후속 관리', href: '/admin/followups', icon: 'Bell', category: 'main' },
+  { id: 'trash', label: '휴지통', href: '/admin/trash', icon: 'Trash2', category: 'main' },
   { id: 'settings', label: '설정', href: '/admin/settings', icon: 'Settings', category: 'main' },
 
   // ─── 숨겨진 항목 (hidden: true — 향후 활성화) ───

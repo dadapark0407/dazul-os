@@ -31,6 +31,7 @@ export default function AdminGuardiansPage() {
       const { data: guardiansData } = await supabase
         .from('guardians')
         .select('id, name, phone')
+        .is('deleted_at', null)
         .order('name')
 
       const safeGuardians = guardiansData ?? []

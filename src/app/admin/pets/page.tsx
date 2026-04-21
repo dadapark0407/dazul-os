@@ -45,6 +45,7 @@ export default function AdminPetsPage() {
       const { data: petsData, error: petsErr } = await supabase
         .from('pets')
         .select('id, name, breed, guardian_id, created_at')
+        .is('deleted_at', null)
         .order('name')
 
       if (petsErr) {

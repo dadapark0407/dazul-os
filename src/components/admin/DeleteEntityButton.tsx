@@ -31,7 +31,11 @@ export default function DeleteEntityButton({
   async function handleDelete() {
     setDeleting(true)
     setErrorMsg('')
-    const { error } = await supabase.from(table).delete().eq('id', recordId)
+    // 소프트 삭제 — deleted_at 에 현재 시각 기록 (휴지통으로 이동)
+    const { error } = await supabase
+      .from(table)
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', recordId)
 
     if (error) {
       setErrorMsg(`삭제 실패: ${error.message}`)

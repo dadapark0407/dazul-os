@@ -65,11 +65,12 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
 
   const isActive = resolveActiveState(guardian)
 
-  // 반려견 목록
+  // 반려견 목록 — 삭제되지 않은 것만
   const { data: petsData } = await supabase
     .from('pets')
     .select('*')
     .eq('guardian_id', id)
+    .is('deleted_at', null)
     .order('name')
 
   const pets = (petsData ?? []) as Array<Record<string, unknown>>
@@ -83,6 +84,7 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
       .from('visit_records')
       .select('*')
       .in('pet_id', petIds)
+      .is('deleted_at', null)
       .order('visit_date', { ascending: false })
 
     records = recordsData ?? []
