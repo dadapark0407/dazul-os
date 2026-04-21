@@ -80,6 +80,25 @@ const NEXT_VISIT_OPTIONS = [
 // ─────────────────────────────────────────────
 // 헬퍼
 // ─────────────────────────────────────────────
+// 한글 IME 입력 보호 — composing 중에는 onChange 무시, compositionEnd 에 커밋
+function imeHandlers(
+  composingRef: React.MutableRefObject<boolean>,
+  setter: (v: string) => void
+) {
+  return {
+    onCompositionStart: () => {
+      composingRef.current = true
+    },
+    onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      composingRef.current = false
+      setter((e.currentTarget as HTMLInputElement | HTMLTextAreaElement).value)
+    },
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (!composingRef.current) setter(e.target.value)
+    },
+  }
+}
+
 function toggleArr<T>(arr: T[], val: T, exclusive?: T): T[] {
   if (exclusive !== undefined && val === exclusive) return [exclusive]
   const without = exclusive !== undefined ? arr.filter((v) => v !== exclusive) : arr
@@ -336,6 +355,7 @@ function BodyRow({
   memoExclusions?: string[]
 }) {
   const exclusions = memoExclusions ?? []
+  const composingRef = useRef(false)
   return (
     <div className="border-b border-[#E8E8E8] py-4 last:border-b-0">
       <div className="flex items-start gap-4">
@@ -351,7 +371,7 @@ function BodyRow({
                   <input
                     type="text"
                     value={memos[item] ?? ''}
-                    onChange={(e) => onMemoChange(item, e.target.value)}
+                    {...imeHandlers(composingRef, (v) => onMemoChange(item, v))}
                     placeholder="부위 (예: 다리, 배)"
                     className="flex-1 border-b border-[#D0D0D0] bg-transparent px-0 py-1 text-xs text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
                   />
@@ -374,6 +394,7 @@ function NoteCard({
   onChange: (patch: Partial<NoteEntry>) => void
   onRemove: () => void
 }) {
+  const composingRef = useRef(false)
   const SEVERITY_COLOR: Record<string, string> = {
     일반: 'bg-stone-100 text-stone-600',
     경미: 'bg-blue-100 text-blue-700',
@@ -425,7 +446,7 @@ function NoteCard({
       </div>
       <textarea
         value={note.content}
-        onChange={(e) => onChange({ content: e.target.value })}
+        {...imeHandlers(composingRef, (v) => onChange({ content: v }))}
         placeholder="내용을 입력하세요"
         rows={3}
         className="w-full resize-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 placeholder:text-stone-300 outline-none transition-colors focus:bg-white focus:ring-2 focus:ring-amber-300"
@@ -629,6 +650,7 @@ function SessionForm() {
   const today = new Date().toISOString().split('T')[0]
   const [isPending, startTransition] = useTransition()
   const savingRef = useRef(false)
+  const composingRef = useRef(false)
 
   // ─── DB 조회용 ───
   const [guardians, setGuardians] = useState<Guardian[]>([])
@@ -1453,7 +1475,10 @@ function SessionForm() {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setShowSearchResults(true) }}
+                  {...imeHandlers(composingRef, (v) => {
+                    setSearchQuery(v)
+                    setShowSearchResults(true)
+                  })}
                   onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
                   placeholder="보호자 또는 반려견 이름 검색..."
                   className={inputCls}
@@ -1695,7 +1720,7 @@ function SessionForm() {
                               <input
                                 type="text"
                                 value={q}
-                                onChange={(e) => setProductSearch(cat, e.target.value)}
+                                {...imeHandlers(composingRef, (v) => setProductSearch(cat, v))}
                                 onFocus={() => setFocusedCat(cat)}
                                 onBlur={() => setTimeout(() => setFocusedCat((cur) => (cur === cat ? null : cur)), 150)}
                                 placeholder={selectedInCat.length > 0 ? '추가 검색...' : `${cat} 검색 또는 클릭`}
@@ -1765,7 +1790,7 @@ function SessionForm() {
                       <input
                         type="text"
                         value={groomingStyle[item.key]}
-                        onChange={(e) => setGS(item.key, e.target.value)}
+                        {...imeHandlers(composingRef, (v) => setGS(item.key, v))}
                         placeholder={item.ph}
                         className="w-full bg-transparent px-0 py-2 text-sm outline-none transition-all duration-300"
                         style={{
@@ -1781,7 +1806,7 @@ function SessionForm() {
                   <input
                     type="text"
                     value={groomingStyle.sanitary}
-                    onChange={(e) => setGS('sanitary', e.target.value)}
+                    {...imeHandlers(composingRef, (v) => setGS('sanitary', v))}
                     placeholder="클리핑, 가위컷"
                     className="w-full bg-transparent px-0 py-2 text-sm outline-none transition-all duration-300"
                     style={{
@@ -1846,7 +1871,7 @@ function SessionForm() {
               <div className="px-5 pb-4">
                 <textarea
                   value={internalMemo}
-                  onChange={(e) => setInternalMemo(e.target.value)}
+                  {...imeHandlers(composingRef, setInternalMemo)}
                   rows={4}
                   placeholder="미용 스타일, 특이사항, 내부 참고사항 등"
                   className="w-full resize-none border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#0A0A0A]"
@@ -1900,7 +1925,7 @@ function SessionForm() {
               <div className="px-5 pb-5">
                 <textarea
                   value={comment}
-                  onChange={(e) => setComment(e.target.value)}
+                  {...imeHandlers(composingRef, setComment)}
                   rows={4}
                   placeholder="보호자에게 전달할 내용을 입력하세요"
                   className="w-full resize-none border-b border-[#D0D0D0] bg-transparent px-0 py-2 text-sm text-[#0A0A0A] placeholder:text-[#D0D0D0] outline-none transition-all duration-300 focus:border-[#C9A96E]"
@@ -1961,7 +1986,7 @@ function SessionForm() {
                   <input
                     type="text"
                     value={nextVisitCustom}
-                    onChange={(e) => setNextVisitCustom(e.target.value)}
+                    {...imeHandlers(composingRef, setNextVisitCustom)}
                     placeholder="메모 (예: 6주 후 전체미용)"
                     className={inputCls}
                   />
@@ -1997,7 +2022,7 @@ function SessionForm() {
                     <span className="mt-2 shrink-0" style={{ color: '#C9A96E' }}>—</span>
                     <textarea
                       value={tip}
-                      onChange={(e) => updateTip(i, e.target.value)}
+                      {...imeHandlers(composingRef, (v) => updateTip(i, v))}
                       rows={2}
                       className="flex-1 resize-none py-2 text-sm outline-none"
                       style={{
