@@ -17,7 +17,15 @@ export default function LogoutButton() {
     <button
       type="button"
       onClick={handleLogout}
-      className="text-[11px] font-light tracking-[0.1em] text-white/40 transition-all duration-400 hover:text-dz-accent lg:text-white/40"
+      style={{
+        background: 'transparent',
+        border: 'none',
+        color: '#8A8A7A',
+        fontSize: 11,
+        letterSpacing: '0.1em',
+        padding: '4px 8px',
+        cursor: 'pointer',
+      }}
     >
       로그아웃
     </button>
