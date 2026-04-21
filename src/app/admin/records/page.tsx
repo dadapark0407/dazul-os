@@ -27,6 +27,23 @@ function formatDate(value?: string | null) {
   }).format(date)
 }
 
+/** service_type 내 '스파 *' 항목을 이모지+풀네임 라벨로 교체 */
+function formatServiceType(value?: string | null): string {
+  if (!value) return '-'
+  const map: Record<string, string> = {
+    '스파 베이직': '베이직 코스',
+    '스파 에센셜': '✨ 에센셜 스파 코스',
+    '스파 시그니처': '💎 시그니처 팩 코스',
+    '스파 프레스티지': '👑 프레스티지 풀 케어 코스',
+  }
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => map[s] ?? s)
+    .join(', ')
+}
+
 /** 오늘 기준 N일 전 날짜를 YYYY-MM-DD로 반환 */
 function daysAgo(n: number) {
   const d = new Date()
@@ -313,18 +330,34 @@ export default function AdminRecordsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-neutral-500">
-                    {r.service_type ?? '-'}
+                    {formatServiceType(r.service_type)}
                   </td>
                   <td className="px-4 py-3">
-                    {r.guardian_id && guardianMap[r.guardian_id] ? (
-                      <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                        공유 가능
-                      </span>
-                    ) : (
-                      <span className="text-xs text-neutral-400">
-                        보호자 미연결
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {r.guardian_id && guardianMap[r.guardian_id] ? (
+                        <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                          공유 가능
+                        </span>
+                      ) : (
+                        <span className="text-xs text-neutral-400">
+                          보호자 미연결
+                        </span>
+                      )}
+                      <Link
+                        href={`/session/edit/${r.id}`}
+                        style={{
+                          border: '1px solid #E8E5E0',
+                          background: '#FFFFFF',
+                          color: '#8A8A7A',
+                          borderRadius: 0,
+                          fontSize: 11,
+                          padding: '4px 10px',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        수정
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
