@@ -1194,19 +1194,21 @@ function SessionForm() {
         const fmtItems = (items: string[], memos: Record<string, string>, excludes: string[] = []) =>
           items.filter((i) => !excludes.includes(i)).map((i) => memos[i] ? `${i}(${memos[i]})` : i).join(', ')
 
+        // 정상값(없음/깨끗함/적당함 등)도 null로 치환하지 않고 그대로 저장
+        // 미선택(배열 길이 0)일 때만 null / 빈 문자열 반환
         const skinStr = skin.length > 0 ? fmtItems(skin, skinMemos) : null
-        const coatStr = tangles.length > 0 && !(tangles.length === 1 && tangles[0] === '없음')
-          ? `엉킴: ${fmtItems(tangles, tangleMemos, ['없음'])}`
+        const coatStr = tangles.length > 0
+          ? `엉킴: ${fmtItems(tangles, tangleMemos)}`
           : null
-        const teethStr = teeth.length > 0 && !(teeth.length === 1 && teeth[0] === '깨끗함')
-          ? `치아: ${fmtItems(teeth, teethMemos, ['깨끗함'])}`
-          : teeth.includes('깨끗함') ? '치아: 깨끗함' : ''
-        const nailStr = nails.length > 0 && !(nails.length === 1 && nails[0] === '적당함')
-          ? `발톱: ${fmtItems(nails, nailMemos, ['적당함'])}`
-          : nails.includes('적당함') ? '발톱: 적당함' : ''
+        const teethStr = teeth.length > 0
+          ? `치아: ${fmtItems(teeth, teethMemos)}`
+          : ''
+        const nailStr = nails.length > 0
+          ? `발톱: ${fmtItems(nails, nailMemos)}`
+          : ''
         const conditionStr = [
-          eyes.length > 0 && !(eyes.length === 1 && eyes[0] === '깨끗함') ? `눈: ${fmtItems(eyes, eyeMemos, ['깨끗함'])}` : '',
-          ears.length > 0 && !(ears.length === 1 && ears[0] === '깨끗함') ? `귀: ${fmtItems(ears, earMemos, ['깨끗함'])}` : '',
+          eyes.length > 0 ? `눈: ${fmtItems(eyes, eyeMemos)}` : '',
+          ears.length > 0 ? `귀: ${fmtItems(ears, earMemos)}` : '',
           teethStr,
           nailStr,
         ]
