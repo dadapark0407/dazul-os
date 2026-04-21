@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import StatusAction from '@/components/admin/StatusAction'
 import CareHistoryTable from '@/components/admin/CareHistoryTable'
 import HealthTrend from '@/components/admin/HealthTrend'
+import DeleteEntityButton from '@/components/admin/DeleteEntityButton'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -151,6 +152,13 @@ export default async function AdminPetDetailPage({ params }: PageProps) {
           >
             기록 작성
           </Link>
+          <DeleteEntityButton
+            table="pets"
+            recordId={id}
+            title="반려견 삭제"
+            warningText="이 반려견을 삭제하면 모든 케어 기록도 함께 삭제됩니다. 계속하시겠습니까?"
+            redirectPath="/admin/pets"
+          />
         </div>
       </div>
 

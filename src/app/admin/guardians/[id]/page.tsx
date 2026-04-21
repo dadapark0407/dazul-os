@@ -5,6 +5,7 @@ import { buildSiteUrl } from '@/lib/siteUrl'
 import StatusAction from '@/components/admin/StatusAction'
 import CopyTextButton from '@/components/CopyTextButton'
 import GuardianPetTabs from '@/components/admin/GuardianPetTabs'
+import DeleteEntityButton from '@/components/admin/DeleteEntityButton'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -151,6 +152,13 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
           >
             기록 작성
           </Link>
+          <DeleteEntityButton
+            table="guardians"
+            recordId={id}
+            title="보호자 삭제"
+            warningText="이 보호자를 삭제하면 연결된 모든 반려견 정보도 함께 삭제됩니다. 계속하시겠습니까?"
+            redirectPath="/admin/guardians"
+          />
         </div>
       </div>
 
