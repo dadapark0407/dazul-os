@@ -1020,21 +1020,28 @@ function SessionForm() {
   }, [petId, pets])
 
   // ─────────────────────────────────────────────
-  // 임시저장 (localStorage)
+  // 임시저장 (localStorage) — pet_id 기준 key
   // ─────────────────────────────────────────────
-  const DRAFT_KEY = 'dazul_care_draft'
+  const DRAFT_PREFIX = 'dazul_care_draft'
+  // pet 선택 전에는 'new' suffix, 선택 후에는 해당 petId suffix 로 저장
+  const getDraftKey = useCallback((id: string | null | undefined) => {
+    return `${DRAFT_PREFIX}_${id && id.trim() ? id : 'new'}`
+  }, [])
+
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null)
   const [draftAvailable, setDraftAvailable] = useState(false)
   const [showRestoreBanner, setShowRestoreBanner] = useState(false)
+  const [restoreKey, setRestoreKey] = useState<string | null>(null)
   const [manualDraftMessage, setManualDraftMessage] = useState('')
   const draftInitialLoadRef = useRef(false)
   const draftHydratingRef = useRef(false)
 
   function collectDraftState() {
+    // 몸무게는 임시저장 대상에서 제외 — 매 방문마다 직접 입력
     return {
       // 고객
       guardianId, petId, petName, guardianName, guardianPhone,
-      sessionDate, weight,
+      sessionDate,
       // 서비스
       mainService, spaLevel, styleNotes,
       groomingStyle, groomingPrefilled,
@@ -1061,7 +1068,7 @@ function SessionForm() {
         savedAt: new Date().toISOString(),
         state: collectDraftState(),
       }
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
+      localStorage.setItem(getDraftKey(petId), JSON.stringify(payload))
       setDraftSavedAt(new Date(payload.savedAt))
     } catch (e) {
       console.warn('draft save failed:', e)
@@ -1071,37 +1078,50 @@ function SessionForm() {
   function clearDraftFromStorage() {
     if (typeof window === 'undefined') return
     try {
-      localStorage.removeItem(DRAFT_KEY)
+      // 현재 petId 기준 key + 'new' key 모두 삭제 (폼 시작 후 반려견을 선택한 경우 대비)
+      localStorage.removeItem(getDraftKey(petId))
+      localStorage.removeItem(getDraftKey(null))
       setDraftSavedAt(null)
       setDraftAvailable(false)
       setShowRestoreBanner(false)
+      setRestoreKey(null)
     } catch {
       /* ignore */
     }
   }
 
-  // 페이지 접속 시 기존 draft 감지
+  // 페이지 접속 시 기존 draft 감지 — URL petId 기준 key 우선, 없으면 'new'
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (draftInitialLoadRef.current) return
     draftInitialLoadRef.current = true
     try {
-      const raw = localStorage.getItem(DRAFT_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (parsed?.state) {
-        setDraftAvailable(true)
-        setShowRestoreBanner(true)
+      // URL의 petId 가 있으면 해당 key 우선 조회
+      const urlPetId = searchParams?.get('petId') ?? null
+      const keysToTry = urlPetId
+        ? [getDraftKey(urlPetId), getDraftKey(null)]
+        : [getDraftKey(null)]
+      for (const k of keysToTry) {
+        const raw = localStorage.getItem(k)
+        if (!raw) continue
+        const parsed = JSON.parse(raw)
+        if (parsed?.state) {
+          setDraftAvailable(true)
+          setShowRestoreBanner(true)
+          setRestoreKey(k)
+          return
+        }
       }
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [getDraftKey, searchParams])
 
   function restoreDraft() {
     if (typeof window === 'undefined') return
     try {
-      const raw = localStorage.getItem(DRAFT_KEY)
+      const k = restoreKey ?? getDraftKey(petId)
+      const raw = localStorage.getItem(k)
       if (!raw) return
       const parsed = JSON.parse(raw)
       const s = parsed?.state
@@ -1114,10 +1134,7 @@ function SessionForm() {
       if (typeof s.guardianName === 'string') setGuardianName(s.guardianName)
       if (typeof s.guardianPhone === 'string') setGuardianPhone(s.guardianPhone)
       if (typeof s.sessionDate === 'string') setSessionDate(s.sessionDate)
-      if (typeof s.weight === 'string') {
-        console.log('setWeight 호출:', s.weight, '호출 위치:', '임시저장복원')
-        setWeight(s.weight)
-      }
+      // 몸무게는 임시저장 복원 대상에서 제외
       if (typeof s.mainService === 'string') setMainService(s.mainService)
       if (s.spaLevel === null || typeof s.spaLevel === 'string') setSpaLevel(s.spaLevel as SpaLevel)
       if (typeof s.styleNotes === 'string') setStyleNotes(s.styleNotes)
@@ -1167,7 +1184,7 @@ function SessionForm() {
       const hasAnyInput =
         !!petId || !!guardianId ||
         !!mainService || !!spaLevel ||
-        !!weight || !!internalMemo || !!comment ||
+        !!internalMemo || !!comment ||
         skin.length > 0 || tangles.length > 0 ||
         selectedProductIds.length > 0
       if (!hasAnyInput) return
