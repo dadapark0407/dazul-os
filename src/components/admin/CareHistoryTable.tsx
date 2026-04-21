@@ -34,6 +34,19 @@ function idStr(obj: R, key: string): string {
   return ''
 }
 
+// spa_level 한글 라벨 변환
+const SPA_LABEL_MAP: Record<string, string> = {
+  basic: '베이직 코스',
+  premium: '✨ 에센셜 스파 코스',
+  essential: '✨ 에센셜 스파 코스',
+  deep: '💎 시그니처 팩 코스',
+  signature: '💎 시그니처 팩 코스',
+  prestige: '👑 프레스티지 풀 케어 코스',
+}
+function fmtSpa(raw: string): string {
+  return SPA_LABEL_MAP[raw] ?? raw
+}
+
 function parseGroomingStyle(obj: R): Record<string, string> {
   const gs = obj.grooming_style
   if (gs && typeof gs === 'object' && !Array.isArray(gs)) return gs as Record<string, string>
@@ -122,7 +135,7 @@ export default function CareHistoryTable({
         s(r, 'visit_date'),
         fmtWeight(r),
         svc,
-        spa,
+        spa ? fmtSpa(spa) : '',
         s(r, 'care_actions'),
         gs.face ?? '',
         gs.body ?? '',
@@ -243,7 +256,7 @@ export default function CareHistoryTable({
                   </td>
                   <td style={cell}>{svc || '-'}</td>
                   <td style={{ ...cell, color: spa ? GOLD : undefined, fontWeight: spa ? 500 : 400 }}>
-                    {spa || '-'}
+                    {spa ? fmtSpa(spa) : '-'}
                   </td>
                   <td style={{ ...cell, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {(() => {
