@@ -193,13 +193,19 @@ export default function CareHistoryTable({
 
       {/* 테이블 */}
       <div style={{ overflowX: 'auto', border: '1px solid #E8E8E8' }}>
+        {/* sticky 컬럼 !important 오버라이드 (인라인 스타일은 !important 불가) */}
+        <style>{`
+          .dz-sticky-header { background: #0A0A0A !important; border-right: 1px solid #E8E5E0 !important; }
+          .dz-sticky-even   { background: #FFFFFF !important; border-right: 1px solid #E8E5E0 !important; }
+          .dz-sticky-odd    { background: #FAFAF8 !important; border-right: 1px solid #E8E5E0 !important; }
+        `}</style>
         <table style={{ borderCollapse: 'collapse', minWidth: 1400 }}>
           {/* 2단 헤더 */}
           <thead>
             {/* 1행: 그룹 헤더 */}
             <tr>
-              <th style={{ ...HD, ...STICKY, width: 60 }} rowSpan={2}>날짜</th>
-              <th style={{ ...HD, ...STICKY2, width: 50 }} rowSpan={2}>kg</th>
+              <th className="dz-sticky-header" style={{ ...HD, ...STICKY, width: 60 }} rowSpan={2}>날짜</th>
+              <th className="dz-sticky-header" style={{ ...HD, ...STICKY2, width: 50 }} rowSpan={2}>kg</th>
               <th style={{ ...GH }} colSpan={3}>오늘의 관리</th>
               <th style={{ ...GH }} colSpan={5}>미용 스타일</th>
               <th style={{ ...GH }} colSpan={6}>특이사항</th>
@@ -248,10 +254,10 @@ export default function CareHistoryTable({
                   onMouseLeave={() => setHoverId((cur) => (cur === rowKey ? null : cur))}
                   style={{ cursor: recordId ? 'pointer' : 'default' }}
                 >
-                  <td style={{ ...cell, ...STICKY, background: stickyBg, fontWeight: 500 }}>
+                  <td className={i % 2 === 1 ? 'dz-sticky-odd' : 'dz-sticky-even'} style={{ ...cell, ...STICKY, background: stickyBg, fontWeight: 500 }}>
                     {s(r, 'visit_date') ? formatDate(s(r, 'visit_date')) : '-'}
                   </td>
-                  <td style={{ ...cell, ...STICKY2, background: stickyBg }}>
+                  <td className={i % 2 === 1 ? 'dz-sticky-odd' : 'dz-sticky-even'} style={{ ...cell, ...STICKY2, background: stickyBg }}>
                     {fmtWeight(r) || '-'}
                   </td>
                   <td style={cell}>{svc || '-'}</td>
