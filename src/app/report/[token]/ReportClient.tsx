@@ -24,6 +24,7 @@ const T: Record<Lang, Record<string, string>> = {
     signoff1: '소중한 가족을 믿고 맡겨주셔서 감사드리며,',
     signoff2: '앞으로도 최선을 다하겠습니다.',
     signoffSalon: '— 살롱드다줄 —',
+    skin: '피부', coat: '엉킴', eyes: '눈', ears: '귀', teeth: '치아', nail: '발톱',
   },
   en: {
     good: 'Good', attention: 'Attention',
@@ -42,6 +43,7 @@ const T: Record<Lang, Record<string, string>> = {
     signoff1: 'Thank you for trusting us with your precious family.',
     signoff2: 'We will always do our best.',
     signoffSalon: '— Salon de Dazul —',
+    skin: 'Skin', coat: 'Coat', eyes: 'Eyes', ears: 'Ears', teeth: 'Teeth', nail: 'Nails',
   },
   ja: {
     good: '良好', attention: '注意',
@@ -60,6 +62,7 @@ const T: Record<Lang, Record<string, string>> = {
     signoff1: '大切なご家族をお預けいただきありがとうございます。',
     signoff2: 'これからも精一杯努めてまいります。',
     signoffSalon: '— サロン・ド・ダジュル —',
+    skin: '皮膚', coat: '毛並み', eyes: '目', ears: '耳', teeth: '歯', nail: '爪',
   },
 }
 
@@ -247,7 +250,7 @@ const SH = ({ children }: { children: string }) => (
 )
 
 // ─── 기록 카드 ───
-function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productCategoryMap, trMap }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string>; productCategoryMap: Record<string, string>; trMap: Record<string, string> }) {
+function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productCategoryMap, trMap, fullDate = false }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string>; productCategoryMap: Record<string, string>; trMap: Record<string, string>; fullDate?: boolean }) {
   const t = T[lang]
   const rawSvc = rec.service ?? rec.service_type ?? null
   const svc = rawSvc ? tSvc(rawSvc, lang) : null
@@ -266,12 +269,12 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
   }
   // 6개 행 항상 표시 — 값 없으면 '깨끗함'으로 기본 표시
   const bodyItems = [
-    { label: '피부', value: translate(rec.skin_status) },
-    { label: '엉킴', value: translate(coatValue) },
-    { label: '눈', value: translate(cond.eyes) },
-    { label: '귀', value: translate(cond.ears) },
-    { label: '치아', value: translate(cond.teeth) },
-    { label: '발톱', value: translate(cond.nail) },
+    { label: t.skin, value: translate(rec.skin_status) },
+    { label: t.coat, value: translate(coatValue) },
+    { label: t.eyes, value: translate(cond.eyes) },
+    { label: t.ears, value: translate(cond.ears) },
+    { label: t.teeth, value: translate(cond.teeth) },
+    { label: t.nail, value: translate(cond.nail) },
   ]
 
   const rawTips = rec.next_care_guide
@@ -312,7 +315,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
       >
         <div>
           <p style={{ fontSize: 13, fontWeight: 400, color: C.text, letterSpacing: '0.08em' }}>
-            {fmtShort(rec.visit_date)}
+            {fullDate ? fmtDate(rec.visit_date) : fmtShort(rec.visit_date)}
           </p>
           <p style={{ fontSize: 11, color: C.sub, marginTop: 4, letterSpacing: '0.05em' }}>
             {[svc, spa ? spa.label : null, weight].filter(Boolean).join('  ·  ')}
@@ -525,21 +528,6 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
               <p style={{ fontSize: 13, color: C.text, lineHeight: 2, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
                 {tr(rec.comment, trMap, lang)}
               </p>
-              <div
-                style={{
-                  textAlign: 'center',
-                  marginTop: 20,
-                  paddingTop: 16,
-                  borderTop: '1px solid #E8E5E0',
-                  fontSize: 11,
-                  color: '#8A8A7A',
-                  lineHeight: 2,
-                }}
-              >
-                <p>{t.signoff1}</p>
-                <p>{t.signoff2}</p>
-                <p style={{ color: '#C9A96E', letterSpacing: '0.15em', marginTop: 8 }}>{t.signoffSalon}</p>
-              </div>
             </div>
           )}
         </div>
@@ -828,10 +816,27 @@ export default function ReportClient({
                 productSummaryMap={productSummaryMap}
                 productCategoryMap={productCategoryMap}
                 trMap={trMap}
+                fullDate
               />
             ))}
           </>
         )}
+
+        {/* Signoff — 항상 하단 고정 */}
+        <div
+          style={{
+            textAlign: 'center',
+            marginTop: 48,
+            padding: '32px 24px 16px',
+            fontSize: 11,
+            color: '#8A8A7A',
+            lineHeight: 2,
+          }}
+        >
+          <p>{t.signoff1}</p>
+          <p>{t.signoff2}</p>
+          <p style={{ color: '#C9A96E', letterSpacing: '0.15em', marginTop: 12 }}>{t.signoffSalon}</p>
+        </div>
       </main>
     </div>
   )
