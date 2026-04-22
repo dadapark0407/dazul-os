@@ -264,46 +264,45 @@ export default function CareHistoryTable({
                   <td style={{ ...cell, color: spa ? GOLD : undefined, fontWeight: spa ? 500 : 400 }}>
                     {spa ? fmtSpa(spa) : '-'}
                   </td>
-                  <td style={{ ...cell, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td style={{ ...cell, maxWidth: 120, overflow: 'visible', whiteSpace: 'normal' }}>
                     {(() => {
                       const items = extractKeyProducts(s(r, 'care_actions'))
                       if (items.length === 0) return '-'
                       return (
                         <span>
-                          {items.map((it, idx) => (
-                            <span key={it.label} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {items.map((it) => (
+                            <span key={it.label} style={{ display: 'block', whiteSpace: 'normal' }}>
                               <span style={{ color: '#8A8A7A' }}>{it.label}:</span> {it.value}
-                              {idx < items.length - 1 ? null : null}
                             </span>
                           ))}
                         </span>
                       )
                     })()}
                   </td>
-                  <td style={cell}>{gs.face || '-'}</td>
-                  <td style={cell}>{gs.body || '-'}</td>
-                  <td style={cell}>{gs.legs || '-'}</td>
-                  <td style={cell}>{gs.tail || '-'}</td>
-                  <td style={cell}>{gs.sanitary || '-'}</td>
-                  <td style={{ ...cell, color: hasIssue(s(r, 'skin_status')) ? GOLD : undefined }}>
+                  <td style={{ ...cell, minWidth: 60 }}>{gs.face || '-'}</td>
+                  <td style={{ ...cell, minWidth: 60 }}>{gs.body || '-'}</td>
+                  <td style={{ ...cell, minWidth: 60 }}>{gs.legs || '-'}</td>
+                  <td style={{ ...cell, minWidth: 60 }}>{gs.tail || '-'}</td>
+                  <td style={{ ...cell, minWidth: 60 }}>{gs.sanitary || '-'}</td>
+                  <td style={{ ...cell, minWidth: 60, color: hasIssue(s(r, 'skin_status')) ? GOLD : undefined }}>
                     {s(r, 'skin_status') || '-'}
                   </td>
-                  <td style={{ ...cell, color: hasIssue(s(r, 'coat_status')) ? GOLD : undefined }}>
+                  <td style={{ ...cell, minWidth: 60, color: hasIssue(s(r, 'coat_status')) ? GOLD : undefined }}>
                     {s(r, 'coat_status') || '-'}
                   </td>
-                  <td style={{ ...cell, color: hasIssue(cond.eyes ?? '') ? GOLD : undefined }}>
+                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.eyes ?? '') ? GOLD : undefined }}>
                     {cond.eyes || '-'}
                   </td>
-                  <td style={{ ...cell, color: hasIssue(cond.ears ?? '') ? GOLD : undefined }}>
+                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.ears ?? '') ? GOLD : undefined }}>
                     {cond.ears || '-'}
                   </td>
-                  <td style={{ ...cell, color: hasIssue(cond.teeth ?? '') ? GOLD : undefined }}>
+                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.teeth ?? '') ? GOLD : undefined }}>
                     {cond.teeth || '-'}
                   </td>
-                  <td style={{ ...cell, color: hasIssue(cond.nail ?? '') ? GOLD : undefined }}>
+                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.nail ?? '') ? GOLD : undefined }}>
                     {cond.nail || '-'}
                   </td>
-                  <td style={{ ...cell, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <td style={{ ...cell, maxWidth: 200, overflow: 'visible', whiteSpace: 'normal' }}>
                     {s(r, 'special_notes') || '-'}
                   </td>
                 </tr>
