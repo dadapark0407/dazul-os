@@ -144,17 +144,22 @@ export default async function AdminDashboardPage() {
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10)
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
 
-  type StatRecord = { guardian_id: string | null; spa_level: string | null; visit_date: string | null }
+  type StatRecord = {
+    guardian_id: string | null
+    pet_id: string | null
+    spa_level: string | null
+    visit_date: string | null
+  }
 
   const [{ data: thisMonthVisits }, { data: lastMonthVisits }] = await Promise.all([
     supabase
       .from('visit_records')
-      .select('guardian_id, spa_level, visit_date')
+      .select('guardian_id, pet_id, spa_level, visit_date')
       .gte('visit_date', thisMonthStart)
       .lt('visit_date', nextMonthStart),
     supabase
       .from('visit_records')
-      .select('guardian_id, visit_date')
+      .select('guardian_id, pet_id, visit_date')
       .gte('visit_date', lastMonthStart)
       .lt('visit_date', thisMonthStart),
   ])
@@ -162,15 +167,16 @@ export default async function AdminDashboardPage() {
   const thisMonth = (thisMonthVisits ?? []) as StatRecord[]
   const lastMonth = (lastMonthVisits ?? []) as StatRecord[]
 
+  // pet_id 기준 재방문율: 2회 이상 방문한 반려견 / 전체 unique 반려견
   function computeRevisitRate(rows: StatRecord[]): { total: number; revisitCount: number; rate: number } {
-    const byGuardian: Record<string, number> = {}
+    const byPet: Record<string, number> = {}
     for (const r of rows) {
-      const g = r.guardian_id
-      if (!g) continue
-      byGuardian[g] = (byGuardian[g] ?? 0) + 1
+      const p = r.pet_id
+      if (!p) continue
+      byPet[p] = (byPet[p] ?? 0) + 1
     }
-    const total = Object.values(byGuardian).reduce((a, b) => a + b, 0)
-    const revisitCount = Object.values(byGuardian).reduce((a, b) => a + (b >= 2 ? b : 0), 0)
+    const total = Object.keys(byPet).length
+    const revisitCount = Object.values(byPet).filter((n) => n >= 2).length
     const rate = total > 0 ? Math.round((revisitCount / total) * 100) : 0
     return { total, revisitCount, rate }
   }
@@ -369,7 +375,7 @@ export default async function AdminDashboardPage() {
             )}
           </div>
           <p style={{ fontSize: 11, color: '#8A8A7A', marginTop: 8 }}>
-            이번달 방문 {thisMonth.length}건 · 재방문 {thisRev.revisitCount}건
+            이번달 방문 반려견 {thisRev.total}마리 · 재방문 {thisRev.revisitCount}마리
           </p>
         </div>
 
