@@ -23,6 +23,22 @@ export default function AdminProductsPage() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('전체')
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('전체')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDelete(id: string) {
+    if (!confirm('이 제품을 삭제하시겠습니까?')) return
+    setDeletingId(id)
+    const { error: delError } = await supabase
+      .from('products')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+    setDeletingId(null)
+    if (delError) {
+      alert(`삭제 실패: ${delError.message}`)
+      return
+    }
+    setProducts((prev) => prev.filter((p) => p.id !== id))
+  }
 
   useEffect(() => {
     async function fetchData() {
@@ -477,23 +493,62 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-3 text-neutral-700">{p.brand ?? '-'}</td>
                   <td className="px-4 py-3 text-neutral-500">{getCategoryName(p)}</td>
                   <td className="px-4 py-3">
-                    {p.is_active === false ? (
-                      <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
-                        비활성
-                      </span>
-                    ) : (
-                      <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                        활성
-                      </span>
-                    )}
+                    {(() => {
+                      const s = p.status
+                      if (s === 'discontinued') {
+                        return (
+                          <span className="inline-block rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+                            단종
+                          </span>
+                        )
+                      }
+                      if (s === 'hidden') {
+                        return (
+                          <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
+                            숨김
+                          </span>
+                        )
+                      }
+                      if (s === 'active' || p.is_active === true) {
+                        return (
+                          <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                            활성
+                          </span>
+                        )
+                      }
+                      return (
+                        <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
+                          비활성
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/products/${p.id}/edit`}
-                      className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
-                    >
-                      수정
-                    </Link>
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        href={`/admin/products/${p.id}/edit`}
+                        className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
+                      >
+                        수정
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(p.id)}
+                        disabled={deletingId === p.id}
+                        style={{
+                          border: '1px solid #E8E5E0',
+                          color: '#E57373',
+                          borderRadius: 0,
+                          fontSize: 11,
+                          padding: '4px 10px',
+                          background: '#FFFFFF',
+                          opacity: deletingId === p.id ? 0.5 : 1,
+                          cursor: deletingId === p.id ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {deletingId === p.id ? '삭제 중...' : '삭제'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
