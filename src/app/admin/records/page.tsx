@@ -68,6 +68,8 @@ export default function AdminRecordsPage() {
   // report_tokens 미사용 — guardian.share_token 기반으로 전환됨
   const [loading, setLoading] = useState(true)
   const [shareModal, setShareModal] = useState<{ token: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // 필터 상태
   const [search, setSearch] = useState('')
@@ -183,8 +185,84 @@ export default function AdminRecordsPage() {
     setReportFilter('전체')
   }
 
+  async function handleSoftDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const { error } = await supabase
+      .from('visit_records')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', deleteTarget)
+    if (error) {
+      alert(`삭제 실패: ${error.message}`)
+      setDeleting(false)
+      return
+    }
+    setRecords((prev) => prev.filter((r) => r.id !== deleteTarget))
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
   return (
     <div className="space-y-5">
+      {/* 삭제 확인 모달 */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white p-7"
+            style={{ borderRadius: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#0A0A0A', marginBottom: 8 }}>
+              기록 삭제
+            </p>
+            <p style={{ fontSize: 12, color: '#6B6B6B', lineHeight: 1.6, marginBottom: 20 }}>
+              이 기록을 삭제하면 목록에서 사라집니다. 필요하면 휴지통에서 복구할 수 있습니다.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                style={{
+                  flex: 1,
+                  border: '1px solid #0A0A0A',
+                  background: '#FFFFFF',
+                  color: '#0A0A0A',
+                  fontSize: 11,
+                  letterSpacing: '0.1em',
+                  padding: 12,
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.5 : 1,
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSoftDelete}
+                disabled={deleting}
+                style={{
+                  flex: 1,
+                  background: '#0A0A0A',
+                  color: '#FFFFFF',
+                  fontSize: 11,
+                  letterSpacing: '0.1em',
+                  padding: 12,
+                  border: 'none',
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.6 : 1,
+                }}
+              >
+                {deleting ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 공유 링크 모달 */}
       {shareModal && (
         <div
@@ -404,29 +482,24 @@ export default function AdminRecordsPage() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
                       {r.guardian_id && shareTokenMap[r.guardian_id] ? (
-                        <>
-                          <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                            공유됨
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setShareModal({ token: shareTokenMap[r.guardian_id!] })
-                            }
-                            style={{
-                              border: '1px solid #C9A96E',
-                              background: '#FFFFFF',
-                              color: '#C9A96E',
-                              borderRadius: 0,
-                              fontSize: 11,
-                              padding: '4px 10px',
-                              letterSpacing: '0.05em',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            공유 링크
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShareModal({ token: shareTokenMap[r.guardian_id!] })
+                          }
+                          style={{
+                            border: '1px solid #C9A96E',
+                            background: '#FFFFFF',
+                            color: '#C9A96E',
+                            borderRadius: 0,
+                            fontSize: 11,
+                            padding: '4px 10px',
+                            letterSpacing: '0.05em',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          공유 링크
+                        </button>
                       ) : r.guardian_id && guardianMap[r.guardian_id] ? (
                         <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
                           미공유
@@ -450,6 +523,21 @@ export default function AdminRecordsPage() {
                       >
                         수정
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(r.id)}
+                        style={{
+                          border: '1px solid #E8E5E0',
+                          background: '#FFFFFF',
+                          color: '#8A8A7A',
+                          borderRadius: 0,
+                          fontSize: 11,
+                          padding: '4px 10px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        삭제
+                      </button>
                     </div>
                   </td>
                 </tr>
