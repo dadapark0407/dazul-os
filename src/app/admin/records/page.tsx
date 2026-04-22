@@ -199,7 +199,7 @@ export default function AdminRecordsPage() {
       }
     }
     return Array.from(map.values())
-  }, [filtered])
+  }, [filtered, guardianMap])
 
   const hasActiveFilters = search || dateFrom || dateTo || reportFilter !== '전체'
 

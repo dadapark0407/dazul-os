@@ -12,7 +12,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: '대시보드', href: '/admin', icon: 'LayoutDashboard', category: 'main' },
   { id: 'new-customer', label: '고객 등록', href: '/admin/customers/new', icon: 'UserPlus', category: 'main' },
   { id: 'pets', label: '반려견 관리', href: '/admin/pets', icon: 'PawPrint', hidden: true, category: 'main' },
-  { id: 'guardians', label: '보호자 관리', href: '/admin/guardians', icon: 'Users', category: 'main' },
+  { id: 'guardians', label: '고객 관리', href: '/admin/guardians', icon: 'Users', category: 'main' },
   { id: 'records', label: '케어 기록', href: '/admin/records', icon: 'ClipboardList', category: 'main' },
   { id: 'products', label: '제품 관리', href: '/admin/products', icon: 'Package', category: 'main' },
   { id: 'followups', label: '후속 관리', href: '/admin/followups', icon: 'Bell', category: 'main' },
