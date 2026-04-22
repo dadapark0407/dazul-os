@@ -67,6 +67,7 @@ export default function AdminRecordsPage() {
   const [shareTokenMap, setShareTokenMap] = useState<Record<string, string>>({})
   // report_tokens 미사용 — guardian.share_token 기반으로 전환됨
   const [loading, setLoading] = useState(true)
+  const [shareModal, setShareModal] = useState<{ token: string } | null>(null)
 
   // 필터 상태
   const [search, setSearch] = useState('')
@@ -184,6 +185,65 @@ export default function AdminRecordsPage() {
 
   return (
     <div className="space-y-5">
+      {/* 공유 링크 모달 */}
+      {shareModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShareModal(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white p-8"
+            style={{ borderRadius: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-4 text-xs uppercase tracking-[0.15em] text-neutral-400">
+              GROOMING LETTER
+            </p>
+            <div className="mb-4 flex items-center gap-2 border border-[#E8E5E0] px-3 py-2">
+              <span className="flex-1 truncate text-xs text-neutral-600">
+                {typeof window !== 'undefined'
+                  ? `${window.location.origin}/report/${shareModal.token}`
+                  : `/report/${shareModal.token}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    navigator.clipboard.writeText(
+                      `${window.location.origin}/report/${shareModal.token}`
+                    )
+                    alert('복사되었습니다')
+                  }
+                }}
+                className="whitespace-nowrap text-xs"
+                style={{ color: '#C9A96E' }}
+              >
+                복사
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  window.open(`/report/${shareModal.token}`, '_blank', 'noopener,noreferrer')
+                }
+                className="flex-1 border border-[#E8E5E0] py-2 text-xs text-neutral-600"
+              >
+                새탭으로 미리보기
+              </button>
+              <button
+                type="button"
+                onClick={() => setShareModal(null)}
+                className="flex-1 py-2 text-xs text-white"
+                style={{ background: '#1A1A1A' }}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">방문 기록</h1>
@@ -348,10 +408,11 @@ export default function AdminRecordsPage() {
                           <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                             공유됨
                           </span>
-                          <Link
-                            href={`/report/${shareTokenMap[r.guardian_id]}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShareModal({ token: shareTokenMap[r.guardian_id!] })
+                            }
                             style={{
                               border: '1px solid #C9A96E',
                               background: '#FFFFFF',
@@ -359,12 +420,12 @@ export default function AdminRecordsPage() {
                               borderRadius: 0,
                               fontSize: 11,
                               padding: '4px 10px',
-                              textDecoration: 'none',
                               letterSpacing: '0.05em',
+                              cursor: 'pointer',
                             }}
                           >
-                            리포트
-                          </Link>
+                            공유 링크
+                          </button>
                         </>
                       ) : r.guardian_id && guardianMap[r.guardian_id] ? (
                         <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
