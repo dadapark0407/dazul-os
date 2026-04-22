@@ -268,7 +268,7 @@ export default async function AdminDashboardPage() {
 
   const kpis: KpiCard[] = [
     { label: '반려견', value: petCount ?? '-', href: '/admin/pets' },
-    { label: '보호자', value: guardianCount ?? '-', href: '/admin/guardians' },
+    { label: '고객', value: guardianCount ?? '-', href: '/admin/guardians' },
     { label: '방문 기록', value: recordCount ?? '-', href: '/admin/records' },
     { label: '제품', value: productCount ?? '-', href: '/admin/products' },
   ]
@@ -282,14 +282,15 @@ export default async function AdminDashboardPage() {
     })
   }
 
-  if (staffCount !== null) {
-    kpis.push({
-      label: '스태프',
-      value: staffCount,
-      href: '/admin/staff',
-      muted: true,
-    })
-  }
+  // 스태프 카드는 숨김 (향후 staff 기능 활성화 시 복구)
+  // if (staffCount !== null) {
+  //   kpis.push({
+  //     label: '스태프',
+  //     value: staffCount,
+  //     href: '/admin/staff',
+  //     muted: true,
+  //   })
+  // }
 
   // ─── 빠른 액션 ───
   const primaryActions = [
@@ -301,7 +302,7 @@ export default async function AdminDashboardPage() {
   const secondaryActions = [
     { label: '방문 기록 목록', href: '/admin/records' },
     { label: '제품 관리', href: '/admin/products' },
-    { label: '보호자 목록', href: '/admin/guardians' },
+    { label: '고객 관리', href: '/admin/guardians' },
     { label: '템플릿 관리', href: '/admin/templates' },
     { label: '후속 관리', href: '/admin/followups' },
     { label: '스태프 관리', href: '/admin/staff' },
