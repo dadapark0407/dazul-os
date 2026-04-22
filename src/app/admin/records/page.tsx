@@ -171,6 +171,36 @@ export default function AdminRecordsPage() {
     })
   }, [records, search, dateFrom, dateTo, reportFilter, petMap, guardianMap, shareTokenMap])
 
+  // 그룹핑: visit_date + guardian_id 기준
+  type RecordGroup = {
+    key: string
+    visitDate: string | null
+    guardianId: string | null
+    items: VisitRecord[]
+  }
+
+  const grouped = useMemo<RecordGroup[]>(() => {
+    const map = new Map<string, RecordGroup>()
+    for (const r of filtered) {
+      // 보호자 미연결 기록은 레코드 ID로 분리 (합쳐질 일 없음)
+      const key = r.guardian_id
+        ? `${r.visit_date ?? ''}|${r.guardian_id}`
+        : `${r.visit_date ?? ''}|__nog__|${r.id}`
+      const existing = map.get(key)
+      if (existing) {
+        existing.items.push(r)
+      } else {
+        map.set(key, {
+          key,
+          visitDate: r.visit_date,
+          guardianId: r.guardian_id,
+          items: [r],
+        })
+      }
+    }
+    return Array.from(map.values())
+  }, [filtered])
+
   const hasActiveFilters = search || dateFrom || dateTo || reportFilter !== '전체'
 
   function applyDatePreset(preset: typeof DATE_PRESETS[number]) {
@@ -439,113 +469,257 @@ export default function AdminRecordsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-neutral-100 transition hover:bg-neutral-50"
-                >
-                  <td className="px-4 py-3 text-neutral-700">
-                    <Link
-                      href={`/admin/records/${r.id}`}
-                      className="underline-offset-4 hover:underline"
+              {grouped.map((group) => {
+                // 단독 방문: 기존 단일 행 형식 유지
+                if (group.items.length === 1) {
+                  const r = group.items[0]
+                  return (
+                    <tr
+                      key={r.id}
+                      className="border-b border-neutral-100 transition hover:bg-neutral-50"
                     >
-                      {formatDate(r.visit_date)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    {r.pet_id ? (
-                      <Link
-                        href={`/admin/pets/${r.pet_id}`}
-                        className="font-medium text-neutral-900 underline-offset-4 hover:underline"
-                      >
-                        {petMap[r.pet_id] ?? '-'}
-                      </Link>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-neutral-700">
-                    {r.guardian_id ? (
-                      <Link
-                        href={`/admin/guardians/${r.guardian_id}`}
-                        className="underline-offset-4 hover:underline"
-                      >
-                        {guardianMap[r.guardian_id] ?? '-'}
-                      </Link>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-neutral-500">
-                    {formatServiceType(r.service_type)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {r.guardian_id && shareTokenMap[r.guardian_id] ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShareModal({ token: shareTokenMap[r.guardian_id!] })
-                          }
-                          style={{
-                            border: '1px solid #C9A96E',
-                            background: '#FFFFFF',
-                            color: '#C9A96E',
-                            borderRadius: 0,
-                            fontSize: 11,
-                            padding: '4px 10px',
-                            letterSpacing: '0.05em',
-                            cursor: 'pointer',
-                          }}
+                      <td className="px-4 py-3 text-neutral-700">
+                        <Link
+                          href={`/admin/records/${r.id}`}
+                          className="underline-offset-4 hover:underline"
                         >
-                          공유 링크
-                        </button>
-                      ) : r.guardian_id && guardianMap[r.guardian_id] ? (
-                        <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
-                          미공유
-                        </span>
-                      ) : (
-                        <span className="text-xs text-neutral-400">
-                          보호자 미연결
-                        </span>
-                      )}
-                      <Link
-                        href={`/session/edit/${r.id}`}
-                        style={{
-                          border: '1px solid #E8E5E0',
-                          background: '#FFFFFF',
-                          color: '#8A8A7A',
-                          borderRadius: 0,
-                          fontSize: 11,
-                          padding: '4px 10px',
-                          textDecoration: 'none',
-                        }}
-                      >
-                        수정
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(r.id)}
-                        style={{
-                          border: '1px solid #E8E5E0',
-                          background: '#FFFFFF',
-                          color: '#8A8A7A',
-                          borderRadius: 0,
-                          fontSize: 11,
-                          padding: '4px 10px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          {formatDate(r.visit_date)}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.pet_id ? (
+                          <Link
+                            href={`/admin/pets/${r.pet_id}`}
+                            className="font-medium text-neutral-900 underline-offset-4 hover:underline"
+                          >
+                            {petMap[r.pet_id] ?? '-'}
+                          </Link>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-700">
+                        {r.guardian_id ? (
+                          <Link
+                            href={`/admin/guardians/${r.guardian_id}`}
+                            className="underline-offset-4 hover:underline"
+                          >
+                            {guardianMap[r.guardian_id] ?? '-'}
+                          </Link>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-500">
+                        {formatServiceType(r.service_type)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <RowActions
+                          record={r}
+                          shareTokenMap={shareTokenMap}
+                          guardianMap={guardianMap}
+                          setShareModal={setShareModal}
+                          setDeleteTarget={setDeleteTarget}
+                        />
+                      </td>
+                    </tr>
+                  )
+                }
+
+                // 다중 방문: 그룹 헤더 + 자식 행
+                const guardianName = group.guardianId
+                  ? (guardianMap[group.guardianId] ?? '-')
+                  : '보호자 미연결'
+                return (
+                  <GroupBlock
+                    key={group.key}
+                    visitDate={group.visitDate}
+                    guardianId={group.guardianId}
+                    guardianName={guardianName}
+                    items={group.items}
+                    petMap={petMap}
+                    shareTokenMap={shareTokenMap}
+                    guardianMap={guardianMap}
+                    setShareModal={setShareModal}
+                    setDeleteTarget={setDeleteTarget}
+                  />
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  )
+}
+
+// ─── 공통 액션 버튼 (공유 링크 / 수정 / 삭제) ───
+function RowActions({
+  record,
+  shareTokenMap,
+  guardianMap,
+  setShareModal,
+  setDeleteTarget,
+}: {
+  record: VisitRecord
+  shareTokenMap: Record<string, string>
+  guardianMap: Record<string, string>
+  setShareModal: (v: { token: string } | null) => void
+  setDeleteTarget: (id: string | null) => void
+}) {
+  const { guardian_id, id } = record
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {guardian_id && shareTokenMap[guardian_id] ? (
+        <button
+          type="button"
+          onClick={() => setShareModal({ token: shareTokenMap[guardian_id] })}
+          style={{
+            border: '1px solid #C9A96E',
+            background: '#FFFFFF',
+            color: '#C9A96E',
+            borderRadius: 0,
+            fontSize: 11,
+            padding: '4px 10px',
+            letterSpacing: '0.05em',
+            cursor: 'pointer',
+          }}
+        >
+          공유 링크
+        </button>
+      ) : guardian_id && guardianMap[guardian_id] ? (
+        <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
+          미공유
+        </span>
+      ) : (
+        <span className="text-xs text-neutral-400">보호자 미연결</span>
+      )}
+      <Link
+        href={`/session/edit/${id}`}
+        style={{
+          border: '1px solid #E8E5E0',
+          background: '#FFFFFF',
+          color: '#8A8A7A',
+          borderRadius: 0,
+          fontSize: 11,
+          padding: '4px 10px',
+          textDecoration: 'none',
+        }}
+      >
+        수정
+      </Link>
+      <button
+        type="button"
+        onClick={() => setDeleteTarget(id)}
+        style={{
+          border: '1px solid #E8E5E0',
+          background: '#FFFFFF',
+          color: '#8A8A7A',
+          borderRadius: 0,
+          fontSize: 11,
+          padding: '4px 10px',
+          cursor: 'pointer',
+        }}
+      >
+        삭제
+      </button>
+    </div>
+  )
+}
+
+// ─── 동일 날짜·보호자 묶음 (헤더 + 들여쓰기 자식 행) ───
+function GroupBlock({
+  visitDate,
+  guardianId,
+  guardianName,
+  items,
+  petMap,
+  shareTokenMap,
+  guardianMap,
+  setShareModal,
+  setDeleteTarget,
+}: {
+  visitDate: string | null
+  guardianId: string | null
+  guardianName: string
+  items: VisitRecord[]
+  petMap: Record<string, string>
+  shareTokenMap: Record<string, string>
+  guardianMap: Record<string, string>
+  setShareModal: (v: { token: string } | null) => void
+  setDeleteTarget: (id: string | null) => void
+}) {
+  return (
+    <>
+      {/* 그룹 헤더 */}
+      <tr style={{ background: '#FAFAF8', borderBottom: '1px solid #F0EDE8' }}>
+        <td className="px-4 py-2.5" style={{ color: '#1A1A1A', fontWeight: 600, fontSize: 13 }}>
+          {formatDate(visitDate)}
+        </td>
+        <td className="px-4 py-2.5" colSpan={2} style={{ color: '#1A1A1A', fontWeight: 600, fontSize: 13 }}>
+          {guardianId ? (
+            <Link
+              href={`/admin/guardians/${guardianId}`}
+              className="underline-offset-4 hover:underline"
+              style={{ color: '#1A1A1A' }}
+            >
+              {guardianName}
+            </Link>
+          ) : (
+            guardianName
+          )}
+          <span className="ml-2 text-xs font-normal" style={{ color: '#8A8A7A' }}>
+            반려견 {items.length}마리
+          </span>
+        </td>
+        <td className="px-4 py-2.5" />
+        <td className="px-4 py-2.5" />
+      </tr>
+
+      {/* 자식 행들 */}
+      {items.map((r) => (
+        <tr
+          key={r.id}
+          className="transition hover:bg-neutral-50"
+          style={{ borderBottom: '1px solid #F0EDE8' }}
+        >
+          <td className="px-4 py-3" style={{ color: '#C9A96E', fontSize: 14, paddingLeft: 24 }}>
+            ↳
+          </td>
+          <td className="px-4 py-3">
+            {r.pet_id ? (
+              <Link
+                href={`/admin/pets/${r.pet_id}`}
+                className="font-medium text-neutral-900 underline-offset-4 hover:underline"
+              >
+                {petMap[r.pet_id] ?? '-'}
+              </Link>
+            ) : (
+              '-'
+            )}
+          </td>
+          <td className="px-4 py-3 text-xs" style={{ color: '#8A8A7A' }}>
+            <Link
+              href={`/admin/records/${r.id}`}
+              className="underline-offset-4 hover:underline"
+            >
+              상세 보기
+            </Link>
+          </td>
+          <td className="px-4 py-3 text-neutral-500">
+            {formatServiceType(r.service_type)}
+          </td>
+          <td className="px-4 py-3">
+            <RowActions
+              record={r}
+              shareTokenMap={shareTokenMap}
+              guardianMap={guardianMap}
+              setShareModal={setShareModal}
+              setDeleteTarget={setDeleteTarget}
+            />
+          </td>
+        </tr>
+      ))}
+    </>
   )
 }
