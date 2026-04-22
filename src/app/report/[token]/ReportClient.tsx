@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 
 // ─── 다국어 ───
 type Lang = 'ko' | 'en' | 'ja'
@@ -66,7 +66,7 @@ const T: Record<Lang, Record<string, string>> = {
 // ─── 동적 번역 훅 (ko → en/ja, DB값 번역) ───
 // 번역 결과를 Record<ko, 번역된 텍스트>로 반환.
 // lang === 'ko' 이면 빈 map 반환 (원본 사용).
-function useTranslations(texts: string[], lang: Lang): { map: Record<string, string>; loading: boolean } {
+function useTranslations(texts: string[], lang: Lang, token?: string): { map: Record<string, string>; loading: boolean } {
   const [map, setMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const key = useMemo(() => Array.from(new Set(texts.filter((t) => t && t.trim()))).sort().join('|'), [texts])
@@ -88,7 +88,7 @@ function useTranslations(texts: string[], lang: Lang): { map: Record<string, str
     fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texts: unique, targetLang: lang }),
+      body: JSON.stringify({ texts: unique, targetLang: lang, token }),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -600,7 +600,14 @@ export default function ReportClient({
     return list
   }, [records, lang])
 
-  const { map: trMap } = useTranslations(translatableTexts, lang)
+  const routeParams = useParams()
+  const reportToken =
+    typeof routeParams?.token === 'string'
+      ? routeParams.token
+      : Array.isArray(routeParams?.token)
+        ? routeParams.token[0]
+        : undefined
+  const { map: trMap } = useTranslations(translatableTexts, lang, reportToken)
 
   // 선택된 반려견 기준으로 필터 (pet_id 없는 레코드는 전체 노출)
   const filtered = activePetId

@@ -11,11 +11,29 @@ import { createClient } from '@/utils/supabase/server'
  */
 export async function POST(req: NextRequest) {
   try {
-    // 인증 체크
+    const body = await req.json()
+    const rawTexts = Array.isArray(body.texts) ? body.texts : []
+    const texts: string[] = rawTexts
+      .map((v: unknown) => (typeof v === 'string' ? v.trim() : ''))
+      .filter((v: string) => v.length > 0)
+    const targetLang = body.targetLang === 'ja' ? 'ja' : body.targetLang === 'en' ? 'en' : null
+    const token = typeof body.token === 'string' ? body.token.trim() : ''
+
+    // 인증 체크: 로그인 사용자 OR 유효한 share_token 중 하나면 통과
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      if (!token) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      const { data: guardian } = await supabase
+        .from('guardians')
+        .select('id')
+        .eq('share_token', token)
+        .maybeSingle()
+      if (!guardian) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
@@ -25,13 +43,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
-
-    const body = await req.json()
-    const rawTexts = Array.isArray(body.texts) ? body.texts : []
-    const texts: string[] = rawTexts
-      .map((v: unknown) => (typeof v === 'string' ? v.trim() : ''))
-      .filter((v: string) => v.length > 0)
-    const targetLang = body.targetLang === 'ja' ? 'ja' : body.targetLang === 'en' ? 'en' : null
 
     if (!targetLang) {
       return NextResponse.json({ error: 'targetLang must be "en" or "ja"' }, { status: 400 })
