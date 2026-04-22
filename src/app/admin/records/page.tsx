@@ -64,6 +64,7 @@ export default function AdminRecordsPage() {
   const [records, setRecords] = useState<VisitRecord[]>([])
   const [petMap, setPetMap] = useState<Record<string, string>>({})
   const [guardianMap, setGuardianMap] = useState<Record<string, string>>({})
+  const [shareTokenMap, setShareTokenMap] = useState<Record<string, string>>({})
   // report_tokens 미사용 — guardian.share_token 기반으로 전환됨
   const [loading, setLoading] = useState(true)
 
@@ -113,14 +114,17 @@ export default function AdminRecordsPage() {
       if (guardianIds.length > 0) {
         const { data: guardians } = await supabase
           .from('guardians')
-          .select('id, name')
+          .select('id, name, share_token')
           .in('id', guardianIds)
 
         const gMap: Record<string, string> = {}
+        const tMap: Record<string, string> = {}
         for (const g of guardians ?? []) {
           gMap[g.id] = g.name ?? '이름 없음'
+          if (g.share_token) tMap[g.id] = g.share_token
         }
         setGuardianMap(gMap)
+        setShareTokenMap(tMap)
       }
 
       setLoading(false)
@@ -153,12 +157,16 @@ export default function AdminRecordsPage() {
       // 날짜 없는 기록은 범위 필터 시 제외
       if ((dateFrom || dateTo) && !r.visit_date) return false
 
-      // 리포트 필터 — guardian.share_token 기반 전환 후 비활성
-      // TODO: guardian 연결 여부로 필터 전환
+      // 리포트 필터 — guardian.share_token 기준
+      if (reportFilter !== '전체') {
+        const hasToken = r.guardian_id ? !!shareTokenMap[r.guardian_id] : false
+        if (reportFilter === '공유됨' && !hasToken) return false
+        if (reportFilter === '미공유' && hasToken) return false
+      }
 
       return true
     })
-  }, [records, search, dateFrom, dateTo, reportFilter, petMap, guardianMap])
+  }, [records, search, dateFrom, dateTo, reportFilter, petMap, guardianMap, shareTokenMap])
 
   const hasActiveFilters = search || dateFrom || dateTo || reportFilter !== '전체'
 
@@ -334,10 +342,33 @@ export default function AdminRecordsPage() {
                     {formatServiceType(r.service_type)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {r.guardian_id && guardianMap[r.guardian_id] ? (
-                        <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                          공유 가능
+                    <div className="flex flex-wrap items-center gap-2">
+                      {r.guardian_id && shareTokenMap[r.guardian_id] ? (
+                        <>
+                          <span className="inline-block rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                            공유됨
+                          </span>
+                          <Link
+                            href={`/report/${shareTokenMap[r.guardian_id]}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              border: '1px solid #C9A96E',
+                              background: '#FFFFFF',
+                              color: '#C9A96E',
+                              borderRadius: 0,
+                              fontSize: 11,
+                              padding: '4px 10px',
+                              textDecoration: 'none',
+                              letterSpacing: '0.05em',
+                            }}
+                          >
+                            리포트
+                          </Link>
+                        </>
+                      ) : r.guardian_id && guardianMap[r.guardian_id] ? (
+                        <span className="inline-block rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
+                          미공유
                         </span>
                       ) : (
                         <span className="text-xs text-neutral-400">
