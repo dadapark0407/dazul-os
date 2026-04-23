@@ -54,6 +54,26 @@ function calculateAge(birthdate?: string | null, birthYear?: number | null): str
   return null
 }
 
+// pets.memo 에 "체중: Nkg" / "주의사항: ..." 병합 저장된 값을 분리
+function parseMemo(raw: string | null): { weight: string | null; caution: string | null; rest: string | null } {
+  if (!raw) return { weight: null, caution: null, rest: null }
+  let weight: string | null = null
+  let caution: string | null = null
+  const remaining: string[] = []
+  for (const line of raw.split('\n')) {
+    const w = line.match(/^체중\s*:\s*([\d.]+)\s*kg\s*$/)
+    const c = line.match(/^주의사항\s*:\s*(.*)$/)
+    if (w) weight = w[1]
+    else if (c) caution = c[1].trim()
+    else if (line.trim()) remaining.push(line)
+  }
+  return {
+    weight,
+    caution,
+    rest: remaining.length > 0 ? remaining.join('\n').trim() : null,
+  }
+}
+
 export default function GuardianPetTabs({ pets, records, productCategoryMap = {}, guardianId, branchId }: Props) {
   const router = useRouter()
   const [activePetId, setActivePetId] = useState<string | null>(
@@ -144,9 +164,11 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
   const gender = str(activePet, 'gender')
   const neutered = activePet?.neutered
   const neuteredText = neutered === true ? '중성화 완료' : neutered === false ? '중성화 미실시' : null
-  const age = calculateAge(str(activePet, 'birthdate'), num(activePet, 'birth_year'))
+  const birthdate = str(activePet, 'birthdate')
+  const age = calculateAge(birthdate, num(activePet, 'birth_year'))
   const lastVisit = petRecords[0] ? str(petRecords[0], 'visit_date') : null
   const petName = str(activePet, 'name') ?? '이름 없음'
+  const { weight: petWeight, caution: petCaution } = parseMemo(str(activePet, 'memo'))
 
   const canAddPet = !!guardianId
 
@@ -352,8 +374,22 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
                 </Link>
               </div>
               <p className="text-sm text-neutral-500">
-                {[breed, age, gender, neuteredText].filter(Boolean).join(' · ') || '정보 미입력'}
+                {[
+                  breed,
+                  age,
+                  gender,
+                  neuteredText,
+                  petWeight ? `${petWeight}kg` : null,
+                  birthdate ? formatDate(birthdate) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || '정보 미입력'}
               </p>
+              {petCaution && (
+                <p className="text-xs" style={{ color: '#C9A96E' }}>
+                  ⚠ 주의사항: {petCaution}
+                </p>
+              )}
               {lastVisit && (
                 <p className="text-xs" style={{ color: '#C9A96E' }}>
                   마지막 방문: {formatDate(lastVisit)}

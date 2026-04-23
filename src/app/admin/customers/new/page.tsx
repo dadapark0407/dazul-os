@@ -112,6 +112,8 @@ type PetForm = {
   breed: string
   gender: string
   birthdate: string
+  ageInput: string // 생년월일 모를 때 나이 직접 입력
+  useAge: boolean
   weight: string
   neutered: string
   memo: string
@@ -124,6 +126,8 @@ function makeEmptyPet(): PetForm {
     breed: '',
     gender: '',
     birthdate: '',
+    ageInput: '',
+    useAge: false,
     weight: '',
     neutered: '',
     memo: '',
@@ -212,12 +216,21 @@ export default function NewCustomerPage() {
 
       // 2) 반려견 여러 마리 저장
       const petPayloads = pets.map((p) => {
+        // 나이 → birth_year (생년월일 모를 때만 저장)
+        let birthYear: number | null = null
+        if (p.useAge && p.ageInput.trim()) {
+          const n = parseInt(p.ageInput, 10)
+          if (Number.isFinite(n) && n >= 0) {
+            birthYear = new Date().getFullYear() - n
+          }
+        }
         const base: Record<string, unknown> = {
           guardian_id: guardianId,
           name: p.name.trim(),
           breed: p.breed.trim(),
           gender: p.gender || null,
-          birthdate: p.birthdate || null,
+          birthdate: p.useAge ? null : p.birthdate || null,
+          birth_year: birthYear,
           memo: p.memo.trim() || null,
           branch_id: branchId,
         }
@@ -354,14 +367,53 @@ export default function NewCustomerPage() {
                 />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="생년월일">
-                  <input
-                    type="date"
-                    value={p.birthdate}
-                    onChange={(e) => updatePet(p.id, { birthdate: e.target.value })}
-                    className={inputClass}
-                  />
-                </Field>
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-[11px] font-medium uppercase tracking-[0.1em] text-dz-muted">
+                      {p.useAge ? '나이 (년)' : '생년월일'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updatePet(p.id, {
+                          useAge: !p.useAge,
+                          // 토글 시 반대쪽 값 초기화
+                          birthdate: p.useAge ? p.birthdate : '',
+                          ageInput: p.useAge ? '' : p.ageInput,
+                        })
+                      }
+                      style={{
+                        border: '1px solid #C9A96E',
+                        background: '#FFFFFF',
+                        color: '#C9A96E',
+                        borderRadius: 0,
+                        fontSize: 10,
+                        letterSpacing: '0.1em',
+                        padding: '2px 8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p.useAge ? '생년월일' : '나이로'}
+                    </button>
+                  </div>
+                  {p.useAge ? (
+                    <input
+                      type="number"
+                      min="0"
+                      value={p.ageInput}
+                      onChange={(e) => updatePet(p.id, { ageInput: e.target.value })}
+                      placeholder="예: 3"
+                      className={inputClass}
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      value={p.birthdate}
+                      onChange={(e) => updatePet(p.id, { birthdate: e.target.value })}
+                      className={inputClass}
+                    />
+                  )}
+                </div>
                 <Field label="체중 (kg)">
                   <input
                     type="number"

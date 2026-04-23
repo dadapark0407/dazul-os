@@ -9,6 +9,9 @@ import { supabase } from '@/lib/supabase'
 // TODO: 입력 유효성 검사 강화 (이름 필수, 체중 범위 등)
 // TODO: 이미지 업로드 필드 추가 고려
 
+const GENDER_OPTIONS = ['남', '여']
+const NEUTERED_OPTIONS: Array<'예' | '아니오' | '모름'> = ['예', '아니오', '모름']
+
 export default function AdminPetEditPage() {
   const params = useParams()
   const router = useRouter()
@@ -21,8 +24,11 @@ export default function AdminPetEditPage() {
   // 편집 가능 필드 — 컬럼이 없어도 안전하게 무시됨
   const [name, setName] = useState('')
   const [breed, setBreed] = useState('')
-  const [gender, setGender] = useState('')
+  const [gender, setGender] = useState('') // '남' / '여' / ''
+  const [neutered, setNeutered] = useState<'예' | '아니오' | '모름' | ''>('')
   const [birthDate, setBirthDate] = useState('')
+  const [ageInput, setAgeInput] = useState('') // 생년월일 모를 때 나이 직접 입력
+  const [useAge, setUseAge] = useState(false)
   const [weight, setWeight] = useState('')
   const [memo, setMemo] = useState('')
   const [cautionNotes, setCautionNotes] = useState('')
@@ -50,8 +56,36 @@ export default function AdminPetEditPage() {
 
       setName(data.name ?? '')
       setBreed(data.breed ?? '')
-      setGender(data.gender ?? '')
-      setBirthDate(data.birthdate ?? '')
+
+      // 성별 복원 — 신 체계('남'/'여') 우선, 레거시('남아'/'중성화 남아' 등) 변환
+      const rawGender = typeof data.gender === 'string' ? data.gender : ''
+      if (rawGender === '남' || rawGender === '여') {
+        setGender(rawGender)
+      } else if (rawGender.includes('남')) {
+        setGender('남')
+      } else if (rawGender.includes('여')) {
+        setGender('여')
+      } else {
+        setGender('')
+      }
+
+      // 중성화 복원 — neutered 컬럼(boolean) 우선, 없으면 레거시 gender 문자열 추론
+      if (data.neutered === true) setNeutered('예')
+      else if (data.neutered === false) setNeutered('아니오')
+      else if (rawGender.includes('중성화')) setNeutered('예')
+      else setNeutered('')
+
+      // 생년월일 / 나이 복원
+      const bd = data.birthdate ?? ''
+      setBirthDate(bd)
+      if (!bd && typeof data.birth_year === 'number' && Number.isFinite(data.birth_year)) {
+        const yrs = new Date().getFullYear() - data.birth_year
+        if (yrs >= 0) {
+          setAgeInput(String(yrs))
+          setUseAge(true)
+        }
+      }
+
       setGuardianId(data.guardian_id ?? null)
 
       // pets 테이블에는 weight/caution_notes 컬럼이 없어 memo에 병합 저장됨
@@ -105,11 +139,22 @@ export default function AdminPetEditPage() {
     const mergedMemo =
       [baseMemo, weightNote, cautionNote].filter(Boolean).join('\n').trim() || null
 
+    // 나이 → birth_year 로 저장 (birthdate 모를 때)
+    let birthYearPayload: number | null = null
+    if (useAge && ageInput.trim()) {
+      const n = parseInt(ageInput, 10)
+      if (Number.isFinite(n) && n >= 0) {
+        birthYearPayload = new Date().getFullYear() - n
+      }
+    }
+
     const payload: Record<string, unknown> = {
       name: name.trim(),
       breed: breed.trim() || null,
-      gender: gender.trim() || null,
-      birthdate: birthDate || null,
+      gender: gender || null,
+      birthdate: useAge ? null : birthDate || null,
+      birth_year: birthYearPayload,
+      neutered: neutered === '예' ? true : neutered === '아니오' ? false : null,
       memo: mergedMemo,
     }
 
@@ -221,30 +266,105 @@ export default function AdminPetEditPage() {
             <label className="mb-1.5 block text-sm font-medium text-neutral-700">
               성별
             </label>
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            >
-              <option value="">선택 안 함</option>
-              <option value="남아">남아</option>
-              <option value="여아">여아</option>
-              <option value="중성화 남아">중성화 남아</option>
-              <option value="중성화 여아">중성화 여아</option>
-            </select>
+            <div className="flex flex-wrap gap-2">
+              {GENDER_OPTIONS.map((opt) => {
+                const active = gender === opt
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setGender(active ? '' : opt)}
+                    style={{
+                      border: `1px solid ${active ? '#0A0A0A' : '#E8E5E0'}`,
+                      background: active ? '#0A0A0A' : '#FFFFFF',
+                      color: active ? '#FFFFFF' : '#6B6B6B',
+                      borderRadius: 0,
+                      fontSize: 12,
+                      letterSpacing: '0.05em',
+                      padding: '8px 20px',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    {opt}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          {/* 생년월일 */}
+          {/* 중성화 */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              생년월일
+              중성화 여부
             </label>
-            <input
-              type="date"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            />
+            <div className="flex flex-wrap gap-2">
+              {NEUTERED_OPTIONS.map((opt) => {
+                const active = neutered === opt
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setNeutered(active ? '' : opt)}
+                    style={{
+                      border: `1px solid ${active ? '#0A0A0A' : '#E8E5E0'}`,
+                      background: active ? '#0A0A0A' : '#FFFFFF',
+                      color: active ? '#FFFFFF' : '#6B6B6B',
+                      borderRadius: 0,
+                      fontSize: 12,
+                      letterSpacing: '0.05em',
+                      padding: '8px 20px',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    {opt}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 생년월일 / 나이 토글 */}
+          <div className="sm:col-span-2">
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-sm font-medium text-neutral-700">
+                {useAge ? '나이 (년)' : '생년월일'}
+              </label>
+              <button
+                type="button"
+                onClick={() => setUseAge((v) => !v)}
+                style={{
+                  border: '1px solid #C9A96E',
+                  background: '#FFFFFF',
+                  color: '#C9A96E',
+                  borderRadius: 0,
+                  fontSize: 10,
+                  letterSpacing: '0.1em',
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                }}
+              >
+                {useAge ? '생년월일로 입력' : '나이로 입력'}
+              </button>
+            </div>
+            {useAge ? (
+              <input
+                type="number"
+                min="0"
+                value={ageInput}
+                onChange={(e) => setAgeInput(e.target.value)}
+                placeholder="예: 3"
+                className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+              />
+            ) : (
+              <input
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
+              />
+            )}
           </div>
 
           {/* 체중 */}
