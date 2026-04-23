@@ -44,10 +44,10 @@ const SPA_OPTIONS: { value: NonNullable<SpaLevel>; label: string; desc: string }
 
 const SKIN_OPTIONS = ['좋음', '건조', '민감', '습진', '붉은반점', '붉음', '탈모', '딱지', '각질', '기름짐'] as const
 const TANGLE_OPTIONS = ['없음', '귀', '머리', '꼬리', '겨드랑이', '목', '앞다리', '뒷다리', '기타'] as const
-const EYE_OPTIONS = ['깨끗함', '붉음', '눈물많음'] as const
-const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지'] as const
-const TEETH_OPTIONS = ['깨끗함', '관리필요'] as const
-const NAIL_OPTIONS = ['적당함', '관리필요'] as const
+const EYE_OPTIONS = ['깨끗함', '붉음', '눈물많음', '기타'] as const
+const EAR_OPTIONS = ['깨끗함', '노란귀지', '갈색귀지', '기타'] as const
+const TEETH_OPTIONS = ['깨끗함', '관리필요', '기타'] as const
+const NAIL_OPTIONS = ['적당함', '관리필요', '기타'] as const
 
 // 기본 카테고리 (DB category 값 기준 매칭)
 const BASE_PRODUCT_CATEGORIES = ['샴푸', '린스', '피부케어', '피모케어', '위생관리', '기타'] as const
