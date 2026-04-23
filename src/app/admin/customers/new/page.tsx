@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { getDefaultBranchId } from '@/lib/branch'
+import { formatPhone } from '@/lib/phone'
 
 // ─── 상수 ───
 
@@ -290,8 +291,9 @@ export default function NewCustomerPage() {
           <Field label="연락처" required>
             <input
               type="tel"
+              inputMode="numeric"
               value={gPhone}
-              onChange={(e) => setGPhone(e.target.value)}
+              onChange={(e) => setGPhone(formatPhone(e.target.value))}
               placeholder="010-0000-0000"
               className={inputClass}
             />

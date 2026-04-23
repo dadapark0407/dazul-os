@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { formatPhone } from '@/lib/phone'
 
 // TODO: 역할 기반 인증 추가 필요
 // TODO: 입력 유효성 검사 강화 (이름 필수, 전화번호 형식 등)
@@ -42,7 +43,7 @@ export default function AdminGuardianEditPage() {
       }
 
       setName(data.name ?? '')
-      setPhone(data.phone ?? '')
+      setPhone(formatPhone(data.phone ?? ''))
       setMemo(data.memo ?? '')
 
       // 반려견 수
@@ -165,8 +166,9 @@ export default function AdminGuardianEditPage() {
             </label>
             <input
               type="tel"
+              inputMode="numeric"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhone(e.target.value))}
               placeholder="예: 010-1234-5678"
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
             />
