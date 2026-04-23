@@ -81,9 +81,13 @@ const NEXT_VISIT_OPTIONS = [
 // 헬퍼
 // ─────────────────────────────────────────────
 function toggleArr<T>(arr: T[], val: T, exclusive?: T): T[] {
+  // 이미 선택됨 → 해제 (exclusive 항목도 재클릭으로 토글 가능)
+  if (arr.includes(val)) return arr.filter((v) => v !== val)
+  // exclusive 항목 선택 시 다른 모두 제거하고 단독 선택
   if (exclusive !== undefined && val === exclusive) return [exclusive]
+  // 일반 항목 선택: exclusive 제거 후 추가
   const without = exclusive !== undefined ? arr.filter((v) => v !== exclusive) : arr
-  return without.includes(val) ? without.filter((v) => v !== val) : [...without, val]
+  return [...without, val]
 }
 
 function addDays(base: string, days: number): string {
@@ -1696,14 +1700,14 @@ function EditRecordForm() {
             <div className="">
               <BodyRow label="피부" options={SKIN_OPTIONS} selected={skin} onToggle={(val) => setSkin((prev) => toggleArr(prev, val))} memos={skinMemos} onMemoChange={updateMemo(setSkinMemos)} memoExclusions={['좋음']} />
               <BodyRow label="엉킴" options={TANGLE_OPTIONS} selected={tangles} onToggle={(val) => setTangles((prev) => toggleArr(prev, val, '없음'))} exclusive="없음" memos={tangleMemos} onMemoChange={updateMemo(setTangleMemos)} memoExclusions={['없음']} />
-              <BodyRow label="눈" options={EYE_OPTIONS} selected={eyes} onToggle={(val) => setEyes((prev) => toggleArr(prev, val))} memos={eyeMemos} onMemoChange={updateMemo(setEyeMemos)} memoExclusions={['깨끗함']} />
-              <BodyRow label="귀" options={EAR_OPTIONS} selected={ears} onToggle={(val) => setEars((prev) => toggleArr(prev, val))} memos={earMemos} onMemoChange={updateMemo(setEarMemos)} memoExclusions={['깨끗함']} />
+              <BodyRow label="눈" options={EYE_OPTIONS} selected={eyes} onToggle={(val) => setEyes((prev) => toggleArr(prev, val))} memos={eyeMemos} onMemoChange={updateMemo(setEyeMemos)} />
+              <BodyRow label="귀" options={EAR_OPTIONS} selected={ears} onToggle={(val) => setEars((prev) => toggleArr(prev, val))} memos={earMemos} onMemoChange={updateMemo(setEarMemos)} />
 
               {/* 치아 */}
-              <BodyRow label="치아" options={TEETH_OPTIONS} selected={teeth} onToggle={(val) => setTeeth((prev) => toggleArr(prev, val))} memos={teethMemos} onMemoChange={updateMemo(setTeethMemos)} memoExclusions={['깨끗함']} />
+              <BodyRow label="치아" options={TEETH_OPTIONS} selected={teeth} onToggle={(val) => setTeeth((prev) => toggleArr(prev, val))} memos={teethMemos} onMemoChange={updateMemo(setTeethMemos)} />
 
               {/* 발톱 */}
-              <BodyRow label="발톱" options={NAIL_OPTIONS} selected={nails} onToggle={(val) => setNails((prev) => toggleArr(prev, val))} memos={nailMemos} onMemoChange={updateMemo(setNailMemos)} memoExclusions={['적당함']} />
+              <BodyRow label="발톱" options={NAIL_OPTIONS} selected={nails} onToggle={(val) => setNails((prev) => toggleArr(prev, val))} memos={nailMemos} onMemoChange={updateMemo(setNailMemos)} />
             </div>
           </Card>
 
