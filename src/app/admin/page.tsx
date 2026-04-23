@@ -27,11 +27,15 @@ function isOverdue(dueDateStr?: string | null): boolean {
 async function safeCount(
   supabase: Awaited<ReturnType<typeof createClient>>,
   table: string,
-  filter?: { column: string; value: string }
+  filter?: { column: string; value: string },
+  options?: { excludeDeleted?: boolean }
 ): Promise<number | null> {
   let query = supabase.from(table).select('id', { count: 'exact', head: true })
   if (filter) {
     query = query.eq(filter.column, filter.value)
+  }
+  if (options?.excludeDeleted) {
+    query = query.is('deleted_at', null)
   }
   const { count, error } = await query
   if (error) return null
@@ -52,7 +56,7 @@ export default async function AdminDashboardPage() {
   ] = await Promise.all([
     safeCount(supabase, 'pets'),
     safeCount(supabase, 'guardians'),
-    safeCount(supabase, 'visit_records'),
+    safeCount(supabase, 'visit_records', undefined, { excludeDeleted: true }),
     safeCount(supabase, 'products'),
     safeCount(supabase, 'followups', { column: 'status', value: 'pending' }),
     safeCount(supabase, 'staff_profiles'),
@@ -62,6 +66,7 @@ export default async function AdminDashboardPage() {
   const { data: recentRecords } = await supabase
     .from('visit_records')
     .select('id, visit_date, service_type, pet_id, guardian_id')
+    .is('deleted_at', null)
     .order('visit_date', { ascending: false })
     .limit(7)
 
@@ -133,10 +138,12 @@ export default async function AdminDashboardPage() {
 
   // ─── 오늘 방문 건수 ───
   const today = new Date().toISOString().slice(0, 10)
-  const todayCount = await safeCount(supabase, 'visit_records', {
-    column: 'visit_date',
-    value: today,
-  })
+  const todayCount = await safeCount(
+    supabase,
+    'visit_records',
+    { column: 'visit_date', value: today },
+    { excludeDeleted: true }
+  )
 
   // ─── 통계: 재방문율 / 스파코스 선택률 / 이탈 위험 ───
   const now = new Date()
@@ -155,11 +162,13 @@ export default async function AdminDashboardPage() {
     supabase
       .from('visit_records')
       .select('guardian_id, pet_id, spa_level, visit_date')
+      .is('deleted_at', null)
       .gte('visit_date', thisMonthStart)
       .lt('visit_date', nextMonthStart),
     supabase
       .from('visit_records')
       .select('guardian_id, pet_id, visit_date')
+      .is('deleted_at', null)
       .gte('visit_date', lastMonthStart)
       .lt('visit_date', thisMonthStart),
   ])
@@ -217,6 +226,7 @@ export default async function AdminDashboardPage() {
   const { data: allVisits } = await supabase
     .from('visit_records')
     .select('pet_id, visit_date')
+    .is('deleted_at', null)
     .not('pet_id', 'is', null)
     .order('visit_date', { ascending: false })
 
