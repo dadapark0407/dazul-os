@@ -29,8 +29,6 @@ export default function AdminPetEditPage() {
   const [birthDate, setBirthDate] = useState('')
   const [ageInput, setAgeInput] = useState('') // 생년월일 모를 때 나이 직접 입력
   const [useAge, setUseAge] = useState(false)
-  const [weight, setWeight] = useState('')
-  const [memo, setMemo] = useState('')
   const [cautionNotes, setCautionNotes] = useState('')
 
   // 보호자 정보 (읽기 전용 표시용)
@@ -88,23 +86,22 @@ export default function AdminPetEditPage() {
 
       setGuardianId(data.guardian_id ?? null)
 
-      // pets 테이블에는 weight/caution_notes 컬럼이 없어 memo에 병합 저장됨
-      // ('체중: Nkg', '주의사항: ...') 을 memo 에서 분리
+      // 레거시 '체중: Nkg' / '주의사항:' 접두가 있던 memo를 정리해서
+      // 모든 내용을 "특이사항/알레르기" 단일 필드로 복원
       const rawMemo = typeof data.memo === 'string' ? data.memo : ''
       const lines = rawMemo.split('\n')
-      let extractedWeight = ''
-      let extractedCaution = ''
       const remainingLines: string[] = []
       for (const line of lines) {
-        const wMatch = line.match(/^체중\s*:\s*([\d.]+)\s*kg\s*$/)
+        // 레거시 체중 줄은 제거
+        if (/^체중\s*:\s*[\d.]+\s*kg\s*$/.test(line)) continue
         const cMatch = line.match(/^주의사항\s*:\s*(.*)$/)
-        if (wMatch) extractedWeight = wMatch[1]
-        else if (cMatch) extractedCaution = cMatch[1].trim()
-        else remainingLines.push(line)
+        if (cMatch) {
+          remainingLines.push(cMatch[1].trim())
+        } else {
+          remainingLines.push(line)
+        }
       }
-      setWeight(extractedWeight)
-      setCautionNotes(extractedCaution)
-      setMemo(remainingLines.join('\n').trim())
+      setCautionNotes(remainingLines.join('\n').trim())
 
       // 보호자 이름 가져오기
       if (data.guardian_id) {
@@ -132,12 +129,8 @@ export default function AdminPetEditPage() {
     setSaving(true)
     setErrorMessage('')
 
-    // pets 테이블에 weight/caution_notes 컬럼이 없어 memo 에 병합 저장
-    const baseMemo = memo.trim()
-    const weightNote = weight.trim() ? `체중: ${weight.trim()}kg` : ''
-    const cautionNote = cautionNotes.trim() ? `주의사항: ${cautionNotes.trim()}` : ''
-    const mergedMemo =
-      [baseMemo, weightNote, cautionNote].filter(Boolean).join('\n').trim() || null
+    // 특이사항/알레르기 단일 필드만 memo 에 저장 (체중/접두 없이)
+    const mergedMemo = cautionNotes.trim() || null
 
     // 나이 → birth_year 로 저장 (birthdate 모를 때)
     let birthYearPayload: number | null = null
@@ -367,46 +360,16 @@ export default function AdminPetEditPage() {
             )}
           </div>
 
-          {/* 체중 */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              체중 (kg)
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              placeholder="예: 4.5"
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            />
-          </div>
-
-          {/* 메모 */}
+          {/* 특이사항 / 알레르기 */}
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              메모
-            </label>
-            <textarea
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              rows={3}
-              placeholder="일반 메모"
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
-            />
-          </div>
-
-          {/* 주의사항 */}
-          <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium text-neutral-700">
-              주의사항
+              특이사항 / 알레르기
             </label>
             <textarea
               value={cautionNotes}
               onChange={(e) => setCautionNotes(e.target.value)}
               rows={3}
-              placeholder="터치 민감 부위, 알레르기, 행동 주의 등"
+              placeholder="알레르기, 질환, 주의사항 등"
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-500"
             />
           </div>

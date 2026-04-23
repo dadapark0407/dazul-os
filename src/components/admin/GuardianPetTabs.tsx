@@ -54,24 +54,20 @@ function calculateAge(birthdate?: string | null, birthYear?: number | null): str
   return null
 }
 
-// pets.memo 에 "체중: Nkg" / "주의사항: ..." 병합 저장된 값을 분리
-function parseMemo(raw: string | null): { weight: string | null; caution: string | null; rest: string | null } {
-  if (!raw) return { weight: null, caution: null, rest: null }
-  let weight: string | null = null
-  let caution: string | null = null
-  const remaining: string[] = []
-  for (const line of raw.split('\n')) {
-    const w = line.match(/^체중\s*:\s*([\d.]+)\s*kg\s*$/)
+// pets.memo 를 특이사항/알레르기로 복원 — 레거시 '체중: Nkg' 줄은 제거,
+// 레거시 '주의사항:' 접두는 본문만 살리고, 나머지는 모두 특이사항으로 표시
+function parseCaution(raw: string | null): string | null {
+  if (!raw) return null
+  const lines = raw.split('\n')
+  const out: string[] = []
+  for (const line of lines) {
+    if (/^체중\s*:\s*[\d.]+\s*kg\s*$/.test(line)) continue
     const c = line.match(/^주의사항\s*:\s*(.*)$/)
-    if (w) weight = w[1]
-    else if (c) caution = c[1].trim()
-    else if (line.trim()) remaining.push(line)
+    if (c) out.push(c[1].trim())
+    else if (line.trim()) out.push(line)
   }
-  return {
-    weight,
-    caution,
-    rest: remaining.length > 0 ? remaining.join('\n').trim() : null,
-  }
+  const text = out.join('\n').trim()
+  return text ? text : null
 }
 
 export default function GuardianPetTabs({ pets, records, productCategoryMap = {}, guardianId, branchId }: Props) {
@@ -86,9 +82,11 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
   const [formError, setFormError] = useState('')
   const [fName, setFName] = useState('')
   const [fBreed, setFBreed] = useState('')
-  const [fGender, setFGender] = useState('')
+  const [fGender, setFGender] = useState('') // '남' / '여'
   const [fBirthdate, setFBirthdate] = useState('')
-  const [fNeutered, setFNeutered] = useState('')
+  const [fAgeInput, setFAgeInput] = useState('')
+  const [fUseAge, setFUseAge] = useState(false)
+  const [fNeutered, setFNeutered] = useState('') // '예' / '아니오' / '모름'
   const [fMemo, setFMemo] = useState('')
 
   function resetForm() {
@@ -96,6 +94,8 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
     setFBreed('')
     setFGender('')
     setFBirthdate('')
+    setFAgeInput('')
+    setFUseAge(false)
     setFNeutered('')
     setFMemo('')
     setFormError('')
@@ -113,17 +113,24 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
     setSaving(true)
     setFormError('')
 
+    // 나이 → birth_year (생년월일 모를 때)
+    let birthYear: number | null = null
+    if (fUseAge && fAgeInput.trim()) {
+      const n = parseInt(fAgeInput, 10)
+      if (Number.isFinite(n) && n >= 0) birthYear = new Date().getFullYear() - n
+    }
+
     const payload: Record<string, unknown> = {
       guardian_id: guardianId,
       name: fName.trim(),
       breed: fBreed.trim() || null,
       gender: fGender || null,
-      birthdate: fBirthdate || null,
+      birthdate: fUseAge ? null : fBirthdate || null,
+      birth_year: birthYear,
       memo: fMemo.trim() || null,
+      neutered: fNeutered === '예' ? true : fNeutered === '아니오' ? false : null,
     }
     if (branchId) payload.branch_id = branchId
-    if (fNeutered === '예') payload.neutered = true
-    else if (fNeutered === '아니오') payload.neutered = false
 
     const { error } = await supabase.from('pets').insert(payload)
 
@@ -168,7 +175,7 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
   const age = calculateAge(birthdate, num(activePet, 'birth_year'))
   const lastVisit = petRecords[0] ? str(petRecords[0], 'visit_date') : null
   const petName = str(activePet, 'name') ?? '이름 없음'
-  const { weight: petWeight, caution: petCaution } = parseMemo(str(activePet, 'memo'))
+  const petCaution = parseCaution(str(activePet, 'memo'))
 
   const canAddPet = !!guardianId
 
@@ -233,44 +240,109 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-neutral-700">성별</label>
-              <select
-                value={fGender}
-                onChange={(e) => setFGender(e.target.value)}
-                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
-              >
-                <option value="">미선택</option>
-                <option value="수컷">수컷</option>
-                <option value="암컷">암컷</option>
-              </select>
+              <div className="flex flex-wrap gap-2">
+                {['남', '여'].map((opt) => {
+                  const active = fGender === opt
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setFGender(active ? '' : opt)}
+                      style={{
+                        border: `1px solid ${active ? '#0A0A0A' : '#E8E5E0'}`,
+                        background: active ? '#0A0A0A' : '#FFFFFF',
+                        color: active ? '#FFFFFF' : '#6B6B6B',
+                        borderRadius: 0,
+                        fontSize: 12,
+                        letterSpacing: '0.05em',
+                        padding: '6px 18px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-neutral-700">생년월일</label>
-              <input
-                type="date"
-                value={fBirthdate}
-                onChange={(e) => setFBirthdate(e.target.value)}
-                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-neutral-700">중성화</label>
-              <select
-                value={fNeutered}
-                onChange={(e) => setFNeutered(e.target.value)}
-                className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
-              >
-                <option value="">미선택</option>
-                <option value="예">예</option>
-                <option value="아니오">아니오</option>
-              </select>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-xs font-medium text-neutral-700">
+                  {fUseAge ? '나이 (년)' : '생년월일'}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFUseAge((v) => !v)
+                    if (!fUseAge) setFBirthdate('')
+                    else setFAgeInput('')
+                  }}
+                  style={{
+                    border: '1px solid #C9A96E',
+                    background: '#FFFFFF',
+                    color: '#C9A96E',
+                    borderRadius: 0,
+                    fontSize: 10,
+                    letterSpacing: '0.1em',
+                    padding: '2px 8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {fUseAge ? '생년월일' : '나이로'}
+                </button>
+              </div>
+              {fUseAge ? (
+                <input
+                  type="number"
+                  min="0"
+                  value={fAgeInput}
+                  onChange={(e) => setFAgeInput(e.target.value)}
+                  placeholder="예: 3"
+                  className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+                />
+              ) : (
+                <input
+                  type="date"
+                  value={fBirthdate}
+                  onChange={(e) => setFBirthdate(e.target.value)}
+                  className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
+                />
+              )}
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-xs font-medium text-neutral-700">메모</label>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">중성화 여부</label>
+              <div className="flex flex-wrap gap-2">
+                {['예', '아니오', '모름'].map((opt) => {
+                  const active = fNeutered === opt
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setFNeutered(active ? '' : opt)}
+                      style={{
+                        border: `1px solid ${active ? '#0A0A0A' : '#E8E5E0'}`,
+                        background: active ? '#0A0A0A' : '#FFFFFF',
+                        color: active ? '#FFFFFF' : '#6B6B6B',
+                        borderRadius: 0,
+                        fontSize: 12,
+                        letterSpacing: '0.05em',
+                        padding: '6px 18px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">특이사항 / 알레르기</label>
               <textarea
                 value={fMemo}
                 onChange={(e) => setFMemo(e.target.value)}
                 rows={2}
-                placeholder="특이사항, 알레르기 등"
+                placeholder="알레르기, 질환, 주의사항 등"
                 className="w-full rounded-none border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500"
               />
             </div>
@@ -379,7 +451,6 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
                   age,
                   gender,
                   neuteredText,
-                  petWeight ? `${petWeight}kg` : null,
                   birthdate ? formatDate(birthdate) : null,
                 ]
                   .filter(Boolean)

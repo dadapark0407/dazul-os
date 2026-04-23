@@ -114,9 +114,8 @@ type PetForm = {
   birthdate: string
   ageInput: string // 생년월일 모를 때 나이 직접 입력
   useAge: boolean
-  weight: string
   neutered: string
-  memo: string
+  memo: string // 특이사항 / 알레르기
 }
 
 function makeEmptyPet(): PetForm {
@@ -128,7 +127,6 @@ function makeEmptyPet(): PetForm {
     birthdate: '',
     ageInput: '',
     useAge: false,
-    weight: '',
     neutered: '',
     memo: '',
   }
@@ -237,11 +235,6 @@ export default function NewCustomerPage() {
         if (p.neutered === '예') base.neutered = true
         else if (p.neutered === '아니오') base.neutered = false
 
-        // weight는 pets.weight 컬럼이 없을 수 있으므로 memo에 추가
-        if (p.weight.trim()) {
-          const weightNote = `체중: ${p.weight.trim()}kg`
-          base.memo = base.memo ? `${base.memo}\n${weightNote}` : weightNote
-        }
         return base
       })
 
@@ -366,64 +359,52 @@ export default function NewCustomerPage() {
                   onChange={(v) => updatePet(p.id, { gender: v })}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <label className="text-[11px] font-medium uppercase tracking-[0.1em] text-dz-muted">
-                      {p.useAge ? '나이 (년)' : '생년월일'}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updatePet(p.id, {
-                          useAge: !p.useAge,
-                          // 토글 시 반대쪽 값 초기화
-                          birthdate: p.useAge ? p.birthdate : '',
-                          ageInput: p.useAge ? '' : p.ageInput,
-                        })
-                      }
-                      style={{
-                        border: '1px solid #C9A96E',
-                        background: '#FFFFFF',
-                        color: '#C9A96E',
-                        borderRadius: 0,
-                        fontSize: 10,
-                        letterSpacing: '0.1em',
-                        padding: '2px 8px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {p.useAge ? '생년월일' : '나이로'}
-                    </button>
-                  </div>
-                  {p.useAge ? (
-                    <input
-                      type="number"
-                      min="0"
-                      value={p.ageInput}
-                      onChange={(e) => updatePet(p.id, { ageInput: e.target.value })}
-                      placeholder="예: 3"
-                      className={inputClass}
-                    />
-                  ) : (
-                    <input
-                      type="date"
-                      value={p.birthdate}
-                      onChange={(e) => updatePet(p.id, { birthdate: e.target.value })}
-                      className={inputClass}
-                    />
-                  )}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-[11px] font-medium uppercase tracking-[0.1em] text-dz-muted">
+                    {p.useAge ? '나이 (년)' : '생년월일'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updatePet(p.id, {
+                        useAge: !p.useAge,
+                        // 토글 시 반대쪽 값 초기화
+                        birthdate: p.useAge ? p.birthdate : '',
+                        ageInput: p.useAge ? '' : p.ageInput,
+                      })
+                    }
+                    style={{
+                      border: '1px solid #C9A96E',
+                      background: '#FFFFFF',
+                      color: '#C9A96E',
+                      borderRadius: 0,
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      padding: '2px 8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.useAge ? '생년월일' : '나이로'}
+                  </button>
                 </div>
-                <Field label="체중 (kg)">
+                {p.useAge ? (
                   <input
                     type="number"
-                    step="0.1"
-                    value={p.weight}
-                    onChange={(e) => updatePet(p.id, { weight: e.target.value })}
-                    placeholder="예: 3.5"
+                    min="0"
+                    value={p.ageInput}
+                    onChange={(e) => updatePet(p.id, { ageInput: e.target.value })}
+                    placeholder="예: 3"
                     className={inputClass}
                   />
-                </Field>
+                ) : (
+                  <input
+                    type="date"
+                    value={p.birthdate}
+                    onChange={(e) => updatePet(p.id, { birthdate: e.target.value })}
+                    className={inputClass}
+                  />
+                )}
               </div>
               <Field label="중성화 여부">
                 <ChipSelect
