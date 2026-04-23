@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -257,11 +258,12 @@ function GuardianRows({
   latest: string | null
   onToggle: () => void
 }) {
+  const router = useRouter()
   return (
     <>
-      {/* 보호자 행 — 클릭으로 펼침 */}
+      {/* 보호자 행 — 클릭 시 상세 페이지로 이동. 펼치기는 우측 ▼ 버튼 */}
       <tr
-        onClick={onToggle}
+        onClick={() => router.push(`/admin/guardians/${guardian.id}`)}
         style={{
           borderBottom: '1px solid #F0EDE8',
           cursor: 'pointer',
@@ -272,9 +274,6 @@ function GuardianRows({
         <td className="px-4 py-3">
           <span className="font-medium text-neutral-900">
             {guardian.name ?? '이름 없음'}
-          </span>
-          <span className="ml-2 text-neutral-400" style={{ fontSize: 11 }}>
-            {expanded ? '▾' : '▸'}
           </span>
         </td>
         <td className="px-4 py-3 text-neutral-700">{guardian.phone ?? '-'}</td>
@@ -288,20 +287,41 @@ function GuardianRows({
         </td>
         <td className="px-4 py-3 text-neutral-500">{formatDate(latest)}</td>
         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-          <Link
-            href={`/admin/guardians/${guardian.id}`}
-            style={{
-              border: '1px solid #C9A96E',
-              color: '#C9A96E',
-              padding: '4px 10px',
-              fontSize: 11,
-              letterSpacing: '0.05em',
-              textDecoration: 'none',
-              background: '#FFFFFF',
-            }}
-          >
-            상세
-          </Link>
+          <div className="flex items-center justify-end gap-2">
+            <Link
+              href={`/admin/guardians/${guardian.id}`}
+              style={{
+                border: '1px solid #C9A96E',
+                color: '#C9A96E',
+                padding: '4px 10px',
+                fontSize: 11,
+                letterSpacing: '0.05em',
+                textDecoration: 'none',
+                background: '#FFFFFF',
+              }}
+            >
+              상세
+            </Link>
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label={expanded ? '접기' : '반려견 목록 펼치기'}
+              style={{
+                border: '1px solid #E8E5E0',
+                background: '#FFFFFF',
+                color: '#8A8A7A',
+                borderRadius: 0,
+                fontSize: 10,
+                padding: '4px 8px',
+                cursor: 'pointer',
+                lineHeight: 1,
+                transition: 'transform 0.2s ease',
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              }}
+            >
+              ▼
+            </button>
+          </div>
         </td>
       </tr>
 
