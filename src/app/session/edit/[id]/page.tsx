@@ -1655,9 +1655,9 @@ function EditRecordForm() {
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   {([
-                    { key: 'face' as const, label: '얼굴', ph: '9mm, 곰돌이컷' },
-                    { key: 'body' as const, label: '몸', ph: '7mm, 풀컷' },
-                    { key: 'legs' as const, label: '다리', ph: '자연스럽게' },
+                    { key: 'face' as const, label: '얼굴', ph: '' },
+                    { key: 'body' as const, label: '몸', ph: '' },
+                    { key: 'legs' as const, label: '다리', ph: '' },
                     { key: 'tail' as const, label: '꼬리', ph: '' },
                   ]).map((item) => (
                     <div key={item.key}>
@@ -1682,7 +1682,7 @@ function EditRecordForm() {
                     type="text"
                     value={groomingStyle.sanitary}
                     onChange={(e) => setGS('sanitary', e.target.value)}
-                    placeholder="클리핑, 가위컷"
+                    placeholder=""
                     className="w-full bg-transparent px-0 py-2 text-sm outline-none transition-all duration-300"
                     style={{
                       borderBottom: `1px solid ${groomingPrefilled && groomingStyle.sanitary ? '#C9A96E' : '#D0D0D0'}`,
