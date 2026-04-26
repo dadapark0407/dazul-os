@@ -919,6 +919,10 @@ function SessionForm() {
     if (p) {
       setPetName(p.name ?? '')
       petAutoFilled.current = true
+      // 보호자 자동 연결
+      if (p.guardian_id && p.guardian_id !== guardianId) {
+        setGuardianId(p.guardian_id)
+      }
     }
     // 이전 방문 기록에서 grooming_style 자동 채우기
     if (petId) {
