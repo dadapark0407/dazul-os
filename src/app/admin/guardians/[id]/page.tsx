@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { buildSiteUrl } from '@/lib/siteUrl'
+import { formatPhone } from '@/lib/phone'
 import StatusAction from '@/components/admin/StatusAction'
 import CopyTextButton from '@/components/CopyTextButton'
 import GuardianPetTabs from '@/components/admin/GuardianPetTabs'
@@ -171,7 +172,7 @@ export default async function AdminGuardianDetailPage({ params }: PageProps) {
             기본 정보
           </h2>
           <InfoRow label="이름" value={str(guardian, 'name')} />
-          <InfoRow label="연락처" value={str(guardian, 'phone')} />
+          <InfoRow label="연락처" value={(() => { const p = str(guardian, 'phone'); return p ? formatPhone(p) : null })()} />
           <InfoRow label="메모" value={str(guardian, 'memo')} />
         </section>
 

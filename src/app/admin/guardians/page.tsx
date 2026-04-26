@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { formatPhone } from '@/lib/phone'
 
 // TODO: 역할 기반 인증 추가 필요
 
@@ -276,7 +277,7 @@ function GuardianRows({
             {guardian.name ?? '이름 없음'}
           </span>
         </td>
-        <td className="px-4 py-3 text-neutral-700">{guardian.phone ?? '-'}</td>
+        <td className="px-4 py-3 text-neutral-700">{guardian.phone ? formatPhone(guardian.phone) : '-'}</td>
         <td className="px-4 py-3">
           <span
             className="inline-flex h-6 min-w-6 items-center justify-center px-2 text-xs font-semibold"
