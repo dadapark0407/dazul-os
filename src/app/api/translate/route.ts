@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { checkRateLimit, clientIp } from '@/lib/rateLimit'
 
 /**
  * POST /api/translate
@@ -11,10 +12,26 @@ import { createClient } from '@/utils/supabase/server'
  */
 export async function POST(req: NextRequest) {
   try {
+    // 레이트 리밋 (1분 10회) — 비용 보호
+    const ip = clientIp(req)
+    const rl = checkRateLimit(`translate:${ip}`, { limit: 10, windowMs: 60_000 })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.resetIn / 1000)) } }
+      )
+    }
+
     const body = await req.json()
-    const rawTexts = Array.isArray(body.texts) ? body.texts : []
-    const texts: string[] = rawTexts
-      .map((v: unknown) => (typeof v === 'string' ? v.trim() : ''))
+
+    // 입력 검증: 배열 + 최대 20개
+    if (!Array.isArray(body.texts) || body.texts.length > 20) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
+    }
+
+    // 항목별 최대 500자 제한 + trim + 빈 항목 제거
+    const texts: string[] = body.texts
+      .map((v: unknown) => (typeof v === 'string' ? v.slice(0, 500).trim() : ''))
       .filter((v: string) => v.length > 0)
     const targetLang = body.targetLang === 'ja' ? 'ja' : body.targetLang === 'en' ? 'en' : null
     const token = typeof body.token === 'string' ? body.token.trim() : ''

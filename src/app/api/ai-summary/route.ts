@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { checkRateLimit, clientIp } from '@/lib/rateLimit'
 
 /**
  * POST /api/ai-summary
@@ -10,6 +11,16 @@ import { createClient } from '@/utils/supabase/server'
  */
 export async function POST(req: NextRequest) {
   try {
+    // 레이트 리밋 (1분 10회) — 비용 보호
+    const ip = clientIp(req)
+    const rl = checkRateLimit(`ai-summary:${ip}`, { limit: 10, windowMs: 60_000 })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.resetIn / 1000)) } }
+      )
+    }
+
     // 인증 체크
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

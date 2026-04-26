@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getOrCreateReportToken } from '@/lib/reports/createReportToken'
+import { createClient } from '@/utils/supabase/server'
 
 export async function POST(request: NextRequest) {
+  // 인증 체크 — 로그인된 admin만 토큰 발급 가능
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const body = await request.json()
   const visitRecordId = body?.visitRecordId
 

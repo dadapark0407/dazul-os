@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import {
   analyzeGuardianFamily,
@@ -74,6 +74,12 @@ function joinNonEmpty(values: Array<string | null | undefined>) {
 export default async function GuardianHistoryPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
+
+  // 인증 보호 — 미인증 사용자는 로그인 페이지로
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/");
 
   const { data: guardian, error: guardianError } = await supabase
     .from("guardians")
