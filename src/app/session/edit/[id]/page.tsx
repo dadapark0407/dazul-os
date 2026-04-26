@@ -1164,9 +1164,9 @@ function EditRecordForm() {
 
         // 정상값(없음/깨끗함/적당함 등)도 null로 치환하지 않고 그대로 저장
         const skinStr = skin.length > 0 ? fmtItems(skin, skinMemos) : null
-        const coatStr = tangles.length > 0
-          ? `엉킴: ${fmtItems(tangles, tangleMemos)}`
-          : null
+        const coatStr = tangles.length > 0 && !(tangles.length === 1 && tangles[0] === '없음')
+          ? `엉킴: ${fmtItems(tangles, tangleMemos, ['없음'])}`
+          : tangles.includes('없음') ? '엉킴: 없음' : null
         const teethStr = teeth.length > 0
           ? `치아: ${fmtItems(teeth, teethMemos)}`
           : ''
@@ -1174,8 +1174,12 @@ function EditRecordForm() {
           ? `발톱: ${fmtItems(nails, nailMemos)}`
           : ''
         const conditionStr = [
-          eyes.length > 0 ? `눈: ${fmtItems(eyes, eyeMemos)}` : '',
-          ears.length > 0 ? `귀: ${fmtItems(ears, earMemos)}` : '',
+          eyes.length > 0 && !(eyes.length === 1 && eyes[0] === '깨끗함')
+            ? `눈: ${fmtItems(eyes, eyeMemos, ['깨끗함'])}`
+            : eyes.includes('깨끗함') ? '눈: 깨끗함' : '',
+          ears.length > 0 && !(ears.length === 1 && ears[0] === '깨끗함')
+            ? `귀: ${fmtItems(ears, earMemos, ['깨끗함'])}`
+            : ears.includes('깨끗함') ? '귀: 깨끗함' : '',
           teethStr,
           nailStr,
         ]
