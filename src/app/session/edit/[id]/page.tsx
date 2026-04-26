@@ -1455,8 +1455,10 @@ function EditRecordForm() {
                   min="0"
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
-                  placeholder="0.0"
+                  placeholder={dataLoading ? '불러오는 중...' : '0.0'}
+                  disabled={dataLoading}
                   className={inputCls}
+                  style={dataLoading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                 />
               </Field>
             </div>
