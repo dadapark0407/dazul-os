@@ -1262,7 +1262,7 @@ function SessionForm() {
               <Field label="몸무게 (kg)">
                 <input
                   type="number"
-                  step="0.1"
+                  step="any"
                   min="0"
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
