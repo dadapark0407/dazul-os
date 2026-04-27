@@ -1261,11 +1261,10 @@ function SessionForm() {
               </Field>
               <Field label="몸무게 (kg)">
                 <input
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
+                  onChange={(e) => setWeight(e.target.value.replace(/[^0-9.]/g, ''))}
                   placeholder="0.0"
                   className={inputCls}
                 />
