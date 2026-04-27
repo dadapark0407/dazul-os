@@ -1018,7 +1018,7 @@ function SessionForm() {
           pet_name: petName || null,
           guardian_name: guardianName || null,
           visit_date: sessionDate,
-          weight: weight.trim() ? (Number.isFinite(parseFloat(weight)) ? parseFloat(weight) : null) : null,
+          weight: weight.trim() || null,
           service_type: serviceStr,
           service: mainService,
           skin_status: skinStr,

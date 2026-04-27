@@ -1228,7 +1228,7 @@ function EditRecordForm() {
           spa_level: spaLevel || null,
           next_visit_date: nextVisitDate || null,
           comment: comment.trim() || null,
-          weight: weight.trim() ? (Number.isFinite(parseFloat(weight)) ? parseFloat(weight) : null) : null,
+          weight: weight.trim() || null,
         }
 
         // TODO: 사진 업로드 (supabase.storage)
