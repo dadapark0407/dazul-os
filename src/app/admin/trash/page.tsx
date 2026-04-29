@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 // 소프트 삭제 유지 기간 (일)
 const RETENTION_DAYS = 30
 
-type TabKey = 'guardians' | 'pets' | 'visit_records'
+type TabKey = 'guardians' | 'pets' | 'visit_records' | 'products'
 
 type TrashItem = {
   id: string | number
@@ -38,6 +38,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'guardians', label: '보호자' },
   { key: 'pets', label: '반려견' },
   { key: 'visit_records', label: '케어 기록' },
+  { key: 'products', label: '제품' },
 ]
 
 export default function TrashPage() {
@@ -81,7 +82,7 @@ export default function TrashPage() {
           deletedAt: r.deleted_at,
         }))
       )
-    } else {
+    } else if (activeTab === 'visit_records') {
       const { data, error } = await supabase
         .from('visit_records')
         .select('id, visit_date, pet_name, guardian_name, deleted_at')
@@ -93,6 +94,22 @@ export default function TrashPage() {
           id: r.id,
           label: `${formatDate(r.visit_date)} · ${r.pet_name ?? '-'}`,
           sub: r.guardian_name ?? '',
+          deletedAt: r.deleted_at,
+        }))
+      )
+    } else {
+      // products
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, brand, deleted_at')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false })
+      if (error) setErrorMsg(error.message)
+      setItems(
+        (data ?? []).map((r) => ({
+          id: r.id,
+          label: r.name ?? '이름 없음',
+          sub: r.brand ?? '',
           deletedAt: r.deleted_at,
         }))
       )
