@@ -467,12 +467,6 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
                 </p>
               )}
             </div>
-            <Link
-              href={`/session/new?petId=${activePet.id}`}
-              className="shrink-0 rounded-xl bg-neutral-900 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-neutral-700"
-            >
-              케어 기록 작성
-            </Link>
           </div>
 
           {/* 케어 히스토리 테이블 */}
