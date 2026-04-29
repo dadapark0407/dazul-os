@@ -28,13 +28,19 @@ export default function AdminProductsPage() {
   async function handleDelete(id: string) {
     if (!confirm('이 제품을 삭제하시겠습니까?')) return
     setDeletingId(id)
-    const { error: delError } = await supabase
+    const { data, error: delError } = await supabase
       .from('products')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
+      .select('id')
     setDeletingId(null)
     if (delError) {
       alert(`삭제 실패: ${delError.message}`)
+      return
+    }
+    // RLS 또는 권한 문제로 0 rows update 된 경우 silent fail 방지
+    if (!data || data.length === 0) {
+      alert('삭제 권한이 없거나 이미 삭제된 제품입니다.')
       return
     }
     setProducts((prev) => prev.filter((p) => p.id !== id))
