@@ -622,6 +622,7 @@ function SessionForm() {
   const today = new Date().toISOString().split('T')[0]
   const [isPending, startTransition] = useTransition()
   const savingRef = useRef(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // ─── DB 조회용 ───
   const [guardians, setGuardians] = useState<Guardian[]>([])
@@ -960,6 +961,7 @@ function SessionForm() {
     }
     if (savingRef.current) return
     savingRef.current = true
+    setIsSubmitting(true)
     setError('')
 
     startTransition(async () => {
@@ -1126,6 +1128,7 @@ function SessionForm() {
         setError('저장 중 예상치 못한 오류가 발생했습니다.')
       } finally {
         savingRef.current = false
+        setIsSubmitting(false)
       }
     })
   }
@@ -1732,10 +1735,10 @@ function SessionForm() {
           <button
             type="button"
             onClick={handleSave}
-            disabled={isPending}
-            className="w-full bg-[#0A0A0A] py-4 text-[11px] font-normal uppercase tracking-[0.1em] text-white transition-all duration-300 hover:bg-[#0A0A0A]/85 disabled:opacity-40"
+            disabled={isSubmitting || isPending}
+            className="w-full bg-[#0A0A0A] py-4 text-[11px] font-normal uppercase tracking-[0.1em] text-white transition-all duration-300 hover:bg-[#0A0A0A]/85 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isPending ? '저장 중…' : '기록 저장'}
+            {isSubmitting || isPending ? '저장 중…' : '기록 저장'}
           </button>
       </div>
       </div>
