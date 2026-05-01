@@ -950,7 +950,10 @@ function SessionForm() {
   }, [petId, pets])
 
   // ─── 저장 ───
-  function handleSave() {
+  function handleSave(e?: React.MouseEvent<HTMLButtonElement>) {
+    e?.preventDefault()
+    e?.stopPropagation()
+
     if (!petId) {
       setError('반려견을 선택해주세요.')
       return
@@ -959,10 +962,15 @@ function SessionForm() {
       setError('서비스 종류를 선택해주세요.')
       return
     }
-    if (savingRef.current) return
+    // 동기 가드 — 같은 이벤트 루프 내 재진입 차단
+    if (savingRef.current) {
+      console.warn('[handleSave] blocked: already saving')
+      return
+    }
     savingRef.current = true
     setIsSubmitting(true)
     setError('')
+    console.log('[handleSave] start', new Date().toISOString())
 
     startTransition(async () => {
       try {
@@ -1060,10 +1068,12 @@ function SessionForm() {
         //   if (photoUrls.length > 0) payload.photo_urls = photoUrls
         // }
 
+        console.log('[handleSave] inserting visit_records', new Date().toISOString())
         const { data: insertedRows, error: insertError } = await supabase
           .from('visit_records')
           .insert(payload)
           .select('id')
+        console.log('[handleSave] insert result', { error: insertError?.message, rows: insertedRows?.length })
 
         if (insertError) {
           setError(`저장 실패: ${insertError.message}`)
@@ -1734,7 +1744,7 @@ function SessionForm() {
 
           <button
             type="button"
-            onClick={handleSave}
+            onClick={(e) => handleSave(e)}
             disabled={isSubmitting || isPending}
             className="w-full bg-[#0A0A0A] py-4 text-[11px] font-normal uppercase tracking-[0.1em] text-white transition-all duration-300 hover:bg-[#0A0A0A]/85 disabled:cursor-not-allowed disabled:opacity-40"
           >

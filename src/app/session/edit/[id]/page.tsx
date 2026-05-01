@@ -1138,7 +1138,10 @@ function EditRecordForm() {
   }, [petId, pets])
 
   // ─── 저장 ───
-  function handleSave() {
+  function handleSave(e?: React.MouseEvent<HTMLButtonElement>) {
+    e?.preventDefault()
+    e?.stopPropagation()
+
     if (!petId) {
       setError('반려견을 선택해주세요.')
       return
@@ -1147,10 +1150,14 @@ function EditRecordForm() {
       setError('서비스 종류를 선택해주세요.')
       return
     }
-    if (savingRef.current) return
+    if (savingRef.current) {
+      console.warn('[handleSave] blocked: already saving')
+      return
+    }
     savingRef.current = true
     setIsSubmitting(true)
     setError('')
+    console.log('[handleSave] start', new Date().toISOString())
 
     startTransition(async () => {
       try {
@@ -1249,10 +1256,12 @@ function EditRecordForm() {
         //   if (photoUrls.length > 0) payload.photo_urls = photoUrls
         // }
 
+        console.log('[handleSave] updating visit_records', new Date().toISOString())
         const { error: updateError } = await supabase
           .from('visit_records')
           .update(payload)
           .eq('id', recordId)
+        console.log('[handleSave] update result', { error: updateError?.message })
 
         if (updateError) {
           setError(`저장 실패: ${updateError.message}`)
@@ -1929,7 +1938,7 @@ function EditRecordForm() {
 
           <button
             type="button"
-            onClick={handleSave}
+            onClick={(e) => handleSave(e)}
             disabled={isSubmitting || isPending}
             className="w-full bg-[#0A0A0A] py-4 text-[11px] font-normal uppercase tracking-[0.1em] text-white transition-all duration-300 hover:bg-[#0A0A0A]/85 disabled:cursor-not-allowed disabled:opacity-40"
           >
