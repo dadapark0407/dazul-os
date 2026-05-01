@@ -658,6 +658,7 @@ function SessionForm() {
   // ─── 미용 스타일 ───
   const [groomingStyle, setGroomingStyle] = useState({ face: '', body: '', legs: '', tail: '', sanitary: '' })
   const [groomingPrefilled, setGroomingPrefilled] = useState(false)
+  const [prevGroomingStyle, setPrevGroomingStyle] = useState<{ face: string; body: string; legs: string; tail: string; sanitary: string } | null>(null)
   const setGS = (key: keyof typeof groomingStyle, val: string) => {
     setGroomingStyle((prev) => ({ ...prev, [key]: val }))
     setGroomingPrefilled(false) // 수동 편집하면 프리필 표시 해제
@@ -924,7 +925,7 @@ function SessionForm() {
         setGuardianId(p.guardian_id)
       }
     }
-    // 이전 방문 기록에서 grooming_style 자동 채우기
+    // 이전 방문 기록의 grooming_style 조회 — 항상 가져와서 prevGroomingStyle에 저장
     if (petId) {
       (async () => {
         const { data } = await supabase
@@ -938,8 +939,12 @@ function SessionForm() {
           const gs = data.grooming_style as Record<string, string>
           const filled = { face: gs.face ?? '', body: gs.body ?? '', legs: gs.legs ?? '', tail: gs.tail ?? '', sanitary: gs.sanitary ?? '' }
           if (Object.values(filled).some((v) => v)) {
-            setGroomingStyle(filled)
-            setGroomingPrefilled(true)
+            setPrevGroomingStyle(filled)
+            // 전체미용일 때만 자동 적용. 목욕관리는 사용자가 버튼으로 직접 불러오기.
+            if (mainService === '전체미용') {
+              setGroomingStyle(filled)
+              setGroomingPrefilled(true)
+            }
           }
         }
         // 몸무게 프리필 제거 — 매 방문마다 직접 입력
@@ -947,6 +952,19 @@ function SessionForm() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [petId, pets])
+
+  // 전체미용 선택 시 이전 스타일 자동 적용 (이전에 prevGroomingStyle만 캐싱된 경우 포함)
+  useEffect(() => {
+    if (mainService !== '전체미용') return
+    if (!prevGroomingStyle) return
+    if (groomingPrefilled) return
+    // 사용자가 이미 입력한 값이 있으면 덮어쓰지 않음
+    const hasUserInput = Object.values(groomingStyle).some((v) => v.trim())
+    if (hasUserInput) return
+    setGroomingStyle(prevGroomingStyle)
+    setGroomingPrefilled(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainService, prevGroomingStyle])
 
   // ─── 저장 ───
   function handleSave(e?: React.MouseEvent<HTMLButtonElement>) {
@@ -1446,6 +1464,30 @@ function SessionForm() {
             <Card>
               <SectionHeader title="GROOMING STYLE" sub="스타일 컷 상세를 입력해주세요" />
               <div className="flex flex-col gap-4">
+                {/* 목욕관리: 수동 불러오기 버튼 — 이전 스타일이 있고 아직 안 불러온 경우만 */}
+                {mainService === '목욕관리' && prevGroomingStyle && !groomingPrefilled && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!prevGroomingStyle) return
+                      setGroomingStyle(prevGroomingStyle)
+                      setGroomingPrefilled(true)
+                    }}
+                    style={{
+                      alignSelf: 'flex-start',
+                      border: '1px solid #E8E5E0',
+                      borderRadius: 0,
+                      background: 'transparent',
+                      color: '#C9A96E',
+                      fontSize: 12,
+                      letterSpacing: '0.05em',
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    이전 스타일 불러오기
+                  </button>
+                )}
                 {groomingPrefilled && (
                   <p style={{ fontSize: 11, color: '#C9A96E', letterSpacing: '0.02em' }}>
                     이전 방문 기록을 불러왔어요. 변경사항만 수정해주세요.
