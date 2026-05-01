@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { createAutoFollowups } from '@/lib/autoFollowup'
 import { buildSiteUrl } from '@/lib/siteUrl'
 
 // ─────────────────────────────────────────────
@@ -970,7 +969,6 @@ function SessionForm() {
     savingRef.current = true
     setIsSubmitting(true)
     setError('')
-    console.log('[handleSave] start', new Date().toISOString())
 
     startTransition(async () => {
       try {
@@ -1068,12 +1066,10 @@ function SessionForm() {
         //   if (photoUrls.length > 0) payload.photo_urls = photoUrls
         // }
 
-        console.log('[handleSave] inserting visit_records', new Date().toISOString())
         const { data: insertedRows, error: insertError } = await supabase
           .from('visit_records')
           .insert(payload)
           .select('id')
-        console.log('[handleSave] insert result', { error: insertError?.message, rows: insertedRows?.length })
 
         if (insertError) {
           setError(`저장 실패: ${insertError.message}`)
@@ -1081,27 +1077,6 @@ function SessionForm() {
         }
 
         const newRecordId = insertedRows?.[0]?.id
-
-        // 자동 팔로업
-        if (newRecordId) {
-          try {
-            await createAutoFollowups({
-              visitRecordId: newRecordId,
-              petId,
-              guardianId: guardianId || null,
-              visitDate: sessionDate,
-              serviceType: serviceStr,
-              skinStatus: skinStr,
-              coatStatus: coatStr,
-              conditionStatus: conditionStr,
-              specialNotes: specialStr,
-              nextVisitRecommendation: nextRecommendation,
-              careNotes: null,
-            })
-          } catch {
-            /* ignore */
-          }
-        }
 
         // 팔로업 메모 (추적 관찰이 필요한 노트)
         for (const n of notes.filter((n) => n.followUpNeeded && n.content.trim())) {

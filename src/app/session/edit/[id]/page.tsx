@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { createAutoFollowups } from '@/lib/autoFollowup'
 import { buildSiteUrl } from '@/lib/siteUrl'
 
 // ─────────────────────────────────────────────
@@ -1157,7 +1156,6 @@ function EditRecordForm() {
     savingRef.current = true
     setIsSubmitting(true)
     setError('')
-    console.log('[handleSave] start', new Date().toISOString())
 
     startTransition(async () => {
       try {
@@ -1256,12 +1254,10 @@ function EditRecordForm() {
         //   if (photoUrls.length > 0) payload.photo_urls = photoUrls
         // }
 
-        console.log('[handleSave] updating visit_records', new Date().toISOString())
         const { error: updateError } = await supabase
           .from('visit_records')
           .update(payload)
           .eq('id', recordId)
-        console.log('[handleSave] update result', { error: updateError?.message })
 
         if (updateError) {
           setError(`저장 실패: ${updateError.message}`)
@@ -1269,27 +1265,6 @@ function EditRecordForm() {
         }
 
         const newRecordId = recordId
-
-        // 자동 팔로업
-        if (newRecordId) {
-          try {
-            await createAutoFollowups({
-              visitRecordId: newRecordId,
-              petId,
-              guardianId: guardianId || null,
-              visitDate: sessionDate,
-              serviceType: serviceStr,
-              skinStatus: skinStr,
-              coatStatus: coatStr,
-              conditionStatus: conditionStr,
-              specialNotes: specialStr,
-              nextVisitRecommendation: nextRecommendation,
-              careNotes: null,
-            })
-          } catch {
-            /* ignore */
-          }
-        }
 
         // 팔로업 메모 (추적 관찰이 필요한 노트)
         for (const n of notes.filter((n) => n.followUpNeeded && n.content.trim())) {
