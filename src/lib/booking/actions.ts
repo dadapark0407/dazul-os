@@ -351,6 +351,152 @@ export async function deleteStaffOff(id: string) {
 }
 
 
+// ─── 빈 시간 찾기 ───
+
+export type AvailableSlot = {
+  date: string       // YYYY-MM-DD
+  startTime: string  // "HH:MM"
+  endTime: string    // "HH:MM"
+}
+
+const SHOP_OPEN_MIN = 11 * 60   // 11:00
+const SHOP_CLOSE_MIN = 20 * 60  // 20:00
+const SLOT_STEP_MIN = 30
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function minToHHMM(min: number): string {
+  return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
+}
+
+function hhmmToMin(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+function addDaysStr(date: string, days: number): string {
+  const [y, m, d] = date.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + days))
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`
+}
+
+function dowOf(date: string): number {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() // 0=Sun…6=Sat
+}
+
+/**
+ * 미용사·소요시간 기준 빈 슬롯 검색.
+ * 오늘부터 30일 이내, 매장 휴무일(수/일) 제외, staff_off 및 기존 예약 제외.
+ * 영업시간 11:00–20:00, 30분 간격으로 연속 빈 슬롯을 찾아 가장 빠른 limit개 반환.
+ * (날짜당 1개씩, limit개 날짜)
+ */
+export async function findAvailableSlots(
+  groomerId: string,
+  durationMin: number,
+  limit: number = 5,
+): Promise<AvailableSlot[]> {
+  const supabase = await createClient()
+
+  // 오늘 (KST)
+  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const today = nowKst.toISOString().slice(0, 10)
+  const endDate = addDaysStr(today, 29) // 오늘 포함 30일
+
+  // 30일 범위 staff_off / appointments 한 번에 조회
+  const dayStartUtc = new Date(`${today}T00:00:00+09:00`).toISOString()
+  const dayEndUtc = new Date(`${endDate}T23:59:59.999+09:00`).toISOString()
+
+  const [offRes, apptRes] = await Promise.all([
+    supabase
+      .from('staff_off')
+      .select('off_date, off_type, start_time, end_time')
+      .eq('staff_id', groomerId)
+      .gte('off_date', today)
+      .lte('off_date', endDate),
+    supabase
+      .from('appointments')
+      .select('start_at, duration_min')
+      .eq('staff_id', groomerId)
+      .gte('start_at', dayStartUtc)
+      .lte('start_at', dayEndUtc)
+      .is('deleted_at', null),
+  ])
+
+  // 날짜별 인덱싱
+  const offByDate = new Map<
+    string,
+    { off_type: string; start_time: string | null; end_time: string | null }[]
+  >()
+  for (const o of offRes.data ?? []) {
+    const arr = offByDate.get(o.off_date) ?? []
+    arr.push({
+      off_type: o.off_type,
+      start_time: o.start_time,
+      end_time: o.end_time,
+    })
+    offByDate.set(o.off_date, arr)
+  }
+
+  const apptByDate = new Map<string, { start: number; end: number }[]>()
+  for (const a of apptRes.data ?? []) {
+    const startMs = new Date(a.start_at).getTime()
+    const kst = new Date(startMs + 9 * 60 * 60 * 1000)
+    const dateStr = kst.toISOString().slice(0, 10)
+    const startMin = kst.getUTCHours() * 60 + kst.getUTCMinutes()
+    const endMin = startMin + a.duration_min
+    const arr = apptByDate.get(dateStr) ?? []
+    arr.push({ start: startMin, end: endMin })
+    apptByDate.set(dateStr, arr)
+  }
+
+  const nowMin = nowKst.getUTCHours() * 60 + nowKst.getUTCMinutes()
+  const results: AvailableSlot[] = []
+
+  for (let i = 0; i < 30 && results.length < limit; i++) {
+    const dateStr = addDaysStr(today, i)
+    const dow = dowOf(dateStr)
+    if (dow === 0 || dow === 3) continue // 일/수 매장 휴무
+
+    // 미용사 종일 휴무
+    const offs = offByDate.get(dateStr) ?? []
+    if (offs.some((o) => o.off_type === 'dayoff')) continue
+
+    // 차단 구간 = 점심 + 기존 예약
+    const blocked: { start: number; end: number }[] = []
+    for (const o of offs) {
+      if (o.off_type === 'lunch' && o.start_time) {
+        const s = hhmmToMin(o.start_time)
+        const e = o.end_time ? hhmmToMin(o.end_time) : s + 60
+        blocked.push({ start: s, end: e })
+      }
+    }
+    for (const a of apptByDate.get(dateStr) ?? []) {
+      blocked.push({ start: a.start, end: a.end })
+    }
+
+    // 30분 간격으로 연속 빈 슬롯 탐색 — 날짜당 가장 빠른 1개
+    for (let t = SHOP_OPEN_MIN; t + durationMin <= SHOP_CLOSE_MIN; t += SLOT_STEP_MIN) {
+      // 오늘이면 현재시각 이후만
+      if (i === 0 && t < nowMin) continue
+      const slotEnd = t + durationMin
+      const overlap = blocked.some((b) => t < b.end && b.start < slotEnd)
+      if (overlap) continue
+      results.push({
+        date: dateStr,
+        startTime: minToHHMM(t),
+        endTime: minToHHMM(slotEnd),
+      })
+      break
+    }
+  }
+
+  return results
+}
+
+
 // ─── 고객(반려견) 매칭 ───
 
 export type PetMatch = {

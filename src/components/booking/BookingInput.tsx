@@ -4,7 +4,7 @@
 // 자연어 예약 입력창 — Enter로 파싱 → DB 저장 (여러 줄 지원)
 // =============================================================
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   parseBookingInput,
   type ParsedAppointment,
@@ -25,6 +25,8 @@ type Props = {
   appointments?: Appointment[]
   onCreated: () => void
   onDateChange: (newDate: string) => void
+  prefillText?: string        // 외부에서 입력창을 채우고 싶을 때
+  prefillSignal?: number      // 변경될 때마다 prefillText 적용
 }
 
 type Pending = {
@@ -64,6 +66,8 @@ export default function BookingInput({
   appointments,
   onCreated,
   onDateChange,
+  prefillText,
+  prefillSignal,
 }: Props) {
   const [text, setText] = useState('')
   const [errorMessages, setErrorMessages] = useState<string[]>([])
@@ -140,6 +144,23 @@ export default function BookingInput({
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
   }
+
+  // 외부 prefill — signal 바뀔 때마다 텍스트 채워 넣고 포커스
+  useEffect(() => {
+    if (prefillSignal === undefined || prefillSignal === 0) return
+    setText(prefillText ?? '')
+    setErrorMessages([])
+    setTimeout(() => {
+      autoResize()
+      const el = textareaRef.current
+      if (el) {
+        el.focus()
+        const len = el.value.length
+        el.setSelectionRange(len, len)
+      }
+    }, 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillSignal])
 
   // ─── 큐 완료 ───
   function finishQueue() {
