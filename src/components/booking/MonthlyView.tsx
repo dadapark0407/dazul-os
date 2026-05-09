@@ -17,6 +17,7 @@ type Props = {
   onDateSelect: (date: string) => void   // 날짜 클릭 → 일간 뷰 전환
   onChanged: () => void                   // 예약 수정/삭제 후 새로고침
   onDateChange: (date: string) => void    // 예약 날짜 변경 후 일간 뷰 전환
+  filterGroomerId?: string | null
 }
 
 type CalendarDay = {
@@ -118,6 +119,7 @@ export default function MonthlyView({
   onDateSelect,
   onChanged,
   onDateChange,
+  filterGroomerId,
 }: Props) {
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
   const [localAppts, setLocalAppts] = useState<Appointment[]>(appointments)
@@ -158,13 +160,22 @@ export default function MonthlyView({
   const today = todayKst()
   const calDays = buildCalendarDays(year, month)
 
+  // UI 레이어 필터 — 표시만 거름 (드래그/수정 등은 localAppts 전체 기준 그대로)
+  const visibleAppts = filterGroomerId
+    ? localAppts.filter((a) => a.staff_id === filterGroomerId)
+    : localAppts
+
   // 날짜별 예약 그룹화
   const apptsByDate = new Map<string, Appointment[]>()
-  for (const a of localAppts) {
+  for (const a of visibleAppts) {
     const d = isoToKstDate(a.start_at)
     if (!apptsByDate.has(d)) apptsByDate.set(d, [])
     apptsByDate.get(d)!.push(a)
   }
+
+  const filteredStaffName = filterGroomerId
+    ? staff.find((s) => s.id === filterGroomerId)?.name ?? null
+    : null
 
   return (
     <>
@@ -176,6 +187,23 @@ export default function MonthlyView({
         }}
       >
         <div style={{ minWidth: 560 }}>
+
+          {/* ── 필터 헤더 (필터 활성 시) ── */}
+          {filteredStaffName && (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderBottom: '1px solid #E8E5E0',
+                background: '#FAFAF8',
+                fontSize: 13,
+                letterSpacing: '0.05em',
+                fontWeight: 600,
+                color: '#1A1A1A',
+              }}
+            >
+              {month}월 — <span style={{ color: '#C9A96E' }}>{filteredStaffName}</span>
+            </div>
+          )}
 
           {/* ── 요일 헤더 ── */}
           <div

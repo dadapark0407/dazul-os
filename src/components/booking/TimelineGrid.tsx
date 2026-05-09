@@ -21,6 +21,7 @@ type Props = {
   staffOff: StaffOff[]
   onChanged: () => void
   onDateChange: (newDate: string) => void
+  onGroomerNameClick?: (groomerId: string) => void
 }
 
 // ─── 타임라인 상수 ───
@@ -142,6 +143,7 @@ export default function TimelineGrid({
   staffOff,
   onChanged,
   onDateChange,
+  onGroomerNameClick,
 }: Props) {
   const [localAppts, setLocalAppts] = useState<Appointment[]>(appointments)
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -406,16 +408,31 @@ export default function TimelineGrid({
                       display: 'inline-block',
                     }}
                   />
-                  <span
-                    style={{
-                      fontSize: 13,
-                      letterSpacing: '0.05em',
-                      fontWeight: 600,
-                      color: '#1A1A1A',
-                    }}
-                  >
-                    {col.name}
-                  </span>
+                  {col.isUnassigned ? (
+                    <span
+                      style={{
+                        fontSize: 13,
+                        letterSpacing: '0.05em',
+                        fontWeight: 600,
+                        color: '#1A1A1A',
+                      }}
+                    >
+                      {col.name}
+                    </span>
+                  ) : (
+                    <span
+                      onClick={() => onGroomerNameClick?.(col.key)}
+                      className="cursor-pointer hover:text-[#C9A96E] transition-colors"
+                      style={{
+                        fontSize: 13,
+                        letterSpacing: '0.05em',
+                        fontWeight: 600,
+                        color: '#1A1A1A',
+                      }}
+                    >
+                      {col.name}
+                    </span>
+                  )}
                 </div>
               </div>
 
