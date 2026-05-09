@@ -20,7 +20,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'settings', label: '설정', href: '/admin/settings', icon: 'Settings', category: 'main' },
 
   // ─── 숨겨진 항목 (hidden: true — 향후 활성화) ───
-  { id: 'schedule', label: '예약 관리', href: '/admin/schedule', icon: 'Calendar', hidden: true, category: 'main' },
+  { id: 'booking', label: '예약 관리', href: '/admin/booking', icon: 'Calendar', category: 'main' },
   { id: 'analytics', label: '통계 분석', href: '/admin/analytics', icon: 'BarChart2', hidden: true, category: 'analytics' },
   { id: 'inventory', label: '재고 관리', href: '/admin/inventory', icon: 'Package', hidden: true, category: 'management' },
   { id: 'staff', label: '직원 관리', href: '/admin/staff', icon: 'Users', hidden: true, category: 'management' },
