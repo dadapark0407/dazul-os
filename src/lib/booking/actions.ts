@@ -353,15 +353,15 @@ export async function deleteStaffOff(id: string) {
 
 // ─── 빈 시간 찾기 ───
 
-export type AvailableSlot = {
-  date: string       // YYYY-MM-DD
-  startTime: string  // "HH:MM"
-  endTime: string    // "HH:MM"
+export type WeeklyAvailability = {
+  date: string                              // "YYYY-MM-DD"
+  dayLabel: string                          // "월 5/12"
+  ranges: { start: string; end: string }[]  // [{ start: "14:00", end: "17:00" }]
+  isClosed: boolean                         // 매장 고정 휴무 (수/일)
 }
 
 const SHOP_OPEN_MIN = 11 * 60   // 11:00
 const SHOP_CLOSE_MIN = 20 * 60  // 20:00
-const SLOT_STEP_MIN = 30
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
@@ -369,11 +369,6 @@ function pad2(n: number): string {
 
 function minToHHMM(min: number): string {
   return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
-}
-
-function hhmmToMin(hhmm: string): number {
-  const [h, m] = hhmm.split(':').map(Number)
-  return h * 60 + m
 }
 
 function addDaysStr(date: string, days: number): string {
@@ -387,34 +382,33 @@ function dowOf(date: string): number {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay() // 0=Sun…6=Sat
 }
 
+const DOW_KO = ['일', '월', '화', '수', '목', '금', '토']
+
 /**
- * 미용사·소요시간 기준 빈 슬롯 검색.
- * 오늘부터 30일 이내, 매장 휴무일(수/일) 제외, staff_off 및 기존 예약 제외.
- * 영업시간 11:00–20:00, 30분 간격으로 연속 빈 슬롯을 찾아 가장 빠른 limit개 반환.
- * (날짜당 1개씩, limit개 날짜)
+ * 주간 빈 시간 조회.
+ * weekStartDate(월요일)부터 7일치, 영업시간 11:00–20:00 기준.
+ * - 수/일: isClosed = true (매장 고정 휴무)
+ * - 그 외: appointments + staff_off(dayoff)를 차단으로 빼고 남은 연속 구간 반환
+ *   (점심 시간은 자동 제외하지 않음 — 순수 빈 시간만 표시)
+ * - durationMin 이상의 구간만 포함
  */
 export async function findAvailableSlots(
   groomerId: string,
   durationMin: number,
-  limit: number = 5,
-): Promise<AvailableSlot[]> {
+  weekStartDate: string,
+): Promise<WeeklyAvailability[]> {
   const supabase = await createClient()
 
-  // 오늘 (KST)
-  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
-  const today = nowKst.toISOString().slice(0, 10)
-  const endDate = addDaysStr(today, 29) // 오늘 포함 30일
-
-  // 30일 범위 staff_off / appointments 한 번에 조회
-  const dayStartUtc = new Date(`${today}T00:00:00+09:00`).toISOString()
+  const endDate = addDaysStr(weekStartDate, 6)
+  const dayStartUtc = new Date(`${weekStartDate}T00:00:00+09:00`).toISOString()
   const dayEndUtc = new Date(`${endDate}T23:59:59.999+09:00`).toISOString()
 
   const [offRes, apptRes] = await Promise.all([
     supabase
       .from('staff_off')
-      .select('off_date, off_type, start_time, end_time')
+      .select('off_date, off_type')
       .eq('staff_id', groomerId)
-      .gte('off_date', today)
+      .gte('off_date', weekStartDate)
       .lte('off_date', endDate),
     supabase
       .from('appointments')
@@ -425,21 +419,13 @@ export async function findAvailableSlots(
       .is('deleted_at', null),
   ])
 
-  // 날짜별 인덱싱
-  const offByDate = new Map<
-    string,
-    { off_type: string; start_time: string | null; end_time: string | null }[]
-  >()
+  // 날짜별 종일 휴무 여부
+  const dayoffSet = new Set<string>()
   for (const o of offRes.data ?? []) {
-    const arr = offByDate.get(o.off_date) ?? []
-    arr.push({
-      off_type: o.off_type,
-      start_time: o.start_time,
-      end_time: o.end_time,
-    })
-    offByDate.set(o.off_date, arr)
+    if (o.off_type === 'dayoff') dayoffSet.add(o.off_date)
   }
 
+  // 날짜별 예약 차단 구간
   const apptByDate = new Map<string, { start: number; end: number }[]>()
   for (const a of apptRes.data ?? []) {
     const startMs = new Date(a.start_at).getTime()
@@ -452,48 +438,63 @@ export async function findAvailableSlots(
     apptByDate.set(dateStr, arr)
   }
 
-  const nowMin = nowKst.getUTCHours() * 60 + nowKst.getUTCMinutes()
-  const results: AvailableSlot[] = []
+  const result: WeeklyAvailability[] = []
 
-  for (let i = 0; i < 30 && results.length < limit; i++) {
-    const dateStr = addDaysStr(today, i)
+  for (let i = 0; i < 7; i++) {
+    const dateStr = addDaysStr(weekStartDate, i)
     const dow = dowOf(dateStr)
-    if (dow === 0 || dow === 3) continue // 일/수 매장 휴무
+    const [, mo, d] = dateStr.split('-').map(Number)
+    const dayLabel = `${DOW_KO[dow]} ${mo}/${d}`
 
-    // 미용사 종일 휴무
-    const offs = offByDate.get(dateStr) ?? []
-    if (offs.some((o) => o.off_type === 'dayoff')) continue
+    // 매장 고정 휴무 (일/수)
+    if (dow === 0 || dow === 3) {
+      result.push({ date: dateStr, dayLabel, ranges: [], isClosed: true })
+      continue
+    }
 
-    // 차단 구간 = 점심 + 기존 예약
-    const blocked: { start: number; end: number }[] = []
-    for (const o of offs) {
-      if (o.off_type === 'lunch' && o.start_time) {
-        const s = hhmmToMin(o.start_time)
-        const e = o.end_time ? hhmmToMin(o.end_time) : s + 60
-        blocked.push({ start: s, end: e })
+    // 미용사 종일 휴무 → 영업일이지만 가용 0
+    if (dayoffSet.has(dateStr)) {
+      result.push({ date: dateStr, dayLabel, ranges: [], isClosed: false })
+      continue
+    }
+
+    // 예약 구간 정렬 + 병합
+    const blocked = [...(apptByDate.get(dateStr) ?? [])].sort(
+      (a, b) => a.start - b.start,
+    )
+    const merged: { start: number; end: number }[] = []
+    for (const b of blocked) {
+      const last = merged[merged.length - 1]
+      if (last && b.start <= last.end) {
+        last.end = Math.max(last.end, b.end)
+      } else {
+        merged.push({ start: b.start, end: b.end })
       }
     }
-    for (const a of apptByDate.get(dateStr) ?? []) {
-      blocked.push({ start: a.start, end: a.end })
+
+    // 영업시간 - 예약 = 빈 구간
+    const free: { start: number; end: number }[] = []
+    let cursor = SHOP_OPEN_MIN
+    for (const b of merged) {
+      const bs = Math.max(b.start, SHOP_OPEN_MIN)
+      const be = Math.min(b.end, SHOP_CLOSE_MIN)
+      if (bs > cursor) free.push({ start: cursor, end: bs })
+      cursor = Math.max(cursor, be)
+      if (cursor >= SHOP_CLOSE_MIN) break
+    }
+    if (cursor < SHOP_CLOSE_MIN) {
+      free.push({ start: cursor, end: SHOP_CLOSE_MIN })
     }
 
-    // 30분 간격으로 연속 빈 슬롯 탐색 — 날짜당 가장 빠른 1개
-    for (let t = SHOP_OPEN_MIN; t + durationMin <= SHOP_CLOSE_MIN; t += SLOT_STEP_MIN) {
-      // 오늘이면 현재시각 이후만
-      if (i === 0 && t < nowMin) continue
-      const slotEnd = t + durationMin
-      const overlap = blocked.some((b) => t < b.end && b.start < slotEnd)
-      if (overlap) continue
-      results.push({
-        date: dateStr,
-        startTime: minToHHMM(t),
-        endTime: minToHHMM(slotEnd),
-      })
-      break
-    }
+    // durationMin 이상만 채택
+    const ranges = free
+      .filter((r) => r.end - r.start >= durationMin)
+      .map((r) => ({ start: minToHHMM(r.start), end: minToHHMM(r.end) }))
+
+    result.push({ date: dateStr, dayLabel, ranges, isClosed: false })
   }
 
-  return results
+  return result
 }
 
 

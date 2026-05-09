@@ -73,6 +73,14 @@ export default function BookingCalendar({
   const [prefillText, setPrefillText] = useState('')
   const [prefillSignal, setPrefillSignal] = useState(0)
 
+  // ── 월간 뷰 미용사 필터 ──
+  const [filterGroomerId, setFilterGroomerId] = useState<string | null>(null)
+
+  function handleGroomerFilter(groomerId: string) {
+    setFilterGroomerId(groomerId)
+    setView('monthly')
+  }
+
   function handleSelectSlot(
     slotDate: string,
     startTime: string,
@@ -316,6 +324,7 @@ export default function BookingCalendar({
             staffOff={staffOff}
             onChanged={() => refresh()}
             onDateChange={(d) => setDate(d)}
+            onGroomerNameClick={handleGroomerFilter}
           />
         </>
       )}
@@ -344,11 +353,78 @@ export default function BookingCalendar({
             prefillSignal={prefillSignal}
           />
           <SlotFinder groomers={staff} onSelectSlot={handleSelectSlot} />
+
+          {/* ─── 미용사 필터 ─── */}
+          <div
+            className="flex flex-wrap items-center gap-3"
+            style={{
+              padding: '10px 14px',
+              background: '#FFFFFF',
+              border: '1px solid #E8E5E0',
+              borderRadius: 0,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                color: '#888',
+                fontWeight: 600,
+              }}
+            >
+              미용사 필터
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFilterGroomerId(null)}
+                style={{
+                  fontSize: 12,
+                  letterSpacing: '0.05em',
+                  padding: '6px 12px',
+                  background:
+                    filterGroomerId === null ? '#1A1A1A' : '#FFFFFF',
+                  color: filterGroomerId === null ? '#FFFFFF' : '#1A1A1A',
+                  border: '1px solid #E8E5E0',
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                전체
+              </button>
+              {staff.map((g) => {
+                const active = filterGroomerId === g.id
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => setFilterGroomerId(g.id)}
+                    style={{
+                      fontSize: 12,
+                      letterSpacing: '0.05em',
+                      padding: '6px 12px',
+                      background: active ? '#C9A96E' : '#FFFFFF',
+                      color: active ? '#FFFFFF' : '#1A1A1A',
+                      border: `1px solid ${active ? '#C9A96E' : '#E8E5E0'}`,
+                      borderRadius: 0,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      fontWeight: active ? 600 : 400,
+                    }}
+                  >
+                    {g.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <MonthlyView
             year={viewYear}
             month={viewMonth}
             staff={staff}
             appointments={monthlyAppts}
+            filterGroomerId={filterGroomerId}
             onDateSelect={(d) => {
               setDate(d)
               setView('daily')
