@@ -8,6 +8,7 @@ import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BookingInput from './BookingInput'
+import SlotFinder from './SlotFinder'
 import TimelineGrid from './TimelineGrid'
 import MonthlyView from './MonthlyView'
 import {
@@ -67,6 +68,24 @@ export default function BookingCalendar({
   const [viewYear, setViewYear] = useState(() => parseInt(initialDate.slice(0, 4)))
   const [viewMonth, setViewMonth] = useState(() => parseInt(initialDate.slice(5, 7)))
   const [monthlyAppts, setMonthlyAppts] = useState<Appointment[]>([])
+
+  // ── BookingInput 외부 prefill (SlotFinder에서 트리거) ──
+  const [prefillText, setPrefillText] = useState('')
+  const [prefillSignal, setPrefillSignal] = useState(0)
+
+  function handleSelectSlot(
+    slotDate: string,
+    startTime: string,
+    groomerId: string,
+  ) {
+    const groomer = staff.find((s) => s.id === groomerId)
+    if (!groomer) return
+    const [, m, d] = slotDate.split('-').map(Number)
+    setPrefillText(`${m}/${d} ${startTime} ${groomer.name} `)
+    setPrefillSignal((n) => n + 1)
+    setDate(slotDate)
+    setView('daily')
+  }
 
   // 날짜 변경 시 데이터 재조회
   useEffect(() => {
@@ -286,7 +305,10 @@ export default function BookingCalendar({
             appointments={appointments}
             onCreated={() => refresh()}
             onDateChange={(d) => setDate(d)}
+            prefillText={prefillText}
+            prefillSignal={prefillSignal}
           />
+          <SlotFinder groomers={staff} onSelectSlot={handleSelectSlot} />
           <TimelineGrid
             date={date}
             staff={staff}
@@ -318,7 +340,10 @@ export default function BookingCalendar({
                 refreshMonthly()
               }
             }}
+            prefillText={prefillText}
+            prefillSignal={prefillSignal}
           />
+          <SlotFinder groomers={staff} onSelectSlot={handleSelectSlot} />
           <MonthlyView
             year={viewYear}
             month={viewMonth}
