@@ -47,3 +47,6 @@ This project is a pet grooming salon operating system for DAZUL.
 - Long text input
 # DAZUL Grooming OS
 This project is a pet grooming salon operating system for DAZUL.
+
+## 작업 규칙
+- 워크트리 만들지 말고 현재 브랜치(main)에서 직접 작업할 것
