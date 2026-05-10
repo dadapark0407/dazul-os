@@ -17,6 +17,7 @@ export type ParsedAppointment = {
   note: string | null
   raw: string               // 원본 입력
   isNewCustomer: boolean    // "신규" 키워드 감지 시 true
+  unassigned: boolean       // "지정없음/미지정/미배정" 키워드 명시 여부
 }
 
 export type ParsedStaffOff = {
@@ -546,6 +547,7 @@ export function parseBookingInput(
       note,
       raw: input,
       isNewCustomer: newRes.isNew,
+      unassigned: unaRes.unassigned,
     },
   }
 }

@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { DetailModal } from './AppointmentBlock'
 import type { Appointment, Staff } from '@/lib/booking/actions'
 import { updateAppointment } from '@/lib/booking/actions'
+import { isClosedDow } from '@/lib/booking/constants'
 
 type Props = {
   year: number
@@ -236,6 +237,9 @@ export default function MonthlyView({
             {calDays.map((calDay) => {
               const dayAppts = apptsByDate.get(calDay.date) ?? []
               const isToday = calDay.date === today
+              const [yy, mm, dd] = calDay.date.split('-').map(Number)
+              const dow = new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay()
+              const isClosed = isClosedDow(dow)
 
               return (
                 <div
@@ -252,6 +256,7 @@ export default function MonthlyView({
                     padding: '6px 6px 10px',
                     opacity: calDay.currentMonth ? 1 : 0.35,
                     cursor: 'pointer',
+                    background: isClosed ? '#F5F5F3' : undefined,
                   }}
                 >
                   {/* 날짜 숫자 버튼 → 일간 뷰로 이동 (버블링 방지: 셀이 이미 처리) */}
@@ -272,6 +277,18 @@ export default function MonthlyView({
                   >
                     {calDay.day}
                   </button>
+                  {isClosed && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: '#888',
+                        marginLeft: 4,
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      휴무
+                    </span>
+                  )}
 
                   {/* 예약 목록 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -280,6 +297,7 @@ export default function MonthlyView({
                       const staffMember = staff.find((s) => s.id === a.staff_id)
                       const staffName = staffMember?.name
                       const sigColor = staffMember?.signature_color
+                      const isRandom = a.assign_type === 'random'
 
                       // 포맷: {시간} {품종} {이름} {서비스} {미용사}
                       const parts: string[] = [time]
@@ -308,15 +326,23 @@ export default function MonthlyView({
                             letterSpacing: '0.01em',
                             color: sigColor ? '#1A1A1A' : '#999',
                             background: sigColor ? hexToRgba(sigColor, 0.12) : 'transparent',
-                            border: 'none',
+                            border: isRandom
+                              ? `1px dashed ${sigColor ?? '#888'}`
+                              : 'none',
                             borderLeft: sigColor
-                              ? `5px solid ${sigColor}`
-                              : '5px solid #D0D0D0',
+                              ? `5px ${isRandom ? 'dashed' : 'solid'} ${sigColor}`
+                              : `5px ${isRandom ? 'dashed' : 'solid'} #D0D0D0`,
                             padding: '0 0 0 8px',
                             wordBreak: 'break-word',
+                            opacity: isRandom ? 0.7 : 1,
                           }}
                         >
                           {parts.join(' ')}
+                          {isRandom && (
+                            <span style={{ color: '#B23A3A', fontWeight: 700, marginLeft: 4 }}>
+                              자동
+                            </span>
+                          )}
                           {a.note && (
                             <span style={{ color: '#AAA' }}> ({a.note})</span>
                           )}

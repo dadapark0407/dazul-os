@@ -24,14 +24,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
 
-    // 입력 검증: 배열 + 최대 20개
-    if (!Array.isArray(body.texts) || body.texts.length > 20) {
+    // 입력 검증: 배열 + 최대 50개
+    if (!Array.isArray(body.texts) || body.texts.length > 50) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
     }
 
-    // 항목별 최대 500자 제한 + trim + 빈 항목 제거
+    // 항목별 최대 1000자 제한 + trim + 빈 항목 제거
     const texts: string[] = body.texts
-      .map((v: unknown) => (typeof v === 'string' ? v.slice(0, 500).trim() : ''))
+      .map((v: unknown) => (typeof v === 'string' ? v.slice(0, 1000).trim() : ''))
       .filter((v: string) => v.length > 0)
     const targetLang = body.targetLang === 'ja' ? 'ja' : body.targetLang === 'en' ? 'en' : null
     const token = typeof body.token === 'string' ? body.token.trim() : ''
@@ -84,7 +84,7 @@ Preserve any special characters, parentheses, and formatting.`
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
+        max_tokens: 4000,
         system,
         messages: [
           {

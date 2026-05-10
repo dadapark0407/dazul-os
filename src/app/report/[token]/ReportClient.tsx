@@ -253,8 +253,11 @@ const SH = ({ children }: { children: string }) => (
 function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productCategoryMap, trMap, fullDate = false }: { rec: Rec; expanded: boolean; onToggle: () => void; lang: Lang; productSummaryMap: Record<string, string>; productCategoryMap: Record<string, string>; trMap: Record<string, string>; fullDate?: boolean }) {
   const t = T[lang]
   const rawSvc = rec.service ?? rec.service_type ?? null
-  const svc = rawSvc ? tSvc(rawSvc, lang) : null
-  const spa = rec.spa_level ? { ...SPA[rec.spa_level], label: tSpa(rec.spa_level, lang) } : null
+  // tSvc/tSpa는 정적 매핑값 처리 → 자유입력 값은 trMap으로 추가 번역
+  const svc = rawSvc ? tr(tSvc(rawSvc, lang), trMap, lang) : null
+  const spa = rec.spa_level
+    ? { ...SPA[rec.spa_level], label: tr(tSpa(rec.spa_level, lang), trMap, lang) }
+    : null
   const cond = parseCond(rec.condition_status)
   // 엉킴 라벨 중복 제거: '엉킴: 겨드랑이' → '겨드랑이'
   const coatValue = rec.coat_status
@@ -440,7 +443,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                     <div key={cat} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}>
                       <div className="flex items-baseline">
                         <span style={{ minWidth: 60, fontSize: 13, color: '#8A8A7A', letterSpacing: '0.05em', flexShrink: 0 }}>
-                          {cat}
+                          {tr(cat, trMap, lang)}
                         </span>
                         <div style={{ flex: 1 }}>
                           {list.length === 0 ? (
@@ -448,10 +451,10 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                           ) : (
                             list.map((p, i) => (
                               <div key={i} style={{ marginBottom: i < list.length - 1 ? 6 : 0 }}>
-                                <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, fontWeight: 400 }}>{p.label}</p>
+                                <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, fontWeight: 400 }}>{tr(p.label, trMap, lang)}</p>
                                 {p.summary && (
                                   <p style={{ fontSize: 11, color: C.sub, lineHeight: 1.6, fontWeight: 300, marginTop: 2 }}>
-                                    {p.summary}
+                                    {tr(p.summary, trMap, lang)}
                                   </p>
                                 )}
                               </div>
@@ -516,7 +519,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                 <p style={{ fontSize: 10, color: C.sub, marginTop: 8, letterSpacing: '0.15em' }}>{nextWeeks}</p>
               )}
               {!nextDate && rec.next_visit_recommendation && (
-                <p style={{ fontSize: 13, color: C.text, fontWeight: 300, lineHeight: 2 }}>{rec.next_visit_recommendation}</p>
+                <p style={{ fontSize: 13, color: C.text, fontWeight: 300, lineHeight: 2 }}>{tr(rec.next_visit_recommendation, trMap, lang)}</p>
               )}
             </div>
           )}
@@ -562,7 +565,17 @@ export default function ReportClient({
     if (lang === 'ko') return []
     const list: string[] = []
     const CLEAN_SET = new Set(['깨끗함', '없음', '양호'])
+    // 정적 매핑 보유 — 자유입력 값일 때만 번역 대상 추가
+    const STATIC_SVC = new Set(['목욕관리', '전체미용'])
+    const STATIC_SPA = new Set(['basic', 'premium', 'essential', 'deep', 'signature', 'prestige'])
+
     for (const r of records) {
+      // 서비스 (자유입력일 때만)
+      if (r.service && !STATIC_SVC.has(r.service)) list.push(r.service)
+      if (r.service_type && !STATIC_SVC.has(r.service_type)) list.push(r.service_type)
+      // SPA 레벨 (자유입력일 때만)
+      if (r.spa_level && !STATIC_SPA.has(r.spa_level)) list.push(r.spa_level)
+
       // 신체 상태 값
       if (r.skin_status && !CLEAN_SET.has(r.skin_status)) list.push(r.skin_status)
       if (r.coat_status) {
@@ -576,17 +589,38 @@ export default function ReportClient({
           if (m && m[1] && !CLEAN_SET.has(m[1])) list.push(m[1])
         }
       }
+
+      // 사용 제품 (라벨)
+      if (r.care_actions) {
+        for (const label of r.care_actions.split(',').map((s) => s.trim()).filter(Boolean)) {
+          list.push(label)
+        }
+      }
+
       // 홈케어 팁
       if (r.next_care_guide) {
         for (const tip of r.next_care_guide.split('\n').map((s) => s.trim()).filter(Boolean)) {
           list.push(tip)
         }
       }
+
+      // 다음 방문 권장
+      if (r.next_visit_recommendation) list.push(r.next_visit_recommendation)
+
       // 보호자 메시지
       if (r.comment) list.push(r.comment)
     }
+
+    // 제품 카테고리 / 설명도 번역 대상
+    for (const cat of Object.values(productCategoryMap)) {
+      if (cat) list.push(cat)
+    }
+    for (const summary of Object.values(productSummaryMap)) {
+      if (summary) list.push(summary)
+    }
+
     return list
-  }, [records, lang])
+  }, [records, lang, productCategoryMap, productSummaryMap])
 
   const routeParams = useParams()
   const reportToken =

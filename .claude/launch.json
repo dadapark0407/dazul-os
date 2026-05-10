@@ -6,7 +6,8 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
-      "cwd": "/Users/soyoung/dazul-os/.claude/worktrees/silly-hopper"
+      "autoPort": true,
+      "cwd": "/Users/soyoung/dazul-os"
     }
   ]
 }

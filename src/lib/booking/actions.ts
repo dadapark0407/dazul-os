@@ -6,6 +6,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
+import { isClosedDow } from './constants'
 
 // ─── 타입 ───
 
@@ -22,12 +23,13 @@ export type AppointmentInput = {
   pet_name?: string | null    // 반려견 이름 스냅샷 (신규 고객용·표시용)
   pet_breed?: string | null   // 반려견 품종 스냅샷
   service?: string | null     // 서비스 키워드 (미용/목욕 등)
+  assign_type?: 'fixed' | 'random'  // 'random' = autoAssignGroomer로 자동 배정됨
 }
 
 export type StaffOffInput = {
   staff_id: string
   off_date: string         // YYYY-MM-DD
-  off_type: 'lunch' | 'dayoff'
+  off_type: 'lunch' | 'dayoff' | 'half_off'
   start_time?: string | null  // "HH:MM"
   end_time?: string | null    // "HH:MM"
   branch_id?: string | null
@@ -40,6 +42,7 @@ export type Staff = {
   display_order: number
   is_active: boolean
   branch_id: string | null
+  service_priority?: Record<string, number> | null
 }
 
 export type Appointment = {
@@ -56,13 +59,14 @@ export type Appointment = {
   pet_breed?: string | null
   guardian_name?: string | null
   service?: string | null
+  assign_type?: 'fixed' | 'random'
 }
 
 export type StaffOff = {
   id: string
   staff_id: string
   off_date: string
-  off_type: 'lunch' | 'dayoff'
+  off_type: 'lunch' | 'dayoff' | 'half_off'
   start_time: string | null
   end_time: string | null
 }
@@ -105,7 +109,7 @@ export async function getBookingData(date: string): Promise<BookingData> {
     .from('appointments')
     .select(
       `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
-       note, raw_input, pet_name, pet_breed, service,
+       note, raw_input, pet_name, pet_breed, service, assign_type,
        pets:pet_id ( name, breed ),
        guardians:guardian_id ( name )`,
     )
@@ -129,6 +133,7 @@ export async function getBookingData(date: string): Promise<BookingData> {
     pet_breed: row.pets?.breed ?? row.pet_breed ?? null,
     guardian_name: row.guardians?.name ?? null,
     service: row.service ?? null,
+    assign_type: row.assign_type ?? 'fixed',
   }))
 
   // 당일 staff_off
@@ -182,7 +187,7 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
     .from('appointments')
     .select(
       `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
-       note, raw_input, pet_name, pet_breed, service,
+       note, raw_input, pet_name, pet_breed, service, assign_type,
        pets:pet_id ( name, breed ),
        guardians:guardian_id ( name )`,
     )
@@ -205,6 +210,7 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
     pet_breed: row.pets?.breed ?? row.pet_breed ?? null,
     guardian_name: row.guardians?.name ?? null,
     service: row.service ?? null,
+    assign_type: row.assign_type ?? 'fixed',
   }))
 
   return {
@@ -233,6 +239,7 @@ export async function createAppointment(data: AppointmentInput) {
       pet_name: data.pet_name ?? null,
       pet_breed: data.pet_breed ?? null,
       service: data.service ?? null,
+      assign_type: data.assign_type ?? 'fixed',
     })
     .select()
     .single()
@@ -447,7 +454,7 @@ export async function findAvailableSlots(
     const dayLabel = `${DOW_KO[dow]} ${mo}/${d}`
 
     // 매장 고정 휴무 (일/수)
-    if (dow === 0 || dow === 3) {
+    if (isClosedDow(dow)) {
       result.push({ date: dateStr, dayLabel, ranges: [], isClosed: true })
       continue
     }
@@ -606,4 +613,192 @@ export async function createPetWithGuardian(input: {
   }
 
   return { ok: true as const, petId: p.id, guardianId: g.id }
+}
+
+
+// ─── 자동 미용사 배정 ───
+
+/**
+ * 주어진 시간대에 비어있는 미용사 중 service_priority + 그날 예약 수로
+ * 가장 적합한 미용사를 선택해서 ID를 반환.
+ * 모두 꽉 찼거나 휴무일이면 null.
+ *
+ * 정렬 우선순위:
+ *   1) service_priority[service] 오름차순 (값 없으면 +Infinity)
+ *   2) 그날 본인 예약 개수 오름차순
+ *   3) display_order 오름차순 (안정적 tiebreaker)
+ */
+export async function autoAssignGroomer(
+  date: string,           // "YYYY-MM-DD" (KST)
+  startTime: string,      // "HH:MM"
+  durationMin: number,
+  service: string | null,
+): Promise<string | null> {
+  console.log('[autoAssign] called', { date, startTime, durationMin, service })
+
+  // 휴무일 가드
+  const [yy, mm, dd] = date.split('-').map(Number)
+  const dow = new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay()
+  if (isClosedDow(dow)) {
+    console.log('[autoAssign] return null: closed day', { dow })
+    return null
+  }
+
+  const supabase = await createClient()
+
+  const newStartMs = new Date(`${date}T${startTime}:00+09:00`).getTime()
+  const newEndMs = newStartMs + durationMin * 60000
+  const dayStartUtc = new Date(`${date}T00:00:00+09:00`).toISOString()
+  const dayEndUtc = new Date(`${date}T23:59:59.999+09:00`).toISOString()
+
+  // active groomers — is_active 필터로 충분, role 컬럼은 비신뢰
+  // 주의: service_priority 컬럼은 마이그레이션 적용 후에만 존재 → 별도로 try/catch 조회
+  const { data: staffRows, error: stErr } = await supabase
+    .from('staff')
+    .select('id, display_order, is_active')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+
+  if (stErr) console.log('[autoAssign] staff query error', stErr.message)
+  console.log('[autoAssign] staffRows count', (staffRows ?? []).length, staffRows)
+
+  let groomers = staffRows ?? []
+  console.log('[autoAssign] groomers count (pre auto_assign filter)', groomers.length)
+
+  // auto_assign 별도 조회 (컬럼 없으면 무필터 fallback)
+  if (groomers.length > 0) {
+    const { data: aaRows, error: aaErr } = await supabase
+      .from('staff')
+      .select('id, auto_assign')
+      .in('id', groomers.map((g: any) => g.id))
+    if (aaErr) {
+      console.log('[autoAssign] auto_assign query error (ignored)', aaErr.message)
+    } else {
+      const allowSet = new Set(
+        (aaRows ?? [])
+          .filter((r: any) => r.auto_assign !== false)
+          .map((r: any) => r.id),
+      )
+      groomers = groomers.filter((g: any) => allowSet.has(g.id))
+      console.log('[autoAssign] groomers after auto_assign filter', groomers.length)
+    }
+  }
+
+  // service_priority 별도 조회 (컬럼 없으면 빈 맵으로 fallback)
+  const priorityMap = new Map<string, Record<string, number>>()
+  if (groomers.length > 0) {
+    const { data: prRows, error: prErr } = await supabase
+      .from('staff')
+      .select('id, service_priority')
+      .in('id', groomers.map((g: any) => g.id))
+    if (prErr) {
+      console.log('[autoAssign] service_priority query error (ignored)', prErr.message)
+    } else {
+      for (const r of prRows ?? []) {
+        if (r.service_priority) priorityMap.set(r.id, r.service_priority as Record<string, number>)
+      }
+    }
+  }
+  if (groomers.length === 0) {
+    console.log('[autoAssign] return null: no eligible groomers')
+    return null
+  }
+
+  // 당일 모든 예약 (active)
+  const { data: apptRows, error: apErr } = await supabase
+    .from('appointments')
+    .select('staff_id, start_at, duration_min')
+    .gte('start_at', dayStartUtc)
+    .lte('start_at', dayEndUtc)
+    .is('deleted_at', null)
+
+  if (apErr) console.log('[autoAssign] appt query error', apErr.message)
+  const dayAppts = apptRows ?? []
+  console.log('[autoAssign] dayAppts count', dayAppts.length)
+
+  // 당일 staff_off 조회
+  const { data: offRows, error: offErr } = await supabase
+    .from('staff_off')
+    .select('staff_id, off_type, start_time, end_time')
+    .eq('off_date', date)
+    .in('staff_id', groomers.map((g: any) => g.id))
+
+  if (offErr) console.log('[autoAssign] staff_off query error (ignored)', offErr.message)
+  const dayOffs = offRows ?? []
+  console.log('[autoAssign] staff_off rows count', dayOffs.length)
+
+  // "HH:MM" → ms (KST 기준 해당 날짜)
+  const hhmmToMs = (hhmm: string): number =>
+    new Date(`${date}T${hhmm}:00+09:00`).getTime()
+
+  // 미용사별 그날 예약 수 + 시간 충돌 여부
+  type Candidate = {
+    id: string
+    priority: number
+    dayCount: number
+    displayOrder: number
+  }
+  const candidates: Candidate[] = []
+  for (const g of groomers) {
+    const offs = dayOffs.filter((o: any) => o.staff_id === g.id)
+
+    // 1) 전일 휴무 → 완전 제외
+    const isDayoff = offs.some((o: any) => o.off_type === 'dayoff')
+    if (isDayoff) {
+      console.log('[autoAssign] groomer skipped: dayoff', { id: g.id })
+      continue
+    }
+
+    // 2) 시간 범위 휴무(lunch / half_off 등) → 요청 시간과 겹치면 제외
+    const offConflict = offs.some((o: any) => {
+      if (o.off_type === 'dayoff') return false
+      if (!o.start_time) return false
+      const oStart = hhmmToMs(o.start_time)
+      const oEnd = o.end_time ? hhmmToMs(o.end_time) : oStart + 60 * 60000 // end_time 없으면 1시간 가정
+      return newStartMs < oEnd && oStart < newEndMs
+    })
+    if (offConflict) {
+      console.log('[autoAssign] groomer skipped: off-time overlap', { id: g.id })
+      continue
+    }
+
+    // 3) 기존 예약 충돌 검사
+    const own = dayAppts.filter((a: any) => a.staff_id === g.id)
+    const apptConflict = own.some((a: any) => {
+      const eStart = new Date(a.start_at).getTime()
+      const eEnd = eStart + (a.duration_min ?? 0) * 60000
+      return newStartMs < eEnd && eStart < newEndMs
+    })
+    console.log('[autoAssign] groomer check', { id: g.id, ownCount: own.length, apptConflict })
+    if (apptConflict) continue
+
+    const sp = priorityMap.get(g.id) ?? null
+    const priority =
+      service && sp && typeof sp[service] === 'number'
+        ? sp[service]
+        : Number.POSITIVE_INFINITY
+
+    candidates.push({
+      id: g.id,
+      priority,
+      dayCount: own.length,
+      displayOrder: g.display_order ?? 0,
+    })
+  }
+
+  console.log('[autoAssign] candidates', candidates.length, candidates)
+
+  if (candidates.length === 0) {
+    console.log('[autoAssign] return null: all conflicting')
+    return null
+  }
+
+  candidates.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority
+    if (a.dayCount !== b.dayCount) return a.dayCount - b.dayCount
+    return a.displayOrder - b.displayOrder
+  })
+
+  console.log('[autoAssign] picked', candidates[0].id)
+  return candidates[0].id
 }

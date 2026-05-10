@@ -14,6 +14,7 @@ import {
   createStaffOff,
   findPetsByName,
   createPetWithGuardian,
+  autoAssignGroomer,
   type PetMatch,
   type Staff,
   type Appointment,
@@ -34,6 +35,7 @@ type Pending = {
   originalIdx: number
   appointment: ParsedAppointment
   staffId: string | null
+  assignType: 'fixed' | 'random'
   matches: PetMatch[]
   targetDate: string
 }
@@ -253,7 +255,40 @@ export default function BookingInput({
     // ─── 예약 ───
     const appt = result.data
     const targetDate = appt.date ?? date
-    const staffId = findStaffId(appt.staffName)
+    let staffId = findStaffId(appt.staffName)
+    let assignType: 'fixed' | 'random' = 'fixed'
+
+    // 미용사 미지정/지정없음 → 자동 배정 시도
+    console.log('[BookingInput] parsed', {
+      time: appt.time,
+      petName: appt.petName,
+      service: appt.service,
+      staffName: appt.staffName,
+      unassigned: appt.unassigned,
+      resolvedStaffId: staffId,
+    })
+    if (staffId === null) {
+      console.log('[BookingInput] calling autoAssignGroomer', {
+        targetDate, time: appt.time, duration: appt.duration, service: appt.service,
+      })
+      try {
+        const autoId = await autoAssignGroomer(
+          targetDate,
+          appt.time,
+          appt.duration,
+          appt.service ?? null,
+        )
+        console.log('[BookingInput] autoAssignGroomer returned', autoId)
+        if (autoId) {
+          staffId = autoId
+          assignType = 'random'
+        }
+      } catch (err) {
+        console.log('[BookingInput] autoAssignGroomer threw', err)
+      }
+    } else {
+      console.log('[BookingInput] staffId already set, skipping autoAssign')
+    }
 
     // 신규 고객 — DB 매칭 스킵
     if (appt.isNewCustomer) {
@@ -270,6 +305,7 @@ export default function BookingInput({
           pet_name: appt.petName,
           pet_breed: appt.breed,
           service: appt.service,
+          assign_type: assignType,
         })
         const q2 = queueRef.current
         if (q2) {
@@ -295,7 +331,7 @@ export default function BookingInput({
       const m = matches[0]
       const startIso = kstToIso(targetDate, appt.time)
       await checkConflictThen(staffId, startIso, appt.duration, line, originalIdx, async () => {
-        await saveWithPet(line, originalIdx, targetDate, appt, staffId, {
+        await saveWithPet(line, originalIdx, targetDate, appt, staffId, assignType, {
           id: m.id,
           guardian_id: m.guardian_id,
           name: m.name,
@@ -306,7 +342,7 @@ export default function BookingInput({
     }
 
     // 0건 or 2건+ → 팝업으로 일시 중단
-    setPending({ line, originalIdx, appointment: appt, staffId, matches, targetDate })
+    setPending({ line, originalIdx, appointment: appt, staffId, assignType, matches, targetDate })
     if (matches.length === 0) {
       setNewPet({
         petName: appt.petName,
@@ -324,6 +360,7 @@ export default function BookingInput({
     targetDate: string,
     appt: ParsedAppointment,
     staffId: string | null,
+    assignType: 'fixed' | 'random',
     pet: { id: string; guardian_id: string | null; name: string; breed: string | null },
   ) {
     const r = await createAppointment({
@@ -336,6 +373,8 @@ export default function BookingInput({
       raw_input: appt.raw,
       pet_name: pet.name,
       pet_breed: pet.breed,
+      service: appt.service,
+      assign_type: assignType,
     })
     const q = queueRef.current
     if (q) {
@@ -361,7 +400,7 @@ export default function BookingInput({
     try {
       const startIso = kstToIso(p.targetDate, p.appointment.time)
       await checkConflictThen(p.staffId, startIso, p.appointment.duration, p.line, p.originalIdx, async () => {
-        await saveWithPet(p.line, p.originalIdx, p.targetDate, p.appointment, p.staffId, {
+        await saveWithPet(p.line, p.originalIdx, p.targetDate, p.appointment, p.staffId, p.assignType, {
           id: match.id,
           guardian_id: match.guardian_id,
           name: match.name,
@@ -396,7 +435,7 @@ export default function BookingInput({
       const np = newPet
       const startIso = kstToIso(p.targetDate, p.appointment.time)
       await checkConflictThen(p.staffId, startIso, p.appointment.duration, p.line, p.originalIdx, async () => {
-        await saveWithPet(p.line, p.originalIdx, p.targetDate, p.appointment, p.staffId, {
+        await saveWithPet(p.line, p.originalIdx, p.targetDate, p.appointment, p.staffId, p.assignType, {
           id: r.petId,
           guardian_id: r.guardianId,
           name: np.petName,

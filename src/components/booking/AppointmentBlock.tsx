@@ -54,12 +54,20 @@ export default function AppointmentBlock({
   const breedLabel = appointment.pet_breed
   const petLabel = [breedLabel, appointment.pet_name ?? '(이름 없음)'].filter(Boolean).join(' ')
   const durLabel = formatDuration(appointment.duration_min)
+  const isRandom = appointment.assign_type === 'random'
 
   const blockStyle: React.CSSProperties = unassigned
     ? {
         background: '#F0EDE8',
         border: '1px dashed #888888',
         color: '#1A1A1A',
+      }
+    : isRandom
+    ? {
+        background: color,
+        opacity: 0.7,
+        border: `2px dashed ${color}`,
+        color: '#FFFFFF',
       }
     : {
         background: color,
@@ -114,6 +122,25 @@ export default function AppointmentBlock({
         }}
         aria-label={`${time} ${petLabel} 예약`}
       >
+        {isRandom && (
+          <span
+            style={{
+              position: 'absolute',
+              top: 2,
+              right: 4,
+              fontSize: 12,
+              color: '#B23A3A',
+              background: '#FFFFFF',
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              padding: '2px 4px',
+              lineHeight: 1,
+              pointerEvents: 'none',
+            }}
+          >
+            자동
+          </span>
+        )}
         <div style={{ fontWeight: 600 }}>
           {time} · {petLabel}
         </div>
