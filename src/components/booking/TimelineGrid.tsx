@@ -74,29 +74,26 @@ function formatDuration(min: number): string {
   return `${h}시간 ${m}분`
 }
 
-type LanedAppt = {
-  appt: Appointment
-  offset: number
-  lane: number
-  totalLanes: number
-}
+type LaneEntry =
+  | { kind: 'appt'; id: string; appt: Appointment; offset: number; durationMin: number }
+  | { kind: 'lunch'; id: string; off: StaffOff; offset: number; durationMin: number }
 
-/** 같은 열 내 겹치는 예약에 레인(가로 분할) 배정 */
-function computeLanes(appts: Appointment[]): LanedAppt[] {
-  if (appts.length === 0) return []
+type Laned<T> = T & { lane: number; totalLanes: number }
 
-  type Item = { appt: Appointment; offset: number; end: number; lane: number }
+/** 같은 열 내 겹치는 항목(예약 + 점심)에 레인(가로 분할) 배정 */
+function computeLanes<T extends { offset: number; durationMin: number }>(
+  items: T[],
+): Laned<T>[] {
+  if (items.length === 0) return []
 
-  const items: Item[] = appts
-    .map((a) => {
-      const offset = hhmmToOffsetMin(isoToKstHHMM(a.start_at))
-      return { appt: a, offset, end: offset + a.duration_min, lane: 0 }
-    })
+  type WithEnd = T & { end: number; lane: number }
+  const sorted: WithEnd[] = items
+    .map((it) => ({ ...it, end: it.offset + it.durationMin, lane: 0 }))
     .sort((a, b) => a.offset - b.offset)
 
   // 탐욕적 레인 배정: 가장 먼저 끝난 레인에 배치
   const laneEnds: number[] = []
-  for (const item of items) {
+  for (const item of sorted) {
     let lane = laneEnds.findIndex((end) => end <= item.offset)
     if (lane === -1) {
       lane = laneEnds.length
@@ -106,16 +103,14 @@ function computeLanes(appts: Appointment[]): LanedAppt[] {
     item.lane = lane
   }
 
-  // 각 예약의 totalLanes = 자신과 겹치는 모든 예약 중 최대 레인 인덱스 + 1
-  return items.map((item) => ({
-    appt: item.appt,
-    offset: item.offset,
-    lane: item.lane,
+  // 각 항목의 totalLanes = 자신과 겹치는 모든 항목 중 최대 레인 인덱스 + 1
+  return sorted.map((item) => ({
+    ...item,
     totalLanes:
-      items
+      sorted
         .filter((o) => o.offset < item.end && o.end > item.offset)
         .reduce((max, o) => Math.max(max, o.lane), 0) + 1,
-  }))
+  })) as Laned<T>[]
 }
 
 // ─── 드래그 상태 ───
@@ -136,6 +131,14 @@ type DragState = {
   unassigned: boolean
 }
 
+// ─── 리사이즈 상태 ───
+
+type ResizeState = {
+  appointmentId: string
+  originalEndMin: number    // 그리드 시작점 기준, 리사이즈 시작 시점의 종료 오프셋(분)
+  startMouseY: number
+}
+
 export default function TimelineGrid({
   date,
   staff,
@@ -147,14 +150,17 @@ export default function TimelineGrid({
 }: Props) {
   const [localAppts, setLocalAppts] = useState<Appointment[]>(appointments)
   const [dragState, setDragState] = useState<DragState | null>(null)
+  const [resizeState, setResizeState] = useState<ResizeState | null>(null)
 
   // refs (document mouse 핸들러에서 최신값 참조용)
   const innerRef = useRef<HTMLDivElement>(null)
   const dragStateRef = useRef<DragState | null>(null)
   const localApptsRef = useRef<Appointment[]>(localAppts)
+  const resizeStateRef = useRef<ResizeState | null>(null)
 
   useEffect(() => { dragStateRef.current = dragState }, [dragState])
   useEffect(() => { localApptsRef.current = localAppts }, [localAppts])
+  useEffect(() => { resizeStateRef.current = resizeState }, [resizeState])
   useEffect(() => { setLocalAppts(appointments) }, [appointments])
 
   // 시간 라벨
@@ -296,6 +302,85 @@ export default function TimelineGrid({
     })
   }
 
+  /** AppointmentBlock 하단 핸들 mousedown → 리사이즈 시작 */
+  function handleApptResizeStart(e: React.MouseEvent, id: string) {
+    const target = localApptsRef.current.find((a) => a.id === id)
+    if (!target) return
+    const offset = hhmmToOffsetMin(isoToKstHHMM(target.start_at))
+    setResizeState({
+      appointmentId: id,
+      originalEndMin: offset + target.duration_min,
+      startMouseY: e.clientY,
+    })
+  }
+
+  // ─── 리사이즈 중 document-level 마우스 이벤트 ───
+  const isResizing = resizeState !== null
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    function onMove(e: MouseEvent) {
+      const cur = resizeStateRef.current
+      if (!cur) return
+      const deltaY = e.clientY - cur.startMouseY
+      const deltaMin = (deltaY * SLOT_MIN) / SLOT_HEIGHT
+      // 30분 단위 스냅된 새 종료 오프셋
+      const snappedEndMin =
+        Math.round((cur.originalEndMin + deltaMin) / SLOT_MIN) * SLOT_MIN
+
+      setLocalAppts((prev) => {
+        const appt = prev.find((a) => a.id === cur.appointmentId)
+        if (!appt) return prev
+        const startOffset = hhmmToOffsetMin(isoToKstHHMM(appt.start_at))
+        // 최소 30분 보장
+        const newDur = Math.max(SLOT_MIN, snappedEndMin - startOffset)
+        if (newDur === appt.duration_min) return prev
+        return prev.map((a) =>
+          a.id === cur.appointmentId ? { ...a, duration_min: newDur } : a,
+        )
+      })
+    }
+
+    async function onUp() {
+      const cur = resizeStateRef.current
+      setResizeState(null)
+      if (!cur) return
+
+      const updated = localApptsRef.current.find((a) => a.id === cur.appointmentId)
+      const original = appointments.find((a) => a.id === cur.appointmentId)
+      if (!updated || !original) return
+      // 변경 없으면 서버 호출 생략
+      if (updated.duration_min === original.duration_min) return
+
+      const result = await updateAppointment(cur.appointmentId, {
+        duration_min: updated.duration_min,
+      })
+
+      if (!result.ok) {
+        // 실패 시 원복
+        setLocalAppts((prev) =>
+          prev.map((a) =>
+            a.id === cur.appointmentId
+              ? { ...a, duration_min: original.duration_min }
+              : a,
+          ),
+        )
+      } else {
+        onChanged()
+      }
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    // isResizing만 의존성으로 두어 시작/끝 시점에만 핸들러 등록/해제
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isResizing])
+
   // 열별 예약 분류
   const apptByCol = new Map<string, Appointment[]>()
   for (const col of columns) apptByCol.set(col.key, [])
@@ -323,9 +408,9 @@ export default function TimelineGrid({
         background: '#FFFFFF',
         border: '1px solid #E8E5E0',
         overflowX: 'auto',
-        // 드래그 중 텍스트 선택 방지
-        userSelect: dragState ? 'none' : 'auto',
-        WebkitUserSelect: dragState ? 'none' : 'auto',
+        // 드래그/리사이즈 중 텍스트 선택 방지
+        userSelect: dragState || resizeState ? 'none' : 'auto',
+        WebkitUserSelect: dragState || resizeState ? 'none' : 'auto',
       }}
     >
       <div ref={innerRef} style={{ display: 'inline-flex', minWidth: '100%' }}>
@@ -488,32 +573,67 @@ export default function TimelineGrid({
                   </div>
                 )}
 
-                {/* ── 점심 블록 ── */}
-                {!isFullDayOff &&
-                  offs
-                    .filter((o) => o.off_type === 'lunch' && o.start_time)
-                    .map((o) => {
-                      const startOffset = hhmmToOffsetMin(o.start_time!)
-                      const dur = o.end_time
-                        ? hhmmToOffsetMin(o.end_time) - startOffset
-                        : 60   // 기본 점심 60분
-                      if (startOffset < 0) return null
+                {/* ── 점심 + 예약 (레인 통합) ── */}
+                {(() => {
+                  if (isFullDayOff) return null
+
+                  const entries: LaneEntry[] = []
+
+                  for (const o of offs) {
+                    if (o.off_type !== 'lunch' || !o.start_time) continue
+                    const startOffset = hhmmToOffsetMin(o.start_time)
+                    if (startOffset < 0) continue
+                    const dur = o.end_time
+                      ? hhmmToOffsetMin(o.end_time) - startOffset
+                      : 60 // 기본 점심 60분
+                    entries.push({
+                      kind: 'lunch',
+                      id: o.id,
+                      off: o,
+                      offset: startOffset,
+                      durationMin: dur,
+                    })
+                  }
+
+                  for (const a of colAppts) {
+                    const offset = hhmmToOffsetMin(isoToKstHHMM(a.start_at))
+                    entries.push({
+                      kind: 'appt',
+                      id: a.id,
+                      appt: a,
+                      offset,
+                      durationMin: a.duration_min,
+                    })
+                  }
+
+                  return computeLanes(entries).map((item) => {
+                    if (item.offset < 0 || item.offset >= TOTAL_SLOTS * SLOT_MIN) return null
+
+                    const top = minToPx(item.offset)
+                    const blockHeight = minToPx(item.durationMin)
+
+                    if (item.kind === 'lunch') {
+                      const laneStyle: React.CSSProperties =
+                        item.totalLanes === 1
+                          ? { left: 4, right: 4 }
+                          : {
+                              left: `calc(${(item.lane / item.totalLanes) * 100}% + 1px)`,
+                              width: `calc(${(1 / item.totalLanes) * 100}% - 2px)`,
+                            }
                       return (
                         <div
-                          key={o.id}
+                          key={`lunch-${item.id}`}
                           style={{
                             position: 'absolute',
-                            top: minToPx(startOffset),
-                            left: 4,
-                            right: 4,
-                            height: minToPx(dur),
-                            background: 'rgba(120,120,120,0.15)',
-                            border: '1px dashed #B8B5B0',
+                            top,
+                            ...laneStyle,
+                            height: blockHeight,
+                            background: '#C9A96E',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: 11,
-                            color: '#666',
+                            color: '#FFFFFF',
                             letterSpacing: '0.05em',
                             pointerEvents: 'none',
                           }}
@@ -521,39 +641,38 @@ export default function TimelineGrid({
                           점심
                         </div>
                       )
-                    })}
+                    }
 
-                {/* ── 예약 블록 ── */}
-                {computeLanes(colAppts).map(({ appt: a, offset, lane, totalLanes }) => {
-                  if (offset < 0 || offset >= TOTAL_SLOTS * SLOT_MIN) return null
+                    const a = item.appt
+                    const hhmm = isoToKstHHMM(a.start_at)
+                    const color =
+                      columns.find((c) => c.key === (a.staff_id ?? UNASSIGNED_KEY))
+                        ?.color ?? '#888888'
 
-                  const hhmm = isoToKstHHMM(a.start_at)
-                  const color =
-                    columns.find((c) => c.key === (a.staff_id ?? UNASSIGNED_KEY))
-                      ?.color ?? '#888888'
+                    const isThisDragging =
+                      dragState?.appointmentId === a.id && dragState.committed
 
-                  const isThisDragging =
-                    dragState?.appointmentId === a.id && dragState.committed
-
-                  return (
-                    <AppointmentBlock
-                      key={a.id}
-                      appointment={a}
-                      time={hhmm}
-                      top={minToPx(offset)}
-                      height={minToPx(a.duration_min)}
-                      color={color}
-                      unassigned={col.isUnassigned}
-                      staff={staff}
-                      onChanged={onChanged}
-                      onDateChange={onDateChange}
-                      lane={lane}
-                      totalLanes={totalLanes}
-                      isDragging={isThisDragging}
-                      onMouseDown={handleApptMouseDown}
-                    />
-                  )
-                })}
+                    return (
+                      <AppointmentBlock
+                        key={a.id}
+                        appointment={a}
+                        time={hhmm}
+                        top={top}
+                        height={blockHeight}
+                        color={color}
+                        unassigned={col.isUnassigned}
+                        staff={staff}
+                        onChanged={onChanged}
+                        onDateChange={onDateChange}
+                        lane={item.lane}
+                        totalLanes={item.totalLanes}
+                        isDragging={isThisDragging}
+                        onMouseDown={handleApptMouseDown}
+                        onResizeStart={handleApptResizeStart}
+                      />
+                    )
+                  })
+                })()}
               </div>
             </div>
           )

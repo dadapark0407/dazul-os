@@ -379,21 +379,72 @@ function serviceRegex(kw: string): RegExp {
 
 
 // ─── 미용사 매칭 (대소문자 무시) ───
+//
+// 우선순위:
+//  1) 전체 이름 매칭 (예: "김수진")
+//  2) 이름(성 제외) 매칭 (예: "수진" → "김수진")
+//     단, 같은 이름을 가진 미용사가 2명 이상이면 동명이인 → 매칭 실패(미지정)
+//
+// 동명이인 등으로 매칭 실패한 경우에도 입력에서 토큰은 제거하여
+// 반려견 이름으로 잘못 흡수되는 것을 방지한다.
+
+type StaffMatch = {
+  fullName: string | null  // 결정된 풀네임. ambiguous일 때 null.
+  matched: string | null   // 입력에서 매칭된 부분 문자열. null = 매칭 없음.
+  ambiguous: boolean       // 동명이인으로 풀네임을 결정 못한 경우
+}
+
+function findStaffMatch(input: string, staffList: string[]): StaffMatch {
+  const names = staffList.filter(Boolean)
+
+  // 1) 전체 이름 매칭 (긴 이름 우선)
+  const sortedFull = [...names].sort((a, b) => b.length - a.length)
+  for (const name of sortedFull) {
+    const re = new RegExp(escapeRegExp(name), 'i')
+    const m = input.match(re)
+    if (m) {
+      return { fullName: name, matched: m[0], ambiguous: false }
+    }
+  }
+
+  // 2) 이름(성 제외) 매칭. 한글 성씨는 1자라고 가정 → name.slice(1)
+  const givenMap = new Map<string, string[]>()
+  for (const full of names) {
+    if (full.length < 2) continue
+    const given = full.slice(1)
+    const list = givenMap.get(given) ?? []
+    list.push(full)
+    givenMap.set(given, list)
+  }
+
+  const sortedGivens = [...givenMap.keys()].sort((a, b) => b.length - a.length)
+  for (const given of sortedGivens) {
+    const re = new RegExp(escapeRegExp(given), 'i')
+    const m = input.match(re)
+    if (!m) continue
+    const fulls = givenMap.get(given)!
+    if (fulls.length === 1) {
+      return { fullName: fulls[0], matched: m[0], ambiguous: false }
+    }
+    // 동명이인 → 매칭 실패. 토큰은 소비.
+    return { fullName: null, matched: m[0], ambiguous: true }
+  }
+
+  return { fullName: null, matched: null, ambiguous: false }
+}
 
 function extractStaff(
   input: string,
   staffList: string[],
 ): { staffName: string | null; rest: string } {
-  // 긴 이름 먼저 (부분 매칭 충돌 방지)
-  const sorted = [...staffList].sort((a, b) => b.length - a.length)
-  for (const name of sorted) {
-    if (!name) continue
-    const re = new RegExp(escapeRegExp(name), 'i')
-    if (re.test(input)) {
-      return { staffName: name, rest: input.replace(re, ' ') }
-    }
+  const match = findStaffMatch(input, staffList)
+  if (!match.matched) {
+    return { staffName: null, rest: input }
   }
-  return { staffName: null, rest: input }
+  return {
+    staffName: match.fullName,  // ambiguous면 null → 미지정 처리
+    rest: input.replace(match.matched, ' '),
+  }
 }
 
 
@@ -415,17 +466,10 @@ function tryStaffOff(
   input: string,
   staffList: string[],
 ): ParsedStaffOff | null {
-  // 입력에 포함된 staff 이름 찾기 (긴 이름 우선, 대소문자 무시)
-  const sorted = [...staffList].sort((a, b) => b.length - a.length)
-  let staffName: string | null = null
-  for (const s of sorted) {
-    if (!s) continue
-    if (new RegExp(escapeRegExp(s), 'i').test(input)) {
-      staffName = s
-      break
-    }
-  }
-  if (!staffName) return null
+  // 풀네임 또는 이름(성 제외)으로 매칭. 동명이인이면 fullName=null → 점심/휴무로 처리할 수 없음.
+  const match = findStaffMatch(input, staffList)
+  if (!match.fullName || !match.matched) return null
+  const staffName = match.fullName
 
   // 휴무가 점심보다 우선
   if (/휴무/.test(input)) {
@@ -433,9 +477,9 @@ function tryStaffOff(
   }
 
   if (/점심/.test(input)) {
-    // 점심 시작 시간 추출 (이름·키워드 제거 후 시간 파싱, 대소문자 무시)
+    // 점심 시작 시간 추출 (이름·키워드 제거 후 시간 파싱)
     const cleaned = input
-      .replace(new RegExp(escapeRegExp(staffName), 'i'), ' ')
+      .replace(match.matched, ' ')
       .replace(/점심/g, ' ')
     const t = parseTime(cleaned)
     return {

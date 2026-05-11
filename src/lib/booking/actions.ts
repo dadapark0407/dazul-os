@@ -96,27 +96,34 @@ export async function getBookingData(date: string): Promise<BookingData> {
   const dayStartUtc = new Date(`${date}T00:00:00+09:00`).toISOString()
   const dayEndUtc = new Date(`${date}T23:59:59.999+09:00`).toISOString()
 
-  // 미용사 목록
-  const { data: staffRows } = await supabase
-    .from('staff')
-    .select('id, name, signature_color, display_order, is_active, branch_id')
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
+  // 3개 쿼리 병렬 실행 — 서로 독립적이라 Promise.all로 동시 발사
+  const [staffRes, apptRes, offRes] = await Promise.all([
+    supabase
+      .from('staff')
+      .select('id, name, signature_color, display_order, is_active, branch_id')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true }),
+    supabase
+      .from('appointments')
+      .select(
+        `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
+         note, raw_input, pet_name, pet_breed, service, assign_type,
+         pets:pet_id ( name, breed ),
+         guardians:guardian_id ( name )`,
+      )
+      .gte('start_at', dayStartUtc)
+      .lte('start_at', dayEndUtc)
+      .is('deleted_at', null)
+      .order('start_at', { ascending: true }),
+    supabase
+      .from('staff_off')
+      .select('id, staff_id, off_date, off_type, start_time, end_time')
+      .eq('off_date', date),
+  ])
 
-  // 당일 예약 (deleted_at NULL)
-  // 표시 우선순위: 관계(pets) > 컬럼 스냅샷(appointments.pet_name)
-  const { data: apptRows } = await supabase
-    .from('appointments')
-    .select(
-      `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
-       note, raw_input, pet_name, pet_breed, service, assign_type,
-       pets:pet_id ( name, breed ),
-       guardians:guardian_id ( name )`,
-    )
-    .gte('start_at', dayStartUtc)
-    .lte('start_at', dayEndUtc)
-    .is('deleted_at', null)
-    .order('start_at', { ascending: true })
+  const staffRows = staffRes.data
+  const apptRows = apptRes.data
+  const offRows = offRes.data
 
   const appointments: Appointment[] = (apptRows ?? []).map((row: any) => ({
     id: row.id,
@@ -135,12 +142,6 @@ export async function getBookingData(date: string): Promise<BookingData> {
     service: row.service ?? null,
     assign_type: row.assign_type ?? 'fixed',
   }))
-
-  // 당일 staff_off
-  const { data: offRows } = await supabase
-    .from('staff_off')
-    .select('id, staff_id, off_date, off_type, start_time, end_time')
-    .eq('off_date', date)
 
   return {
     staff: (staffRows ?? []) as Staff[],
@@ -177,24 +178,29 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
   const calEnd = new Date(`${nextYear}-${nextMo}-01T00:00:00+09:00`)
   calEnd.setTime(calEnd.getTime() + endOffset * 86400000)
 
-  const { data: staffRows } = await supabase
-    .from('staff')
-    .select('id, name, signature_color, display_order, is_active, branch_id')
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
+  // 2개 쿼리 병렬 실행
+  const [staffRes, apptRes] = await Promise.all([
+    supabase
+      .from('staff')
+      .select('id, name, signature_color, display_order, is_active, branch_id')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true }),
+    supabase
+      .from('appointments')
+      .select(
+        `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
+         note, raw_input, pet_name, pet_breed, service, assign_type,
+         pets:pet_id ( name, breed ),
+         guardians:guardian_id ( name )`,
+      )
+      .gte('start_at', calStart.toISOString())
+      .lt('start_at', calEnd.toISOString())
+      .is('deleted_at', null)
+      .order('start_at', { ascending: true }),
+  ])
 
-  const { data: apptRows } = await supabase
-    .from('appointments')
-    .select(
-      `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
-       note, raw_input, pet_name, pet_breed, service, assign_type,
-       pets:pet_id ( name, breed ),
-       guardians:guardian_id ( name )`,
-    )
-    .gte('start_at', calStart.toISOString())
-    .lt('start_at', calEnd.toISOString())
-    .is('deleted_at', null)
-    .order('start_at', { ascending: true })
+  const staffRows = staffRes.data
+  const apptRows = apptRes.data
 
   const appointments: Appointment[] = (apptRows ?? []).map((row: any) => ({
     id: row.id,

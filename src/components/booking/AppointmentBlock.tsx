@@ -30,6 +30,8 @@ type Props = {
   isDragging?: boolean
   /** mousedown 시 부모(TimelineGrid)에게 드래그 시작을 알림 */
   onMouseDown?: (e: React.MouseEvent<HTMLDivElement>, appointmentId: string) => void
+  /** 하단 핸들 mousedown 시 부모(TimelineGrid)에게 리사이즈 시작을 알림 */
+  onResizeStart?: (e: React.MouseEvent<HTMLDivElement>, appointmentId: string) => void
 }
 
 export default function AppointmentBlock({
@@ -46,6 +48,7 @@ export default function AppointmentBlock({
   totalLanes = 1,
   isDragging = false,
   onMouseDown,
+  onResizeStart,
 }: Props) {
   const [open, setOpen] = useState(false)
   // mousedown 시점 좌표 — 클릭(움직임 거의 없음) vs 드래그(>5px 움직임) 구분용
@@ -157,6 +160,30 @@ export default function AppointmentBlock({
           >
             {appointment.note}
           </div>
+        )}
+
+        {/* 리사이즈 핸들 — 하단 8px, ns-resize. 시그니처 컬러보다 약간 어둡게. */}
+        {onResizeStart && (
+          <div
+            onMouseDown={(e) => {
+              if (e.button !== 0) return
+              e.preventDefault()
+              e.stopPropagation()      // 부모의 드래그 mousedown 차단
+              mouseDownPosRef.current = null  // 클릭 모달도 차단
+              onResizeStart(e, appointment.id)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            aria-hidden
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 8,
+              cursor: 'ns-resize',
+              background: 'rgba(0,0,0,0.2)',
+            }}
+          />
         )}
       </div>
 

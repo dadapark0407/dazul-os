@@ -88,29 +88,65 @@ function useTranslations(texts: string[], lang: Lang, token?: string): { map: Re
 
     let cancelled = false
     setLoading(true)
-    fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texts: unique, targetLang: lang, token }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+
+    // /api/translate 는 한 번에 50개까지만 받음 → 청크로 분할 호출
+    // 청크가 작을수록 max_tokens 초과 / Anthropic 타임아웃 위험 감소
+    const CHUNK = 25
+    const chunks: string[][] = []
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      chunks.push(unique.slice(i, i + CHUNK))
+    }
+    console.log('[useTranslations] start', { lang, total: unique.length, chunks: chunks.length })
+
+    Promise.all(
+      chunks.map((batch, idx) =>
+        fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texts: batch, targetLang: lang, token }),
+        })
+          .then(async (r) => {
+            if (!r.ok) {
+              console.warn('[useTranslations] chunk failed', { idx, status: r.status })
+              return null
+            }
+            return r.json()
+          })
+          .then((data): string[] | null => {
+            const translations: unknown = data?.translations
+            if (!Array.isArray(translations)) return null
+            return translations as string[]
+          })
+          .catch((err) => {
+            console.warn('[useTranslations] chunk error', { idx, err })
+            return null
+          })
+      ),
+    )
+      .then((results) => {
         if (cancelled) return
-        const translations: unknown = data?.translations
-        if (!Array.isArray(translations)) {
-          setMap({})
-          setLoading(false)
-          return
-        }
         const m: Record<string, string> = {}
-        for (let i = 0; i < unique.length; i++) {
-          const t = translations[i]
-          if (typeof t === 'string' && t.trim()) m[unique[i]] = t
+        for (let ci = 0; ci < chunks.length; ci++) {
+          const batch = chunks[ci]
+          const r = results[ci]
+          if (!r) continue
+          for (let i = 0; i < batch.length; i++) {
+            const t = r[i]
+            // 번역 결과가 원본과 동일하면 매핑 스킵 (의미 없음)
+            if (typeof t === 'string' && t.trim() && t !== batch[i]) {
+              m[batch[i]] = t
+            }
+          }
         }
+        console.log('[useTranslations] done', {
+          mappedCount: Object.keys(m).length,
+          totalRequested: unique.length,
+        })
         setMap(m)
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn('[useTranslations] outer catch', err)
         if (!cancelled) {
           setMap({})
           setLoading(false)
@@ -363,7 +399,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                   </p>
                   {spa.desc && (
                     <p style={{ fontSize: 11, color: C.sub, marginTop: 4, letterSpacing: '0.02em' }}>
-                      {spa.desc}
+                      {tr(spa.desc, trMap, lang)}
                     </p>
                   )}
                   {/* 스파코스에서 사용한 제품 — 스파/팩 카테고리 제품 */}
@@ -387,7 +423,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                           return (
                             <div key={label} style={{ display: 'flex', alignItems: 'baseline', padding: '4px 0' }}>
                               <span style={{ width: 44, fontSize: 11, color: C.sub, flexShrink: 0, letterSpacing: '0.05em' }}>
-                                {label}
+                                {tr(label, trMap, lang)}
                               </span>
                               <div style={{ flex: 1 }}>
                                 {items.map((p, i) => (
@@ -400,7 +436,7 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                                       marginBottom: i < items.length - 1 ? 2 : 0,
                                     }}
                                   >
-                                    {p.label}
+                                    {tr(p.label, trMap, lang)}
                                   </p>
                                 ))}
                               </div>
@@ -618,6 +654,14 @@ export default function ReportClient({
     for (const summary of Object.values(productSummaryMap)) {
       if (summary) list.push(summary)
     }
+
+    // SPA 코스 설명 (예: "딥클렌징 & 보습")
+    for (const v of Object.values(SPA)) {
+      if (v.desc) list.push(v.desc)
+    }
+
+    // 스파/팩 인라인 라벨
+    list.push('스파', '팩')
 
     return list
   }, [records, lang, productCategoryMap, productSummaryMap])

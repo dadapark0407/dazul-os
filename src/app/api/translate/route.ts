@@ -75,30 +75,71 @@ Keep the warm, professional tone.
 Return ONLY a JSON array of translated strings, nothing else.
 Preserve any special characters, parentheses, and formatting.`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4000,
-        system,
-        messages: [
-          {
-            role: 'user',
-            content: JSON.stringify(texts),
-          },
-        ],
-      }),
+    const model = 'claude-haiku-4-5-20251001'
+    const requestBody = JSON.stringify({
+      model,
+      max_tokens: 4000,
+      system,
+      messages: [
+        {
+          role: 'user',
+          content: JSON.stringify(texts),
+        },
+      ],
+    })
+
+    console.log('[translate] anthropic request', {
+      model,
+      targetLang,
+      textsCount: texts.length,
+      requestSize: requestBody.length,
+      sample: texts.slice(0, 3),
+    })
+
+    let res: Response
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: requestBody,
+      })
+    } catch (fetchErr) {
+      console.error('[translate] fetch threw (network/DNS/timeout)', {
+        name: fetchErr instanceof Error ? fetchErr.name : null,
+        message: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),
+        cause: fetchErr instanceof Error ? (fetchErr as Error & { cause?: unknown }).cause : null,
+        stack: fetchErr instanceof Error ? fetchErr.stack : null,
+      })
+      return NextResponse.json(
+        { error: 'fetch to Anthropic failed', detail: fetchErr instanceof Error ? fetchErr.message : String(fetchErr) },
+        { status: 502 }
+      )
+    }
+
+    console.log('[translate] anthropic response', {
+      status: res.status,
+      ok: res.ok,
+      requestId: res.headers.get('request-id'),
     })
 
     if (!res.ok) {
       const text = await res.text()
-      console.error('Anthropic API error:', res.status, text)
-      return NextResponse.json({ translations: texts }, { status: 200 })
+      console.error('[translate] Anthropic API non-OK', {
+        status: res.status,
+        statusText: res.statusText,
+        requestId: res.headers.get('request-id'),
+        body: text,
+        textsCount: texts.length,
+        targetLang,
+      })
+      return NextResponse.json(
+        { error: 'Anthropic API failed', status: res.status, detail: text.slice(0, 500) },
+        { status: 502 }
+      )
     }
 
     const data = await res.json()
@@ -114,14 +155,26 @@ Preserve any special characters, parentheses, and formatting.`
     }
 
     if (!Array.isArray(parsed) || parsed.length !== texts.length) {
-      // 파싱 실패 시 원본 유지 (UI 보존)
-      return NextResponse.json({ translations: texts })
+      console.error('[translate] parse/length mismatch', {
+        rawSample: raw.slice(0, 200),
+        parsedIsArray: Array.isArray(parsed),
+        parsedLen: Array.isArray(parsed) ? parsed.length : null,
+        expectedLen: texts.length,
+      })
+      return NextResponse.json(
+        { error: 'translation parse failed' },
+        { status: 502 }
+      )
     }
 
     const translations = parsed.map((v, i) => (typeof v === 'string' ? v : texts[i]))
     return NextResponse.json({ translations })
   } catch (e) {
-    console.error(e)
+    console.error('[translate] unhandled error', {
+      name: e instanceof Error ? e.name : null,
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : null,
+    })
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unknown error' }, { status: 500 })
   }
 }
