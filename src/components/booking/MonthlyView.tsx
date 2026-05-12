@@ -221,9 +221,13 @@ export default function MonthlyView({
   const calDays = buildCalendarDays(year, month)
 
   // UI 레이어 필터 — 표시만 거름 (드래그/수정 등은 localAppts 전체 기준 그대로)
-  const visibleAppts = filterGroomerId
-    ? localAppts.filter((a) => a.staff_id === filterGroomerId)
-    : localAppts
+  //   - 취소/노쇼는 캘린더에서 완전히 숨김
+  //   - 미용사 필터가 있으면 그 미용사 예약만
+  const visibleAppts = localAppts.filter((a) => {
+    if (a.status === 'cancelled' || a.status === 'noshow') return false
+    if (filterGroomerId && a.staff_id !== filterGroomerId) return false
+    return true
+  })
 
   // 날짜별 예약 그룹화
   const apptsByDate = new Map<string, Appointment[]>()

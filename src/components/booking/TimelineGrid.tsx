@@ -5,7 +5,7 @@
 // 드래그앤드롭은 mousedown/mousemove/mouseup 기반 (HTML5 Drag API 미사용)
 // =============================================================
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import AppointmentBlock from './AppointmentBlock'
 import type {
   Appointment,
@@ -148,7 +148,15 @@ export default function TimelineGrid({
   onDateChange,
   onGroomerNameClick,
 }: Props) {
-  const [localAppts, setLocalAppts] = useState<Appointment[]>(appointments)
+  // 취소/노쇼 예약은 캘린더에서 완전히 숨김
+  const activeAppointments = useMemo(
+    () =>
+      appointments.filter(
+        (a) => a.status !== 'cancelled' && a.status !== 'noshow',
+      ),
+    [appointments],
+  )
+  const [localAppts, setLocalAppts] = useState<Appointment[]>(activeAppointments)
   const [dragState, setDragState] = useState<DragState | null>(null)
   const [resizeState, setResizeState] = useState<ResizeState | null>(null)
 
@@ -161,7 +169,7 @@ export default function TimelineGrid({
   useEffect(() => { dragStateRef.current = dragState }, [dragState])
   useEffect(() => { localApptsRef.current = localAppts }, [localAppts])
   useEffect(() => { resizeStateRef.current = resizeState }, [resizeState])
-  useEffect(() => { setLocalAppts(appointments) }, [appointments])
+  useEffect(() => { setLocalAppts(activeAppointments) }, [activeAppointments])
 
   // 시간 라벨
   const timeLabels: string[] = []
