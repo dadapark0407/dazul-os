@@ -31,6 +31,12 @@ export type ParseResult =
   | { type: 'staff_off'; data: ParsedStaffOff }
   | { type: 'error'; message: string }
 
+/** 한 줄에 여러 예약이 들어올 수 있는 멀티 파싱 결과 */
+export type ParseLineResult =
+  | { type: 'appointments'; data: ParsedAppointment[] }
+  | { type: 'staff_off'; data: ParsedStaffOff }
+  | { type: 'error'; message: string }
+
 
 // ─── 서비스 키워드 ───
 
@@ -493,32 +499,119 @@ function tryStaffOff(
 }
 
 
-// ─── 메인 파서 ───
+// ─── 멀티 파싱 헬퍼 ───
 
-export function parseBookingInput(
+/**
+ * 남은 토큰 배열을 (펫 토큰들, 서비스) 그룹으로 분리.
+ * 일반 순서: pet ... [breed] service → 그룹 push.
+ * 서비스 먼저 나오면 pendingService로 보관 후 뒤따라오는 pet 토큰과 페어링.
+ * 2-token 복합 서비스("목욕 얼굴컷" → "목욕+얼굴컷")는 우선 매칭.
+ */
+function splitPetServiceGroups(
+  rest: string,
+): Array<{ pet: string[]; service: string | null }> {
+  const tokens = rest.trim().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return []
+
+  const groups: Array<{ pet: string[]; service: string | null }> = []
+  let currentPet: string[] = []
+  let pendingService: string | null = null
+
+  for (let i = 0; i < tokens.length; i++) {
+    const match = tryMatchServiceAtToken(tokens, i)
+    if (match) {
+      if (currentPet.length > 0) {
+        // pet → service: 그룹 완성
+        groups.push({ pet: currentPet, service: match.service })
+        currentPet = []
+        pendingService = null
+      } else if (pendingService) {
+        // 연속 service (드문 케이스) — 이전 service를 빈 펫 그룹으로 우선 push
+        groups.push({ pet: [], service: pendingService })
+        pendingService = match.service
+      } else {
+        // service 먼저 → pet 뒤에 옴
+        pendingService = match.service
+      }
+      i += match.length - 1  // 소비된 토큰 스킵
+    } else {
+      currentPet.push(tokens[i])
+    }
+  }
+
+  // 마지막 잔여 처리
+  if (currentPet.length > 0 || pendingService) {
+    groups.push({ pet: currentPet, service: pendingService })
+  }
+
+  return groups
+}
+
+/**
+ * 위치 i의 토큰이 서비스 키워드인지 검사.
+ * 2-token 복합 서비스("목욕 얼굴컷")가 SERVICE_KEYWORDS에 존재하면 우선.
+ */
+function tryMatchServiceAtToken(
+  tokens: string[],
+  i: number,
+): { service: string; length: number } | null {
+  if (i + 1 < tokens.length) {
+    const combo = `${tokens[i]}+${tokens[i + 1]}`
+    if ((SERVICE_KEYWORDS as readonly string[]).includes(combo)) {
+      return { service: combo, length: 2 }
+    }
+  }
+  if ((SERVICE_KEYWORDS as readonly string[]).includes(tokens[i])) {
+    return { service: tokens[i], length: 1 }
+  }
+  return null
+}
+
+/** 펫 토큰 배열에서 품종 분리 (exact token match). */
+function extractBreedFromTokens(
+  tokens: string[],
+): { petName: string; breed: string | null } {
+  for (const breed of KNOWN_BREEDS) {
+    const idx = tokens.indexOf(breed)
+    if (idx >= 0) {
+      const remaining = [...tokens.slice(0, idx), ...tokens.slice(idx + 1)]
+      return { petName: remaining.join(' ').trim(), breed }
+    }
+  }
+  return { petName: tokens.join(' ').trim(), breed: null }
+}
+
+
+// ─── 메인 파서 (멀티) ───
+
+/**
+ * 한 줄에 여러 예약을 파싱.
+ * - 시간/날짜/미용사/메모/소요시간/신규/지정없음은 전역(공통)
+ * - 펫이름·품종·서비스는 그룹 단위로 분리되어 예약마다 다름
+ * - 단일 예약 입력은 길이 1짜리 배열로 반환
+ */
+export function parseBookingLine(
   input: string,
   staffList: string[],
-): ParseResult {
+): ParseLineResult {
   const trimmed = (input ?? '').trim()
   if (!trimmed) {
     return { type: 'error', message: '입력값이 비어있습니다' }
   }
 
-  // 1) 점심/휴무 우선 검사
+  // 1) 점심/휴무 우선
   const off = tryStaffOff(trimmed, staffList)
-  if (off) {
-    return { type: 'staff_off', data: off }
-  }
+  if (off) return { type: 'staff_off', data: off }
 
-  // 2) 메모 분리 (시간 파싱이 괄호 안 시간을 잡지 않도록 먼저 제거)
+  // 2) 괄호 메모
   const { note: parenNote, rest: afterNote } = extractNote(trimmed)
   let rest = afterNote
 
-  // 3) 날짜 ("내일" / "모레" / "5월 1일" / "5/1")
+  // 3) 날짜
   const dateRes = parseDate(rest)
   rest = dateRes.rest
 
-  // 4) 시간
+  // 4) 시간 (첫 번째만, 전역 적용)
   const timeRes = parseTime(rest)
   if (!timeRes) {
     return {
@@ -529,69 +622,96 @@ export function parseBookingInput(
   }
   rest = rest.replace(timeRes.matched, ' ')
 
-  // 5) 서비스 키워드 (소요시간 기본값 결정 + '미용사A' 충돌 방지)
-  const svcRes = extractService(rest)
-  rest = svcRes.rest
-
-  // 6) 소요시간 (서비스 기반 기본값 적용)
+  // 5) 소요시간 (전역; 명시되지 않으면 그룹별 service 기본값)
   const durRes = parseDuration(rest)
-  const duration = durRes ? durRes.duration : defaultDuration(svcRes.service)
   if (durRes) rest = rest.replace(durRes.matched, ' ')
 
-  // 7) "신규" 플래그
+  // 6) "신규"
   const newRes = extractIsNew(rest)
   rest = newRes.rest
 
-  // 8) "지정없음" 플래그
+  // 7) "지정없음"
   const unaRes = extractUnassigned(rest)
   rest = unaRes.rest
 
-  // 9) 미용사 (지정없음일 땐 결과 무시, 토큰 제거는 그대로)
+  // 8) 미용사 (전역 적용)
   const staffRes = extractStaff(rest, staffList)
   rest = staffRes.rest
   const staffName = unaRes.unassigned ? null : staffRes.staffName
 
-  // 10) 품종
-  const breedRes = extractBreed(rest)
-  rest = breedRes.rest
-
-  // 11) 체중·나이·전화번호 → 메모 합침
+  // 9) 체중·나이·전화번호 (전역 메모로 합침)
   const waRes = extractWeightAge(rest)
   rest = waRes.rest
   const phoneRes = extractPhone(rest)
   rest = phoneRes.rest
 
-  // note 합치기 (체중·나이 ▸ 전화번호 ▸ 괄호 메모)
   const noteParts: string[] = []
   if (waRes.fragments.length > 0) noteParts.push(waRes.fragments.join(' '))
   if (phoneRes.phone) noteParts.push(phoneRes.phone)
   if (parenNote) noteParts.push(parenNote)
   const note = noteParts.length ? noteParts.join(' | ') : null
 
-  // 12) 남은 텍스트 → 반려견 이름
-  let petName = rest.replace(/\s+/g, ' ').trim()
-  if (!petName) {
+  // 10) 남은 텍스트를 pet+service 그룹으로 분리
+  const groups = splitPetServiceGroups(rest)
+
+  // 그룹이 없고 신규 플래그도 없으면 에러
+  if (groups.length === 0) {
     if (newRes.isNew) {
-      petName = '신규'
+      groups.push({ pet: [], service: null })
     } else {
       return { type: 'error', message: '반려견 이름을 찾지 못했습니다' }
     }
   }
 
-  return {
-    type: 'appointment',
-    data: {
+  // 각 그룹을 ParsedAppointment로 변환
+  const appointments: ParsedAppointment[] = []
+  for (const g of groups) {
+    const { petName, breed } = extractBreedFromTokens(g.pet)
+    let resolvedPetName = petName
+    if (!resolvedPetName) {
+      if (newRes.isNew) {
+        resolvedPetName = '신규'
+      } else {
+        // 펫 이름이 없는 그룹은 건너뜀 (예: 서비스만 단독으로 남은 케이스)
+        continue
+      }
+    }
+    appointments.push({
       time: timeRes.time,
       date: dateRes.date,
-      petName,
-      breed: breedRes.breed,
-      service: svcRes.service,
-      duration,
+      petName: resolvedPetName,
+      breed,
+      service: g.service,
+      duration: durRes ? durRes.duration : defaultDuration(g.service),
       staffName,
       note,
       raw: input,
       isNewCustomer: newRes.isNew,
       unassigned: unaRes.unassigned,
-    },
+    })
   }
+
+  if (appointments.length === 0) {
+    return { type: 'error', message: '반려견 이름을 찾지 못했습니다' }
+  }
+
+  return { type: 'appointments', data: appointments }
+}
+
+
+// ─── 메인 파서 (단일 — backward compat) ───
+
+/**
+ * 기존 API 호환. 내부적으로 parseBookingLine을 호출하고 첫 그룹만 반환.
+ * 단일 펫 입력은 그룹이 1개라서 결과가 동일하다.
+ */
+export function parseBookingInput(
+  input: string,
+  staffList: string[],
+): ParseResult {
+  const r = parseBookingLine(input, staffList)
+  if (r.type === 'error') return r
+  if (r.type === 'staff_off') return r
+  // appointments → 첫 번째만
+  return { type: 'appointment', data: r.data[0] }
 }

@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import {
-  parseBookingInput,
+  parseBookingLine,
   type ParsedAppointment,
 } from '@/lib/booking/parser'
 import {
@@ -24,7 +24,12 @@ type Props = {
   date: string                // YYYY-MM-DD (KST)
   staff: Staff[]
   appointments?: Appointment[]
-  onCreated: () => void
+  /**
+   * 예약 생성 후 호출.
+   * - newAppt가 있으면 부모가 낙관적 업데이트(state/캐시에 push)에 사용
+   * - 없으면 부모가 fallback으로 refetch
+   */
+  onCreated: (newAppt?: Appointment) => void
   onDateChange: (newDate: string) => void
   prefillText?: string        // 외부에서 입력창을 채우고 싶을 때
   prefillSignal?: number      // 변경될 때마다 prefillText 적용
@@ -62,6 +67,33 @@ function kstToIso(date: string, hhmm: string): string {
   return new Date(`${date}T${hhmm}:00+09:00`).toISOString()
 }
 
+/**
+ * 서버 createAppointment 응답(row)을 Appointment 타입으로 정규화.
+ * row는 select() 결과로 컬럼 그대로 — pets/guardians 조인이 없으므로
+ * pet_name·pet_breed 스냅샷만 사용 (현재 UI 표시 fallback과 일치).
+ */
+function rowToAppointment(
+  row: any,
+  fallback: { guardian_name?: string | null } = {},
+): Appointment {
+  return {
+    id: row.id,
+    start_at: row.start_at,
+    duration_min: row.duration_min,
+    status: row.status ?? 'confirmed',
+    pet_id: row.pet_id ?? null,
+    guardian_id: row.guardian_id ?? null,
+    staff_id: row.staff_id ?? null,
+    note: row.note ?? null,
+    raw_input: row.raw_input ?? null,
+    pet_name: row.pet_name ?? null,
+    pet_breed: row.pet_breed ?? null,
+    guardian_name: fallback.guardian_name ?? null,
+    service: row.service ?? null,
+    assign_type: row.assign_type ?? 'fixed',
+  }
+}
+
 export default function BookingInput({
   date,
   staff,
@@ -80,6 +112,12 @@ export default function BookingInput({
   const [petCreating, setPetCreating] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const queueRef = useRef<QueueState | null>(null)
+  // 한 줄에서 파싱된 여러 예약(멀티 펫)을 순차 처리하기 위한 서브 큐
+  const lineQueueRef = useRef<{
+    line: string
+    originalIdx: number
+    appts: ParsedAppointment[]
+  } | null>(null)
   const [conflictConfirm, setConflictConfirm] = useState<{
     message: string
     onConfirm: () => Promise<void>
@@ -186,16 +224,25 @@ export default function BookingInput({
 
     if (q.successCount > 0) {
       const uniqueDates = [...new Set(q.successDates)]
+      // 다른 날짜로 생성된 단일 줄이면 그 날짜로 이동
+      // 그 외 케이스는 createAppointment마다 이미 낙관적 업데이트로 반영됐으므로 별도 refetch 불필요
       if (uniqueDates.length === 1 && uniqueDates[0] !== date) {
         onDateChange(uniqueDates[0])
-      } else {
-        onCreated()
       }
     }
   }
 
-  // ─── 다음 줄 처리 ───
+  // ─── 다음 처리 단위 진행 ───
+  // 우선순위: 현재 줄의 남은 멀티-예약 → 큐의 다음 줄
   async function processNext() {
+    const lq = lineQueueRef.current
+    if (lq && lq.appts.length > 0) {
+      const [next, ...restAppts] = lq.appts
+      lineQueueRef.current = { ...lq, appts: restAppts }
+      await processAppointment(next, lq.line, lq.originalIdx)
+      return
+    }
+    lineQueueRef.current = null
     const q = queueRef.current
     if (!q || q.remaining.length === 0) {
       finishQueue()
@@ -206,14 +253,14 @@ export default function BookingInput({
     await processLine(current.line, current.originalIdx)
   }
 
-  // ─── 한 줄 처리 ───
+  // ─── 한 줄 파싱 후 멀티-예약 서브 큐로 분배 ───
   async function processLine(line: string, originalIdx: number) {
     const q = queueRef.current
     if (!q) return
 
     let result
     try {
-      result = parseBookingInput(line, staffNames)
+      result = parseBookingLine(line, staffNames)
     } catch (err) {
       q.failed.push({ line, originalIdx, msg: err instanceof Error ? err.message : '파싱 오류' })
       await processNext()
@@ -252,8 +299,21 @@ export default function BookingInput({
       return
     }
 
-    // ─── 예약 ───
-    const appt = result.data
+    // ─── 예약 (멀티 가능) ───
+    // 파서가 배열로 반환 — 길이 1은 단일 펫, 2+는 멀티 펫
+    lineQueueRef.current = { line, originalIdx, appts: result.data }
+    await processNext()
+  }
+
+  // ─── 한 예약 처리 ───
+  async function processAppointment(
+    appt: ParsedAppointment,
+    line: string,
+    originalIdx: number,
+  ) {
+    const q = queueRef.current
+    if (!q) return
+
     const targetDate = appt.date ?? date
     let staffId = findStaffId(appt.staffName)
     let assignType: 'fixed' | 'random' = 'fixed'
@@ -310,7 +370,12 @@ export default function BookingInput({
         const q2 = queueRef.current
         if (q2) {
           if (!r.ok) q2.failed.push({ line, originalIdx, msg: r.error })
-          else { q2.successCount++; q2.successDates.push(targetDate) }
+          else {
+            q2.successCount++
+            q2.successDates.push(targetDate)
+            // 낙관적 업데이트 — 부모에 새 Appointment 즉시 전달
+            if (r.data) onCreated(rowToAppointment(r.data))
+          }
         }
         await processNext()
       })
@@ -361,7 +426,13 @@ export default function BookingInput({
     appt: ParsedAppointment,
     staffId: string | null,
     assignType: 'fixed' | 'random',
-    pet: { id: string; guardian_id: string | null; name: string; breed: string | null },
+    pet: {
+      id: string
+      guardian_id: string | null
+      name: string
+      breed: string | null
+      guardian_name?: string | null   // 표시용 fallback
+    },
   ) {
     const r = await createAppointment({
       start_at: kstToIso(targetDate, appt.time),
@@ -383,6 +454,10 @@ export default function BookingInput({
       } else {
         q.successCount++
         q.successDates.push(targetDate)
+        // 낙관적 업데이트
+        if (r.data) {
+          onCreated(rowToAppointment(r.data, { guardian_name: pet.guardian_name ?? null }))
+        }
       }
     }
     setPending(null)
@@ -405,6 +480,7 @@ export default function BookingInput({
           guardian_id: match.guardian_id,
           name: match.name,
           breed: match.breed,
+          guardian_name: match.guardian_name,
         })
       })
     } finally {
@@ -440,6 +516,7 @@ export default function BookingInput({
           guardian_id: r.guardianId,
           name: np.petName,
           breed: np.breed,
+          guardian_name: np.guardianName.trim() || null,
         })
       })
     } finally {
@@ -451,7 +528,9 @@ export default function BookingInput({
   function handleCancel() {
     const q = queueRef.current
     const currentPending = pending
+    const currentLineQueue = lineQueueRef.current
     queueRef.current = null
+    lineQueueRef.current = null
     setBusy(false)
     setSaving(false)
     setPetCreating(false)
@@ -460,11 +539,16 @@ export default function BookingInput({
 
     if (!q) return
 
-    // 취소한 줄 + 남은 줄 → 입력창으로 복원
-    const unprocessed = [
-      ...(currentPending
+    // 취소한 줄 + 처리 못 한 멀티-예약이 남아있던 줄 + 큐의 다음 줄들 → 입력창으로 복원
+    // (한 줄에서 멀티 예약 중간에 취소되면 그 줄 전체를 복원)
+    const lineRestore =
+      currentPending
         ? [{ idx: currentPending.originalIdx, line: currentPending.line }]
-        : []),
+        : currentLineQueue && currentLineQueue.appts.length > 0
+          ? [{ idx: currentLineQueue.originalIdx, line: currentLineQueue.line }]
+          : []
+    const unprocessed = [
+      ...lineRestore,
       ...q.remaining.map((r) => ({ idx: r.originalIdx, line: r.line })),
     ]
     const sortedFailed = [...q.failed].sort((a, b) => a.originalIdx - b.originalIdx)
@@ -488,9 +572,8 @@ export default function BookingInput({
       const uniqueDates = [...new Set(q.successDates)]
       if (uniqueDates.length === 1 && uniqueDates[0] !== date) {
         onDateChange(uniqueDates[0])
-      } else {
-        onCreated()
       }
+      // else: 낙관적 업데이트로 이미 반영됨
     }
   }
 

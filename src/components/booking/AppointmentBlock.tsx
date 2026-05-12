@@ -53,6 +53,8 @@ export default function AppointmentBlock({
   const [open, setOpen] = useState(false)
   // mousedown 시점 좌표 — 클릭(움직임 거의 없음) vs 드래그(>5px 움직임) 구분용
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null)
+  // 리사이즈 중인지. 리사이즈 직후의 click 이벤트(부모 블록에서 fire됨)를 차단하기 위함.
+  const isResizingRef = useRef(false)
 
   const breedLabel = appointment.pet_breed
   const petLabel = [breedLabel, appointment.pet_name ?? '(이름 없음)'].filter(Boolean).join(' ')
@@ -91,6 +93,11 @@ export default function AppointmentBlock({
           onMouseDown?.(e, appointment.id)
         }}
         onClick={(e) => {
+          // 리사이즈 직후 부모 블록에서 발생한 click은 무시 (수정 모달 차단)
+          if (isResizingRef.current) {
+            e.preventDefault()
+            return
+          }
           // 드래그였다면 모달 열지 않음 (5px 임계값)
           const start = mouseDownPosRef.current
           if (start) {
@@ -125,29 +132,36 @@ export default function AppointmentBlock({
         }}
         aria-label={`${time} ${petLabel} 예약`}
       >
-        {isRandom && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 2,
-              right: 4,
-              fontSize: 12,
-              color: '#B23A3A',
-              background: '#FFFFFF',
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-              padding: '2px 4px',
-              lineHeight: 1,
-              pointerEvents: 'none',
-            }}
-          >
-            자동
-          </span>
-        )}
         <div style={{ fontWeight: 600 }}>
           {time} · {petLabel}
         </div>
-        <div style={{ opacity: unassigned ? 0.7 : 0.85 }}>{durLabel}</div>
+        <div
+          style={{
+            opacity: unassigned ? 0.7 : 0.85,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{durLabel}</span>
+          {isRandom && (
+            <span
+              style={{
+                fontSize: 10,
+                color: '#B23A3A',
+                background: '#FFFFFF',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                padding: '1px 4px',
+                lineHeight: 1.2,
+                opacity: 1,
+              }}
+            >
+              자동
+            </span>
+          )}
+        </div>
         {appointment.note && (
           <div
             style={{
@@ -169,7 +183,15 @@ export default function AppointmentBlock({
               if (e.button !== 0) return
               e.preventDefault()
               e.stopPropagation()      // 부모의 드래그 mousedown 차단
-              mouseDownPosRef.current = null  // 클릭 모달도 차단
+              mouseDownPosRef.current = null
+              isResizingRef.current = true
+              // 리사이즈 종료 직후 부모 블록에서 click 이벤트가 fire될 수 있음.
+              // mouseup 이후 click 처리까지 isResizing=true를 유지하다가 다음 틱에 해제.
+              const handleUp = () => {
+                document.removeEventListener('mouseup', handleUp)
+                setTimeout(() => { isResizingRef.current = false }, 0)
+              }
+              document.addEventListener('mouseup', handleUp)
               onResizeStart(e, appointment.id)
             }}
             onClick={(e) => e.stopPropagation()}

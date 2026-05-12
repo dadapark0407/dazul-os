@@ -4,7 +4,7 @@
 // 예약 캘린더 — 날짜 네비 + 입력창 + 타임라인 그리드
 // =============================================================
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BookingInput from './BookingInput'
@@ -18,6 +18,25 @@ import {
   type Staff,
   type StaffOff,
 } from '@/lib/booking/actions'
+
+// ─── 캐시 헬퍼 ───
+
+type DailyCacheEntry = {
+  staff: Staff[]
+  appointments: Appointment[]
+  staffOff: StaffOff[]
+}
+type MonthlyCacheEntry = { staff: Staff[]; appointments: Appointment[] }
+
+function monthKey(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function isoToKstDate(iso: string): string {
+  const d = new Date(iso)
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}`
+}
 
 type Props = {
   initialDate: string
@@ -76,6 +95,34 @@ export default function BookingCalendar({
   // ── 월간 뷰 미용사 필터 ──
   const [filterGroomerId, setFilterGroomerId] = useState<string | null>(null)
 
+  // ── 첫 로딩 스켈레톤 표시용 (캐시 미스 + 백그라운드 fetch 중) ──
+  const [dailyLoading, setDailyLoading] = useState(false)
+  const [monthlyLoading, setMonthlyLoading] = useState(false)
+
+  // ── 클라이언트 캐시 (날짜/월 단위) ──
+  const dailyCacheRef = useRef<Map<string, DailyCacheEntry>>(new Map())
+  const monthlyCacheRef = useRef<Map<string, MonthlyCacheEntry>>(new Map())
+
+  // ── race guard용 ref ──
+  const dateRef = useRef(date)
+  const viewRef = useRef(view)
+  const viewYearRef = useRef(viewYear)
+  const viewMonthRef = useRef(viewMonth)
+  useEffect(() => { dateRef.current = date }, [date])
+  useEffect(() => { viewRef.current = view }, [view])
+  useEffect(() => { viewYearRef.current = viewYear }, [viewYear])
+  useEffect(() => { viewMonthRef.current = viewMonth }, [viewMonth])
+
+  // ── 초기 데이터를 캐시에 시드 ──
+  useEffect(() => {
+    dailyCacheRef.current.set(initialDate, {
+      staff: initialStaff,
+      appointments: initialAppointments,
+      staffOff: initialStaffOff,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleGroomerFilter(groomerId: string) {
     setFilterGroomerId(groomerId)
     setView('monthly')
@@ -95,34 +142,113 @@ export default function BookingCalendar({
     setView('daily')
   }
 
-  // 날짜 변경 시 데이터 재조회
+  // 날짜 변경 시 데이터 재조회 (캐시 활용)
   useEffect(() => {
     if (date === initialDate) return
     refresh(date)
-    // URL도 업데이트 (뒤로가기 시 복원)
     router.replace(`/admin/booking?date=${date}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date])
 
-  // 월간 뷰 — 연/월 변경 시 데이터 재조회
+  // 월간 뷰 — 연/월 변경 시 데이터 재조회 (캐시 활용)
   useEffect(() => {
     if (view !== 'monthly') return
-    startTransition(async () => {
-      const data = await getMonthlyData(viewYear, viewMonth)
-      setStaff(data.staff)
-      setMonthlyAppts(data.appointments)
-    })
+    refreshMonthly()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, viewYear, viewMonth])
 
-  async function refresh(targetDate?: string) {
+  /**
+   * 일간 데이터 — stale-while-revalidate.
+   * - 캐시 히트: 즉시 화면 반영 + 백그라운드 fresh fetch
+   * - 캐시 미스: 스켈레톤 표시 + fetch
+   * - skipCache=true: 캐시 hydration 건너뛰고 fetch만 (낙관적 업데이트 후 검증용)
+   */
+  function refresh(
+    targetDate?: string,
+    opts: { skipCache?: boolean } = {},
+  ) {
     const d = targetDate ?? date
+    const cached = opts.skipCache ? undefined : dailyCacheRef.current.get(d)
+    if (cached) {
+      setStaff(cached.staff)
+      setAppointments(cached.appointments)
+      setStaffOff(cached.staffOff)
+      setDailyLoading(false)
+    } else if (!opts.skipCache) {
+      // 캐시 미스 → 스켈레톤
+      setDailyLoading(true)
+    }
     startTransition(async () => {
       const data = await getBookingData(d)
-      setStaff(data.staff)
-      setAppointments(data.appointments)
-      setStaffOff(data.staffOff)
+      dailyCacheRef.current.set(d, data)
+      if (dateRef.current === d) {
+        setStaff(data.staff)
+        setAppointments(data.appointments)
+        setStaffOff(data.staffOff)
+        setDailyLoading(false)
+      }
     })
+  }
+
+  /** 월간 데이터 — stale-while-revalidate. */
+  function refreshMonthly(opts: { skipCache?: boolean } = {}) {
+    const key = monthKey(viewYear, viewMonth)
+    const cached = opts.skipCache ? undefined : monthlyCacheRef.current.get(key)
+    if (cached) {
+      setStaff(cached.staff)
+      setMonthlyAppts(cached.appointments)
+      setMonthlyLoading(false)
+    } else if (!opts.skipCache) {
+      setMonthlyLoading(true)
+    }
+    startTransition(async () => {
+      const data = await getMonthlyData(viewYear, viewMonth)
+      monthlyCacheRef.current.set(key, data)
+      if (
+        viewRef.current === 'monthly' &&
+        monthKey(viewYearRef.current, viewMonthRef.current) === key
+      ) {
+        setStaff(data.staff)
+        setMonthlyAppts(data.appointments)
+        setMonthlyLoading(false)
+      }
+    })
+  }
+
+  /**
+   * createAppointment 직후 호출되는 낙관적 업데이트 핸들러.
+   * 새 Appointment를 받으면 즉시 state/캐시에 반영.
+   * (받지 못한 경우 fallback으로 백그라운드 검증 fetch)
+   */
+  function handleAppointmentCreated(newAppt?: Appointment) {
+    if (!newAppt) {
+      if (view === 'monthly') refreshMonthly({ skipCache: true })
+      else refresh(undefined, { skipCache: true })
+      return
+    }
+    const apptDate = isoToKstDate(newAppt.start_at)
+
+    // 일간 캐시 업데이트
+    const dCached = dailyCacheRef.current.get(apptDate)
+    if (dCached) {
+      dailyCacheRef.current.set(apptDate, {
+        ...dCached,
+        appointments: [...dCached.appointments, newAppt],
+      })
+    }
+    // 현재 보고 있는 날짜와 일치하면 즉시 화면 반영
+    if (apptDate === date) {
+      setAppointments((prev) => [...prev, newAppt])
+    }
+
+    // 월간: 같은 month면 즉시 push (calendar grid 경계 케이스는 캐시 무효화로 처리)
+    const apptYM = apptDate.slice(0, 7)
+    const viewYM = monthKey(viewYear, viewMonth)
+    if (view === 'monthly' && apptYM === viewYM) {
+      setMonthlyAppts((prev) => [...prev, newAppt])
+    }
+    // 정확성 보장 — 월간 캐시 전부 무효화 (다음 월간 뷰 진입 시 fresh fetch)
+    monthlyCacheRef.current.clear()
   }
 
   function shiftMonth(delta: number) {
@@ -140,14 +266,6 @@ export default function BookingCalendar({
       setViewMonth(parseInt(date.slice(5, 7)))
     }
     setView(v)
-  }
-
-  function refreshMonthly() {
-    startTransition(async () => {
-      const data = await getMonthlyData(viewYear, viewMonth)
-      setStaff(data.staff)
-      setMonthlyAppts(data.appointments)
-    })
   }
 
   const isToday = date === todayKst()
@@ -311,21 +429,25 @@ export default function BookingCalendar({
             date={date}
             staff={staff}
             appointments={appointments}
-            onCreated={() => refresh()}
+            onCreated={handleAppointmentCreated}
             onDateChange={(d) => setDate(d)}
             prefillText={prefillText}
             prefillSignal={prefillSignal}
           />
           <SlotFinder groomers={staff} onSelectSlot={handleSelectSlot} />
-          <TimelineGrid
-            date={date}
-            staff={staff}
-            appointments={appointments}
-            staffOff={staffOff}
-            onChanged={() => refresh()}
-            onDateChange={(d) => setDate(d)}
-            onGroomerNameClick={handleGroomerFilter}
-          />
+          {dailyLoading ? (
+            <TimelineSkeleton />
+          ) : (
+            <TimelineGrid
+              date={date}
+              staff={staff}
+              appointments={appointments}
+              staffOff={staffOff}
+              onChanged={() => refresh(undefined, { skipCache: true })}
+              onDateChange={(d) => setDate(d)}
+              onGroomerNameClick={handleGroomerFilter}
+            />
+          )}
         </>
       )}
 
@@ -336,7 +458,7 @@ export default function BookingCalendar({
             date={todayStr}
             staff={staff}
             appointments={monthlyAppts}
-            onCreated={() => refreshMonthly()}
+            onCreated={handleAppointmentCreated}
             onDateChange={(d) => {
               setDate(d)
               const y = parseInt(d.slice(0, 4))
@@ -346,7 +468,7 @@ export default function BookingCalendar({
                 setViewMonth(m)
                 // useEffect [view, viewYear, viewMonth] 가 refreshMonthly 호출
               } else {
-                refreshMonthly()
+                refreshMonthly({ skipCache: true })
               }
             }}
             prefillText={prefillText}
@@ -419,24 +541,86 @@ export default function BookingCalendar({
             </div>
           </div>
 
-          <MonthlyView
-            year={viewYear}
-            month={viewMonth}
-            staff={staff}
-            appointments={monthlyAppts}
-            filterGroomerId={filterGroomerId}
-            onDateSelect={(d) => {
-              setDate(d)
-              setView('daily')
-            }}
-            onChanged={refreshMonthly}
-            onDateChange={(d) => {
-              setDate(d)
-              setView('daily')
-            }}
-          />
+          {monthlyLoading ? (
+            <MonthlySkeleton />
+          ) : (
+            <MonthlyView
+              year={viewYear}
+              month={viewMonth}
+              staff={staff}
+              appointments={monthlyAppts}
+              filterGroomerId={filterGroomerId}
+              onDateSelect={(d) => {
+                setDate(d)
+                setView('daily')
+              }}
+              onChanged={() => refreshMonthly({ skipCache: true })}
+              onDateChange={(d) => {
+                setDate(d)
+                setView('daily')
+              }}
+            />
+          )}
         </>
       )}
+    </div>
+  )
+}
+
+
+// ─── 스켈레톤 컴포넌트 ───
+
+function TimelineSkeleton() {
+  return (
+    <div
+      style={{
+        background: '#FFFFFF',
+        border: '1px solid #E8E5E0',
+        padding: 16,
+      }}
+    >
+      <div className="flex gap-2 mb-3">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="animate-pulse"
+            style={{ flex: 1, height: 32, background: '#F0EDE8' }}
+          />
+        ))}
+      </div>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          className="animate-pulse"
+          style={{
+            height: 36,
+            marginBottom: 6,
+            background: '#F5F2EC',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function MonthlySkeleton() {
+  return (
+    <div
+      style={{
+        background: '#FFFFFF',
+        border: '1px solid #E8E5E0',
+        padding: 12,
+      }}
+    >
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: 42 }).map((_, i) => (
+          <div
+            key={i}
+            className="animate-pulse"
+            style={{ height: 96, background: '#F5F2EC' }}
+          />
+        ))}
+      </div>
     </div>
   )
 }
