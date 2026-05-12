@@ -3,6 +3,18 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import SidePanelOverlay from '@/components/booking/SidePanelOverlay'
+import {
+  getBookingData,
+  type Staff,
+  type Appointment,
+} from '@/lib/booking/actions'
+
+function todayKstStr(): string {
+  const now = new Date()
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
+}
 
 // TODO: 역할 기반 인증 추가 필요
 // TODO: 페이지네이션 / 무한 스크롤 추가 고려
@@ -76,6 +88,17 @@ export default function AdminRecordsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [reportFilter, setReportFilter] = useState<ReportFilter>('전체')
+
+  // 사이드 패널용 — 오늘의 staff/appointments
+  const [sideDate] = useState(todayKstStr())
+  const [sideStaff, setSideStaff] = useState<Staff[]>([])
+  const [sideAppts, setSideAppts] = useState<Appointment[]>([])
+  useEffect(() => {
+    getBookingData(sideDate).then((data) => {
+      setSideStaff(data.staff)
+      setSideAppts(data.appointments)
+    })
+  }, [sideDate])
 
   useEffect(() => {
     async function fetchData() {
@@ -233,6 +256,7 @@ export default function AdminRecordsPage() {
   }
 
   return (
+    <>
     <div className="space-y-5">
       {/* 삭제 확인 모달 */}
       {deleteTarget && (
@@ -550,6 +574,15 @@ export default function AdminRecordsPage() {
         </div>
       )}
     </div>
+
+    {/* ─── 사이드 패널 오버레이 ─── */}
+    <SidePanelOverlay
+      date={sideDate}
+      staff={sideStaff}
+      appointments={sideAppts}
+      mode="daily"
+    />
+    </>
   )
 }
 
