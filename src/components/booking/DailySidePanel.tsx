@@ -3,17 +3,14 @@
 // =============================================================
 // DAZUL OS — 일간 예약 화면 우측 사이드 패널
 //   1) 오늘의 메모 (날짜별 localStorage 저장, debounce 1초)
-//   2) 고정(정기) 예약 목록
+//   2) 리포트 발송 체크 (보호자 단위 그룹핑, 날짜별 localStorage)
+//   3) 고정 예약 자유 메모 (날짜 무관 localStorage)
 // =============================================================
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  listRecurringAppointments,
-  createRecurringAppointment,
-  deleteRecurringAppointment,
   type Staff,
   type Appointment,
-  type RecurringAppointment,
 } from '@/lib/booking/actions'
 
 type Props = {
@@ -29,18 +26,10 @@ type Props = {
   mode?: 'daily' | 'monthly'
 }
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const
-
-/** 한국 성씨 1자 가정 — "강수진" → "수진" */
-function givenName(full: string | null | undefined): string | null {
-  if (!full) return null
-  return full.length >= 2 ? full.slice(1) : full
-}
-
 const memoKey = (date: string) => `dazul-daily-memo-${date}`
 const reportKey = (date: string) => `dazul-daily-report-${date}`
+const recurringKey = 'dazul-recurring-notes'
 
-// ─── 공용 스타일 ───
 const sectionStyle: React.CSSProperties = {
   background: '#FAFAF8',
   border: '1px solid #E8E5E0',
@@ -70,24 +59,10 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 }
 
-const primaryBtnStyle: React.CSSProperties = {
-  fontSize: 11,
-  letterSpacing: '0.05em',
-  padding: '6px 10px',
-  background: '#C9A96E',
-  color: '#FFFFFF',
-  border: 'none',
-  borderRadius: 0,
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  fontWeight: 600,
-}
-
 // =============================================================
 
 export default function DailySidePanel({
   date,
-  staff,
   appointments,
   mode = 'daily',
 }: Props) {
@@ -101,7 +76,7 @@ export default function DailySidePanel({
           appointments={appointments ?? []}
         />
       )}
-      <RecurringSection staff={staff} />
+      <RecurringSection />
     </div>
   )
 }
@@ -174,7 +149,7 @@ function DailyMemoSection({ date }: { date: string }) {
   )
 }
 
-// ─── 2. 리포트 발송 체크 ──────────────────────────
+// ─── 2. 리포트 발송 ───────────────────────────────
 
 function ReportSection({
   date,
@@ -305,212 +280,70 @@ function ReportSection({
   )
 }
 
-// ─── 3. 고정(정기) 예약 ──────────────────────────
+// ─── 3. 고정 예약 (자유 메모) ──────────────────────
 
-function RecurringSection({ staff }: { staff: Staff[] }) {
-  const [items, setItems] = useState<RecurringAppointment[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const [adding, setAdding] = useState(false)
-  const [isPending, startTransition] = useTransition()
+function RecurringSection() {
+  const [memo, setMemo] = useState('')
+  const [savedFlash, setSavedFlash] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isLoadingRef = useRef(false)
 
-  // 추가 form state
-  const [petName, setPetName] = useState('')
-  const [petBreed, setPetBreed] = useState('')
-  const [weekday, setWeekday] = useState<number>(1) // 월요일 기본
-  const [formStaffId, setFormStaffId] = useState<string>('')
-  const [errMsg, setErrMsg] = useState<string | null>(null)
-
-  // 최초 로드
+  // 최초 로드 — 날짜 무관, 항상 같은 키
   useEffect(() => {
-    let cancelled = false
-    listRecurringAppointments().then((data) => {
-      if (!cancelled) {
-        setItems(data)
-        setLoaded(true)
-      }
-    })
-    return () => {
-      cancelled = true
+    isLoadingRef.current = true
+    try {
+      const saved = localStorage.getItem(recurringKey) ?? ''
+      setMemo(saved)
+    } catch {
+      setMemo('')
     }
+    setTimeout(() => {
+      isLoadingRef.current = false
+    }, 0)
   }, [])
 
-  async function handleAdd() {
-    setErrMsg(null)
-    if (!petName.trim()) {
-      setErrMsg('이름을 입력해 주세요')
-      return
+  // memo 변경 시 1초 debounce로 localStorage 저장
+  useEffect(() => {
+    if (isLoadingRef.current) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(recurringKey, memo)
+        setSavedFlash(true)
+        setTimeout(() => setSavedFlash(false), 800)
+      } catch {
+        // 무시
+      }
+    }, 1000)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-    startTransition(async () => {
-      const r = await createRecurringAppointment({
-        petName,
-        petBreed: petBreed || null,
-        weekday,
-        staffId: formStaffId || null,
-      })
-      if (!r.ok) {
-        setErrMsg(r.error ?? '등록 실패')
-        return
-      }
-      // 재조회
-      const data = await listRecurringAppointments()
-      setItems(data)
-      setPetName('')
-      setPetBreed('')
-      setFormStaffId('')
-      setAdding(false)
-    })
-  }
-
-  async function handleDelete(id: string) {
-    startTransition(async () => {
-      const r = await deleteRecurringAppointment(id)
-      if (r.ok) {
-        setItems((prev) => prev.filter((i) => i.id !== id))
-      }
-    })
-  }
+  }, [memo])
 
   return (
     <section style={sectionStyle}>
       <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
         <div style={{ ...headerStyle, marginBottom: 0 }}>고정 예약</div>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          style={{
-            fontSize: 11,
-            color: '#666',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          {adding ? '닫기' : '+ 추가'}
-        </button>
+        {savedFlash && (
+          <span style={{ fontSize: 10, color: '#C9A96E', letterSpacing: '0.05em' }}>
+            저장됨
+          </span>
+        )}
       </div>
-
-      {/* 추가 form */}
-      {adding && (
-        <div
-          className="flex flex-col gap-2"
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E8E5E0',
-            padding: 8,
-            marginBottom: 8,
-          }}
-        >
-          <input
-            placeholder="이름"
-            value={petName}
-            onChange={(e) => setPetName(e.target.value)}
-            style={inputStyle}
-          />
-          <input
-            placeholder="품종 (선택)"
-            value={petBreed}
-            onChange={(e) => setPetBreed(e.target.value)}
-            style={inputStyle}
-          />
-          <select
-            value={weekday}
-            onChange={(e) => setWeekday(parseInt(e.target.value, 10))}
-            style={inputStyle}
-          >
-            {WEEKDAYS.map((label, idx) => (
-              <option key={idx} value={idx}>
-                매주 {label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={formStaffId}
-            onChange={(e) => setFormStaffId(e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">미용사 (선택)</option>
-            {staff.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={isPending}
-              style={{
-                ...primaryBtnStyle,
-                opacity: isPending ? 0.5 : 1,
-                cursor: isPending ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isPending ? '등록 중…' : '등록'}
-            </button>
-            {errMsg && (
-              <span style={{ fontSize: 10, color: '#B23A3A' }}>{errMsg}</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 목록 */}
-      {!loaded ? (
-        <div style={{ fontSize: 11, color: '#888' }}>불러오는 중…</div>
-      ) : items.length === 0 ? (
-        <div style={{ fontSize: 11, color: '#888' }}>등록된 고정 예약이 없습니다</div>
-      ) : (
-        <div className="flex flex-col">
-          {items.map((item) => {
-            const short = givenName(item.staff_name)
-            return (
-              <div
-                key={item.id}
-                className="flex items-center justify-between"
-                style={{
-                  padding: '6px 0',
-                  borderTop: '1px solid #E8E5E0',
-                  fontSize: 11,
-                  color: '#1A1A1A',
-                  lineHeight: 1.5,
-                }}
-              >
-                <span style={{ flex: 1, wordBreak: 'break-word' }}>
-                  <span style={{ fontWeight: 600 }}>{item.pet_name}</span>
-                  {item.pet_breed && (
-                    <span style={{ color: '#888' }}> ({item.pet_breed})</span>
-                  )}
-                  <span style={{ color: '#666' }}>
-                    {' '}— 매주 {WEEKDAYS[item.weekday]}
-                  </span>
-                  {short && (
-                    <span style={{ color: '#C9A96E' }}> {short}</span>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(item.id)}
-                  disabled={isPending}
-                  aria-label="삭제"
-                  style={{
-                    fontSize: 11,
-                    color: '#B23A3A',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: isPending ? 'not-allowed' : 'pointer',
-                    padding: '0 4px',
-                    marginLeft: 6,
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <textarea
+        value={memo}
+        onChange={(e) => setMemo(e.target.value)}
+        placeholder="정기적으로 오는 고객 등 자유 메모..."
+        rows={6}
+        style={{
+          ...inputStyle,
+          background: '#FAFAF8',
+          resize: 'vertical',
+          fontSize: 12,
+          lineHeight: 1.5,
+          minHeight: 120,
+        }}
+      />
     </section>
   )
 }
