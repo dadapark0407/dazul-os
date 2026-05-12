@@ -25,6 +25,9 @@ export default function AdminRecordEditPage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // 동기 가드 — disabled state는 re-render 이후에 적용되므로
+  // 같은 이벤트 루프 내 더블 클릭을 막기 위해 ref로도 추적
+  const savingRef = useRef(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   // 관계 데이터 (드롭다운용)
@@ -117,6 +120,9 @@ export default function AdminRecordEditPage() {
       alert('방문일은 필수입니다.')
       return
     }
+    // 이미 저장 중이면 추가 클릭 무시 (synchronous reentry 차단)
+    if (savingRef.current) return
+    savingRef.current = true
 
     setSaving(true)
     setErrorMessage('')
@@ -149,6 +155,7 @@ export default function AdminRecordEditPage() {
 
     if (error) {
       setSaving(false)
+      savingRef.current = false
       setErrorMessage(`저장 중 오류가 발생했습니다: ${error.message}`)
       return
     }

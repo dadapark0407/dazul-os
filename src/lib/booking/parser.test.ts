@@ -4,7 +4,7 @@
 // =============================================================
 
 import { describe, it, expect } from 'vitest'
-import { parseBookingInput } from './parser'
+import { parseBookingInput, parseBookingLine } from './parser'
 
 const STAFF = ['미용사A', '미용사B', '미용사C', '미용사D', '미용사E']
 
@@ -511,5 +511,62 @@ describe('parseBookingInput — 에러 케이스', () => {
   it('이름이 비어있음 (시간만)', () => {
     const r = parseBookingInput('10시', STAFF)
     expect(r.type).toBe('error')
+  })
+})
+
+
+describe('parseBookingLine — 다견 한 줄 입력', () => {
+  it('"11시 30분 니코 목욕 마고 목욕" — 같은 서비스 2건 분리', () => {
+    const r = parseBookingLine('11시 30분 니코 목욕 마고 목욕', STAFF)
+    expect(r.type).toBe('appointments')
+    if (r.type !== 'appointments') return
+    expect(r.data).toHaveLength(2)
+
+    expect(r.data[0].time).toBe('11:30')
+    expect(r.data[0].petName).toBe('니코')
+    expect(r.data[0].service).toBe('목욕')
+
+    expect(r.data[1].time).toBe('11:30')
+    expect(r.data[1].petName).toBe('마고')
+    expect(r.data[1].service).toBe('목욕')
+  })
+
+  it('"11시 줄리 목욕 테디 미용" — 서로 다른 서비스 2건', () => {
+    const r = parseBookingLine('11시 줄리 목욕 테디 미용', STAFF)
+    expect(r.type).toBe('appointments')
+    if (r.type !== 'appointments') return
+    expect(r.data).toHaveLength(2)
+    expect(r.data[0].petName).toBe('줄리')
+    expect(r.data[0].service).toBe('목욕')
+    expect(r.data[1].petName).toBe('테디')
+    expect(r.data[1].service).toBe('미용')
+  })
+
+  it('"11시 줄리 목욕 미지정 테디 목욕 미용사A" — 그룹별 미용사/미지정', () => {
+    const r = parseBookingLine(
+      '11시 줄리 목욕 미지정 테디 목욕 미용사A',
+      STAFF,
+    )
+    expect(r.type).toBe('appointments')
+    if (r.type !== 'appointments') return
+    expect(r.data).toHaveLength(2)
+    expect(r.data[0].petName).toBe('줄리')
+    expect(r.data[0].service).toBe('목욕')
+    expect(r.data[0].staffName).toBeNull()
+    expect(r.data[0].unassigned).toBe(true)
+    expect(r.data[1].petName).toBe('테디')
+    expect(r.data[1].service).toBe('목욕')
+    expect(r.data[1].staffName).toBe('미용사A')
+    expect(r.data[1].unassigned).toBe(false)
+  })
+
+  it('"10시 코코 비숑 2시간 미용사A" — 단일 입력은 길이 1 배열', () => {
+    const r = parseBookingLine('10시 코코 비숑 2시간 미용사A', STAFF)
+    expect(r.type).toBe('appointments')
+    if (r.type !== 'appointments') return
+    expect(r.data).toHaveLength(1)
+    expect(r.data[0].petName).toBe('코코')
+    expect(r.data[0].breed).toBe('비숑')
+    expect(r.data[0].staffName).toBe('미용사A')
   })
 })

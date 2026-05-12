@@ -253,7 +253,9 @@ export default function HealthTrend({ records }: Props) {
             skin: str(r, 'skin_status'),
             coat: coatValue(str(r, 'coat_status')),
             eyes: cond.eyes,
-            ears: cond.ears,
+            // 케어 기록 폼은 ears_status 컬럼에 직접 저장하므로 그쪽을 먼저 본다.
+            // condition_status "귀:..." 파싱은 레거시 기록 호환용 fallback.
+            ears: str(r, 'ears_status') ?? cond.ears,
             teeth: cond.teeth,
             nail: cond.nail,
           } as Record<BodyKey, string | null>,

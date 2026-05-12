@@ -19,6 +19,7 @@ import {
   type Staff,
   type StaffOff,
 } from '@/lib/booking/actions'
+import { isClosedDow } from '@/lib/booking/constants'
 
 // ─── 캐시 헬퍼 ───
 
@@ -95,6 +96,48 @@ export default function BookingCalendar({
 
   // ── 월간 뷰 미용사 필터 ──
   const [filterGroomerId, setFilterGroomerId] = useState<string | null>(null)
+
+  // ── 월간 헤더 연월 피커 ──
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerYear, setPickerYear] = useState(viewYear)
+  const pickerRef = useRef<HTMLDivElement | null>(null)
+
+  // ── 일간 헤더 날짜 피커 ──
+  const [dateOpen, setDateOpen] = useState(false)
+  // 피커 안에서 보고 있는 month grid (선택과 별개로 이동 가능)
+  const [dateYM, setDateYM] = useState<{ year: number; month: number }>(() => ({
+    year: parseInt(initialDate.slice(0, 4)),
+    month: parseInt(initialDate.slice(5, 7)),
+  }))
+
+  // 피커 열릴 때 현재 viewYear로 동기화
+  useEffect(() => {
+    if (pickerOpen) setPickerYear(viewYear)
+  }, [pickerOpen, viewYear])
+
+  // 날짜 피커 열릴 때 현재 date의 y/m로 동기화
+  useEffect(() => {
+    if (dateOpen) {
+      setDateYM({
+        year: parseInt(date.slice(0, 4)),
+        month: parseInt(date.slice(5, 7)),
+      })
+    }
+  }, [dateOpen, date])
+
+  // 바깥 클릭 시 둘 다 닫기 (두 피커 모두 헤더 같은 컨테이너 안에 있어 ref 공유)
+  useEffect(() => {
+    if (!pickerOpen && !dateOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (!pickerRef.current) return
+      if (!pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false)
+        setDateOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [pickerOpen, dateOpen])
 
   // ── 첫 로딩 스켈레톤 표시용 (캐시 미스 + 백그라운드 fetch 중) ──
   const [dailyLoading, setDailyLoading] = useState(false)
@@ -389,19 +432,87 @@ export default function BookingCalendar({
         </div>
 
         <div
+          ref={pickerRef}
           className="w-full text-center order-3 sm:order-2 sm:flex-1 sm:w-auto"
           style={{
+            position: 'relative',
             fontSize: 15,
             letterSpacing: '0.05em',
             fontWeight: 600,
             color: '#1A1A1A',
           }}
         >
-          {view === 'daily' ? formatKoDate(date) : `${viewYear}년 ${viewMonth}월`}
+          {view === 'daily' ? (
+            <button
+              type="button"
+              onClick={() => setDateOpen((v) => !v)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 8px',
+                font: 'inherit',
+                color: 'inherit',
+                letterSpacing: 'inherit',
+                cursor: 'pointer',
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={dateOpen}
+            >
+              {formatKoDate(date)}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPickerOpen((v) => !v)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 8px',
+                font: 'inherit',
+                color: 'inherit',
+                letterSpacing: 'inherit',
+                cursor: 'pointer',
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={pickerOpen}
+            >
+              {viewYear}년 {viewMonth}월
+            </button>
+          )}
           {isPending && (
             <span style={{ marginLeft: 8, fontSize: 12, color: '#888' }}>
               불러오는 중…
             </span>
+          )}
+
+          {/* 연월 피커 오버레이 */}
+          {view === 'monthly' && pickerOpen && (
+            <MonthPicker
+              pickerYear={pickerYear}
+              currentYear={viewYear}
+              currentMonth={viewMonth}
+              onYearChange={setPickerYear}
+              onSelect={(y, m) => {
+                setViewYear(y)
+                setViewMonth(m)
+                setPickerOpen(false)
+              }}
+            />
+          )}
+
+          {/* 날짜 피커 오버레이 */}
+          {view === 'daily' && dateOpen && (
+            <DatePicker
+              year={dateYM.year}
+              month={dateYM.month}
+              selectedDate={date}
+              today={todayKst()}
+              onMonthChange={(y, m) => setDateYM({ year: y, month: m })}
+              onSelect={(d) => {
+                setDate(d)
+                setDateOpen(false)
+              }}
+            />
           )}
         </div>
 
@@ -631,6 +742,310 @@ function MonthlySkeleton() {
             style={{ height: 96, background: '#F5F2EC' }}
           />
         ))}
+      </div>
+    </div>
+  )
+}
+
+
+// =============================================================
+// 연월 피커 오버레이
+// =============================================================
+
+function MonthPicker({
+  pickerYear,
+  currentYear,
+  currentMonth,
+  onYearChange,
+  onSelect,
+}: {
+  pickerYear: number
+  currentYear: number
+  currentMonth: number
+  onYearChange: (y: number) => void
+  onSelect: (year: number, month: number) => void
+}) {
+  return (
+    <div
+      role="dialog"
+      style={{
+        position: 'absolute',
+        top: 'calc(100% + 6px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 40,
+        background: '#FAFAF8',
+        border: '1px solid #E8E5E0',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+        padding: 16,
+        minWidth: 240,
+        textAlign: 'left',
+      }}
+    >
+      {/* 연도 네비 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => onYearChange(pickerYear - 1)}
+          aria-label="이전 연도"
+          style={pickerArrowStyle}
+        >
+          ▲
+        </button>
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            color: '#1A1A1A',
+          }}
+        >
+          {pickerYear}년
+        </span>
+        <button
+          type="button"
+          onClick={() => onYearChange(pickerYear + 1)}
+          aria-label="다음 연도"
+          style={pickerArrowStyle}
+        >
+          ▼
+        </button>
+      </div>
+
+      {/* 월 그리드 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 6,
+        }}
+      >
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+          const isCurrent = pickerYear === currentYear && m === currentMonth
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onSelect(pickerYear, m)}
+              style={{
+                fontSize: 13,
+                letterSpacing: '0.04em',
+                padding: '8px 0',
+                background: isCurrent ? '#C9A96E' : '#FFFFFF',
+                color: isCurrent ? '#FFFFFF' : '#1A1A1A',
+                border: isCurrent
+                  ? '1px solid #C9A96E'
+                  : '1px solid #E8E5E0',
+                cursor: 'pointer',
+                fontWeight: isCurrent ? 600 : 400,
+              }}
+            >
+              {m}월
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const pickerArrowStyle: React.CSSProperties = {
+  fontSize: 11,
+  width: 28,
+  height: 24,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: '#FFFFFF',
+  color: '#1A1A1A',
+  border: '1px solid #E8E5E0',
+  cursor: 'pointer',
+}
+
+
+// =============================================================
+// 일간 날짜 피커 오버레이
+// =============================================================
+
+// 월요일 시작 캘린더 헤더 (요일 → JS getDay 값)
+const WEEKDAY_HEADERS: { label: string; dow: number }[] = [
+  { label: '월', dow: 1 },
+  { label: '화', dow: 2 },
+  { label: '수', dow: 3 },
+  { label: '목', dow: 4 },
+  { label: '금', dow: 5 },
+  { label: '토', dow: 6 },
+  { label: '일', dow: 0 },
+]
+
+type DayCell =
+  | { inMonth: true; date: string; day: number; dow: number }
+  | { inMonth: false }
+
+function buildMonthCells(year: number, month: number): DayCell[] {
+  const firstDow = new Date(year, month - 1, 1).getDay()         // 0=일
+  const leadingBlanks = (firstDow + 6) % 7                       // 월요일 시작 기준
+  const lastDay = new Date(year, month, 0).getDate()             // 이번달 말일
+
+  const cells: DayCell[] = []
+  for (let i = 0; i < leadingBlanks; i++) cells.push({ inMonth: false })
+  for (let d = 1; d <= lastDay; d++) {
+    const date = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const dow = new Date(year, month - 1, d).getDay()
+    cells.push({ inMonth: true, date, day: d, dow })
+  }
+  while (cells.length % 7 !== 0) cells.push({ inMonth: false })
+  return cells
+}
+
+function DatePicker({
+  year,
+  month,
+  selectedDate,
+  today,
+  onMonthChange,
+  onSelect,
+}: {
+  year: number
+  month: number
+  selectedDate: string
+  today: string
+  onMonthChange: (year: number, month: number) => void
+  onSelect: (date: string) => void
+}) {
+  const cells = buildMonthCells(year, month)
+
+  function shift(delta: number) {
+    let y = year
+    let m = month + delta
+    if (m > 12) { y += 1; m = 1 }
+    if (m < 1) { y -= 1; m = 12 }
+    onMonthChange(y, m)
+  }
+
+  return (
+    <div
+      role="dialog"
+      style={{
+        position: 'absolute',
+        top: 'calc(100% + 6px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 40,
+        background: '#FAFAF8',
+        border: '1px solid #E8E5E0',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+        padding: 16,
+        minWidth: 280,
+        textAlign: 'left',
+      }}
+    >
+      {/* 월 네비 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => shift(-1)}
+          aria-label="이전 월"
+          style={pickerArrowStyle}
+        >
+          ◀
+        </button>
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            color: '#1A1A1A',
+          }}
+        >
+          {year}년 {month}월
+        </span>
+        <button
+          type="button"
+          onClick={() => shift(1)}
+          aria-label="다음 월"
+          style={pickerArrowStyle}
+        >
+          ▶
+        </button>
+      </div>
+
+      {/* 요일 헤더 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gap: 4,
+          marginBottom: 6,
+        }}
+      >
+        {WEEKDAY_HEADERS.map(({ label, dow }) => {
+          const closed = isClosedDow(dow)
+          return (
+            <div
+              key={label}
+              style={{
+                fontSize: 11,
+                textAlign: 'center',
+                color: closed ? '#BBB' : '#666',
+                letterSpacing: '0.05em',
+                padding: '4px 0',
+              }}
+            >
+              {label}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 날짜 그리드 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {cells.map((c, i) => {
+          if (!c.inMonth) return <div key={i} style={{ height: 32 }} />
+          const closed = isClosedDow(c.dow)
+          const isToday = c.date === today
+          const isSelected = c.date === selectedDate
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelect(c.date)}
+              style={{
+                fontSize: 13,
+                height: 32,
+                background: isSelected ? '#C9A96E' : '#FFFFFF',
+                color: isSelected
+                  ? '#FFFFFF'
+                  : closed
+                  ? '#BBB'
+                  : '#1A1A1A',
+                // 오늘은 골드 보더로 강조 (선택 상태이면 선택 스타일이 우선)
+                border:
+                  isSelected || isToday
+                    ? '1px solid #C9A96E'
+                    : '1px solid #E8E5E0',
+                fontWeight: isSelected || isToday ? 600 : 400,
+                cursor: 'pointer',
+              }}
+            >
+              {c.day}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

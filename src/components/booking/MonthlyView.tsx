@@ -112,6 +112,9 @@ function buildCalendarDays(year: number, month: number): CalendarDay[] {
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const
 
+// 월~일 컬럼 너비 비율 — 휴무일(수/일)은 좁게.
+const GRID_COLUMNS = '1.4fr 1.4fr 0.5fr 1.4fr 1.4fr 1.4fr 0.5fr'
+
 // 일=0 ~ 토=6 (UTCDay 기준)
 const KO_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const
 
@@ -266,7 +269,7 @@ export default function MonthlyView({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
+              gridTemplateColumns: GRID_COLUMNS,
               borderBottom: '1px solid #E8E5E0',
             }}
           >
@@ -289,7 +292,7 @@ export default function MonthlyView({
           </div>
 
           {/* ── 날짜 셀 그리드 ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS }}>
             {calDays.map((calDay) => {
               const dayAppts = apptsByDate.get(calDay.date) ?? []
               const isToday = calDay.date === today
@@ -401,6 +404,9 @@ export default function MonthlyView({
                       const staffName = staffMember?.name
                       const sigColor = staffMember?.signature_color
                       const isRandom = a.assign_type === 'random'
+                      const cancelled =
+                        a.status === 'cancelled' || a.status === 'noshow'
+                      const isNoshow = a.status === 'noshow'
 
                       // 포맷: {시간} {품종} {이름} {서비스} {미용사}
                       const parts: string[] = [time]
@@ -412,16 +418,26 @@ export default function MonthlyView({
                       return (
                         <button
                           key={a.id}
-                          draggable
+                          draggable={!cancelled}
                           onClick={(e) => { e.stopPropagation(); setSelectedAppt(a) }}
                           onDragStart={(e) => {
+                            if (cancelled) {
+                              e.preventDefault()
+                              return
+                            }
                             e.dataTransfer.setData('appointmentId', a.id)
                             e.dataTransfer.setData('sourceDate', calDay.date)
                             e.dataTransfer.effectAllowed = 'move'
                             setDraggingId(a.id)
                           }}
                           onDragEnd={() => setDraggingId(null)}
-                          className={draggingId === a.id ? 'opacity-50 cursor-grabbing' : 'cursor-grab'}
+                          className={
+                            cancelled
+                              ? 'cursor-pointer'
+                              : draggingId === a.id
+                              ? 'opacity-50 cursor-grabbing'
+                              : 'cursor-grab'
+                          }
                           style={{
                             textAlign: 'left',
                             fontSize: 11,
@@ -437,13 +453,30 @@ export default function MonthlyView({
                               : `5px ${isRandom ? 'dashed' : 'solid'} #D0D0D0`,
                             padding: '0 0 0 8px',
                             wordBreak: 'break-word',
-                            opacity: isRandom ? 0.7 : 1,
+                            // 취소된 예약은 흐리게 + 취소선
+                            opacity: cancelled ? 0.4 : isRandom ? 0.7 : 1,
+                            textDecoration: cancelled ? 'line-through' : 'none',
                           }}
                         >
                           {parts.join(' ')}
                           {isRandom && (
                             <span style={{ color: '#B23A3A', fontWeight: 700, marginLeft: 4 }}>
                               자동
+                            </span>
+                          )}
+                          {cancelled && (
+                            <span
+                              style={{
+                                color: '#FFFFFF',
+                                background: '#B23A3A',
+                                fontWeight: 700,
+                                marginLeft: 4,
+                                padding: '0 4px',
+                                textDecoration: 'none',
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              {isNoshow ? '노쇼' : '취소'}
                             </span>
                           )}
                           {a.note && (

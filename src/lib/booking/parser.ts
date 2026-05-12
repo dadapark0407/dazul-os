@@ -620,6 +620,11 @@ function splitGroups(
     }
 
     // 4) 펫/품종 토큰
+    //    이미 pendingService가 세팅된 상태에서 새 펫 토큰이 들어오면
+    //    이전 그룹(펫+서비스)이 끝난 것 → 종료 후 새 그룹 시작
+    if (pendingService) {
+      finalize(null, false)
+    }
     currentPet.push(token)
   }
 

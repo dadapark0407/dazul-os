@@ -9,11 +9,19 @@ import Link from 'next/link'
 import {
   deleteAppointment,
   updateAppointment,
+  cancelAppointment,
   searchPetsByQuery,
   type Appointment,
   type Staff,
   type PetMatch,
+  type CancelReason,
 } from '@/lib/booking/actions'
+
+const CANCEL_REASONS: CancelReason[] = ['보호자 취소', '노쇼', '매장 사정']
+
+function isCancelled(status: string | undefined): boolean {
+  return status === 'cancelled' || status === 'noshow'
+}
 
 type Props = {
   appointment: Appointment
@@ -57,9 +65,18 @@ export default function AppointmentBlock({
   const isResizingRef = useRef(false)
 
   const breedLabel = appointment.pet_breed
-  const petLabel = [breedLabel, appointment.pet_name ?? '(이름 없음)'].filter(Boolean).join(' ')
+  // 형식: "{품종} {이름} {서비스}" — 빠진 항목은 자동 생략
+  const petLabel = [
+    breedLabel,
+    appointment.pet_name ?? '(이름 없음)',
+    appointment.service ?? null,
+  ]
+    .filter(Boolean)
+    .join(' ')
   const durLabel = formatDuration(appointment.duration_min)
   const isRandom = appointment.assign_type === 'random'
+  const cancelled = isCancelled(appointment.status)
+  const isNoshow = appointment.status === 'noshow'
 
   const blockStyle: React.CSSProperties = unassigned
     ? {
@@ -89,6 +106,8 @@ export default function AppointmentBlock({
           // 좌클릭만 처리
           if (e.button !== 0) return
           e.preventDefault()
+          // 취소된 예약은 드래그 금지 — 클릭 추적도 생략 (클릭→모달 흐름은 유지)
+          if (cancelled) return
           mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
           onMouseDown?.(e, appointment.id)
         }}
@@ -108,7 +127,7 @@ export default function AppointmentBlock({
           }
           setOpen(true)
         }}
-        className="cursor-grab active:cursor-grabbing"
+        className={cancelled ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}
         style={{
           position: 'absolute',
           top,
@@ -125,7 +144,9 @@ export default function AppointmentBlock({
           lineHeight: 1.3,
           letterSpacing: '0.02em',
           whiteSpace: 'normal',
-          opacity: isDragging ? 0.3 : 1,
+          // 취소된 예약은 흐리게 + 취소선
+          opacity: cancelled ? 0.4 : isDragging ? 0.3 : 1,
+          textDecoration: cancelled ? 'line-through' : 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
           ...blockStyle,
@@ -161,6 +182,23 @@ export default function AppointmentBlock({
               자동
             </span>
           )}
+          {cancelled && (
+            <span
+              style={{
+                fontSize: 10,
+                color: '#FFFFFF',
+                background: '#B23A3A',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                padding: '1px 4px',
+                lineHeight: 1.2,
+                opacity: 1,
+                textDecoration: 'none',
+              }}
+            >
+              {isNoshow ? '노쇼' : '취소'}
+            </span>
+          )}
         </div>
         {appointment.note && (
           <div
@@ -177,7 +215,8 @@ export default function AppointmentBlock({
         )}
 
         {/* 리사이즈 핸들 — 하단 8px, ns-resize. 시그니처 컬러보다 약간 어둡게. */}
-        {onResizeStart && (
+        {/* 취소된 예약은 리사이즈 금지. */}
+        {onResizeStart && !cancelled && (
           <div
             onMouseDown={(e) => {
               if (e.button !== 0) return
@@ -277,7 +316,12 @@ export function DetailModal({
   const [note, setNote] = useState(appointment.note ?? '')
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // 'pick' = 취소 사유 선택 단계
+  const [cancelStep, setCancelStep] = useState<null | 'pick'>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const cancelled = isCancelled(appointment.status)
+  const isNoshow = appointment.status === 'noshow'
 
   // 고객 연결 상태
   const [petId, setPetId] = useState<string | null>(appointment.pet_id)
@@ -342,6 +386,22 @@ export function DetailModal({
     }
   }
 
+  async function handleCancel(reason: CancelReason) {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await cancelAppointment(appointment.id, reason)
+      if (!r.ok) {
+        setError(r.error)
+        return
+      }
+      onChanged()
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleDelete() {
     setBusy(true)
     setError(null)
@@ -356,6 +416,112 @@ export function DetailModal({
     } finally {
       setBusy(false)
     }
+  }
+
+  // ─── 취소된 예약 → 읽기 전용 + 삭제만 가능 ───
+  if (cancelled) {
+    const cancelledStaff = staff.find((s) => s.id === appointment.staff_id)?.name
+    const cancelledLabel = isNoshow ? '노쇼' : '취소'
+    return (
+      <div
+        onClick={onClose}
+        className="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4"
+        style={{ background: 'rgba(0,0,0,0.4)', zIndex: 50 }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="w-full sm:max-w-[460px] overflow-y-auto"
+          style={{
+            maxHeight: '90vh',
+            background: '#FFFFFF',
+            padding: 20,
+            border: '1px solid #E8E5E0',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 16,
+              letterSpacing: '0.06em',
+              fontWeight: 600,
+              color: '#1A1A1A',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            예약 상세
+            <span
+              style={{
+                fontSize: 11,
+                color: '#FFFFFF',
+                background: '#B23A3A',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                padding: '2px 6px',
+                lineHeight: 1.2,
+              }}
+            >
+              {cancelledLabel}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2" style={{ fontSize: 13, color: '#1A1A1A' }}>
+            <Row label="날짜" value={original.date} />
+            <Row label="시간" value={original.time} />
+            <Row label="소요시간" value={formatDuration(appointment.duration_min)} />
+            <Row
+              label="반려견"
+              value={
+                appointment.pet_name
+                  ? `${appointment.pet_name}${appointment.pet_breed ? ` · ${appointment.pet_breed}` : ''}`
+                  : '미연결'
+              }
+            />
+            {appointment.guardian_name && (
+              <Row label="보호자" value={appointment.guardian_name} />
+            )}
+            <Row label="담당" value={cancelledStaff ?? '미지정'} />
+            {appointment.cancel_reason && (
+              <Row label="취소 사유" value={appointment.cancel_reason} />
+            )}
+            {appointment.note && <Row label="메모" value={appointment.note} />}
+          </div>
+
+          {error && (
+            <div style={{ marginTop: 10, fontSize: 12, color: '#B23A3A' }}>{error}</div>
+          )}
+
+          <div className="mt-5 flex justify-between gap-2">
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={busy}
+                style={btnDanger}
+              >
+                삭제
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={handleDelete} disabled={busy} style={btnDanger}>
+                  {busy ? '삭제 중…' : '정말 삭제'}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={busy}
+                  style={btnSecondary}
+                >
+                  취소
+                </button>
+              </div>
+            )}
+            <button onClick={onClose} disabled={busy} style={btnSecondary}>
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -697,39 +863,72 @@ export function DetailModal({
         )}
 
         {/* 하단 버튼 */}
-        <div className="mt-5 flex justify-between gap-2">
-          {!confirmDelete ? (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              disabled={busy}
-              style={btnDanger}
-            >
-              삭제
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={handleDelete} disabled={busy} style={btnDanger}>
-                {busy ? '삭제 중…' : '정말 삭제'}
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                disabled={busy}
-                style={btnSecondary}
-              >
-                취소
-              </button>
+        {cancelStep === 'pick' ? (
+          <div className="mt-5 flex flex-wrap justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              {CANCEL_REASONS.map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => handleCancel(reason)}
+                  disabled={busy}
+                  style={btnDanger}
+                >
+                  {reason}
+                </button>
+              ))}
             </div>
-          )}
-
-          <div className="flex gap-2">
-            <button onClick={onClose} disabled={busy} style={btnSecondary}>
-              닫기
-            </button>
-            <button onClick={handleSave} disabled={busy} style={btnPrimary}>
-              {busy ? '저장 중…' : '저장'}
+            <button
+              onClick={() => setCancelStep(null)}
+              disabled={busy}
+              style={btnSecondary}
+            >
+              돌아가기
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="mt-5 flex justify-between gap-2">
+            {!confirmDelete ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={busy}
+                  style={btnDanger}
+                >
+                  삭제
+                </button>
+                <button
+                  onClick={() => setCancelStep('pick')}
+                  disabled={busy}
+                  style={btnDanger}
+                >
+                  예약 취소
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={handleDelete} disabled={busy} style={btnDanger}>
+                  {busy ? '삭제 중…' : '정말 삭제'}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={busy}
+                  style={btnSecondary}
+                >
+                  취소
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={onClose} disabled={busy} style={btnSecondary}>
+                닫기
+              </button>
+              <button onClick={handleSave} disabled={busy} style={btnPrimary}>
+                {busy ? '저장 중…' : '저장'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

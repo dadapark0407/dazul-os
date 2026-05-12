@@ -49,7 +49,7 @@ export type Appointment = {
   id: string
   start_at: string
   duration_min: number
-  status: string
+  status: string                  // 'confirmed' | 'cancelled' | 'noshow'
   pet_id: string | null
   guardian_id: string | null
   staff_id: string | null
@@ -60,7 +60,11 @@ export type Appointment = {
   guardian_name?: string | null
   service?: string | null
   assign_type?: 'fixed' | 'random'
+  cancel_reason?: string | null    // '보호자 취소' | '노쇼' | '매장 사정'
+  cancelled_at?: string | null     // ISO
 }
+
+export type CancelReason = '보호자 취소' | '노쇼' | '매장 사정'
 
 export type StaffOff = {
   id: string
@@ -108,6 +112,7 @@ export async function getBookingData(date: string): Promise<BookingData> {
       .select(
         `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
          note, raw_input, pet_name, pet_breed, service, assign_type,
+         cancel_reason, cancelled_at,
          pets:pet_id ( name, breed ),
          guardians:guardian_id ( name )`,
       )
@@ -141,6 +146,8 @@ export async function getBookingData(date: string): Promise<BookingData> {
     guardian_name: row.guardians?.name ?? null,
     service: row.service ?? null,
     assign_type: row.assign_type ?? 'fixed',
+    cancel_reason: row.cancel_reason ?? null,
+    cancelled_at: row.cancelled_at ?? null,
   }))
 
   return {
@@ -190,6 +197,7 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
       .select(
         `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
          note, raw_input, pet_name, pet_breed, service, assign_type,
+         cancel_reason, cancelled_at,
          pets:pet_id ( name, breed ),
          guardians:guardian_id ( name )`,
       )
@@ -217,6 +225,8 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
     guardian_name: row.guardians?.name ?? null,
     service: row.service ?? null,
     assign_type: row.assign_type ?? 'fixed',
+    cancel_reason: row.cancel_reason ?? null,
+    cancelled_at: row.cancelled_at ?? null,
   }))
 
   return {
@@ -278,6 +288,30 @@ export async function deleteAppointment(id: string) {
   const { error } = await supabase
     .from('appointments')
     .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (error) return { ok: false as const, error: error.message }
+  revalidatePath('/admin/booking')
+  return { ok: true as const }
+}
+
+/**
+ * 예약 취소 — soft delete가 아니라 status를 바꾼다.
+ *   '노쇼' → status='noshow'
+ *   그 외 → status='cancelled'
+ * cancel_reason / cancelled_at 기록.
+ */
+export async function cancelAppointment(id: string, reason: CancelReason) {
+  const supabase = await createClient()
+  const status = reason === '노쇼' ? 'noshow' : 'cancelled'
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      status,
+      cancel_reason: reason,
+      cancelled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', id)
 
   if (error) return { ok: false as const, error: error.message }

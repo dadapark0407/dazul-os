@@ -98,7 +98,6 @@ export default function DailySidePanel({
       {showDailyOnly && (
         <ReportSection
           date={date}
-          staff={staff}
           appointments={appointments ?? []}
         />
       )}
@@ -177,22 +176,11 @@ function DailyMemoSection({ date }: { date: string }) {
 
 // ─── 2. 리포트 발송 체크 ──────────────────────────
 
-/** ISO 문자열 → KST "HH:MM" */
-function isoToKstHHMM(iso: string): string {
-  const d = new Date(iso)
-  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
-  const h = String(kst.getUTCHours()).padStart(2, '0')
-  const m = String(kst.getUTCMinutes()).padStart(2, '0')
-  return `${h}:${m}`
-}
-
 function ReportSection({
   date,
-  staff,
   appointments,
 }: {
   date: string
-  staff: Staff[]
   appointments: Appointment[]
 }) {
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -232,13 +220,37 @@ function ReportSection({
     })
   }
 
-  // 시간순 정렬한 표시 목록
-  const sorted = [...appointments].sort((a, b) =>
-    a.start_at.localeCompare(b.start_at),
+  // 취소/노쇼는 리포트 대상에서 제외
+  const visible = appointments.filter(
+    (a) => a.status !== 'cancelled' && a.status !== 'noshow',
   )
 
-  const doneCount = sorted.filter((a) => checked.has(a.id)).length
-  const totalCount = sorted.length
+  // 보호자 단위로 그룹핑.
+  //   guardian_id가 있으면 그 값으로, 없으면 appointment id로 단독 그룹.
+  //   체크 키 = 그룹 키 (=보호자 단위 체크) → localStorage에 그룹 키로 저장.
+  type Group = {
+    key: string
+    petNames: string[]
+    earliest: string // 가장 이른 start_at — 정렬용
+  }
+  const groupMap = new Map<string, Group>()
+  for (const a of visible) {
+    const key = a.guardian_id ?? `appt:${a.id}`
+    const petName = a.pet_name ?? '(이름 없음)'
+    const existing = groupMap.get(key)
+    if (existing) {
+      existing.petNames.push(petName)
+      if (a.start_at < existing.earliest) existing.earliest = a.start_at
+    } else {
+      groupMap.set(key, { key, petNames: [petName], earliest: a.start_at })
+    }
+  }
+  const groups = [...groupMap.values()].sort((a, b) =>
+    a.earliest.localeCompare(b.earliest),
+  )
+
+  const doneCount = groups.filter((g) => checked.has(g.key)).length
+  const totalCount = groups.length
 
   return (
     <section style={sectionStyle}>
@@ -251,18 +263,15 @@ function ReportSection({
         )}
       </div>
 
-      {sorted.length === 0 ? (
+      {groups.length === 0 ? (
         <div style={{ fontSize: 11, color: '#888' }}>예약 없음</div>
       ) : (
         <div className="flex flex-col">
-          {sorted.map((a) => {
-            const staffName = staff.find((s) => s.id === a.staff_id)?.name
-            const short = givenName(staffName)
-            const petLabel = a.pet_name ?? '(이름 없음)'
-            const isChecked = checked.has(a.id)
+          {groups.map((g) => {
+            const isChecked = checked.has(g.key)
             return (
               <label
-                key={a.id}
+                key={g.key}
                 className="flex items-center gap-2 cursor-pointer"
                 style={{
                   padding: '5px 0',
@@ -278,22 +287,14 @@ function ReportSection({
                 <input
                   type="checkbox"
                   checked={isChecked}
-                  onChange={() => toggle(a.id)}
+                  onChange={() => toggle(g.key)}
                   style={{
                     accentColor: '#C9A96E',
                     flexShrink: 0,
                   }}
                 />
-                <span style={{ flex: 1, wordBreak: 'break-word' }}>
-                  <span style={{ color: '#888', marginRight: 4 }}>
-                    {isoToKstHHMM(a.start_at)}
-                  </span>
-                  <span style={{ fontWeight: 600 }}>{petLabel}</span>
-                  {short && (
-                    <span style={{ color: isChecked ? '#999' : '#C9A96E' }}>
-                      {' '}({short})
-                    </span>
-                  )}
+                <span style={{ flex: 1, fontWeight: 600, wordBreak: 'break-word' }}>
+                  {g.petNames.join(', ')}
                 </span>
               </label>
             )
