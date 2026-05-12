@@ -360,7 +360,116 @@ export async function deleteStaffOff(id: string) {
 
   if (error) return { ok: false as const, error: error.message }
   revalidatePath('/admin/booking')
+  revalidatePath('/admin/booking/staff')
   return { ok: true as const }
+}
+
+// ─── 휴무 관리 ───
+//
+// createStaffOffs:
+//   - 미용사 1명 + 날짜 여러 개 일괄 등록
+//   - offType='dayoff': 전일 휴무 (start_time/end_time = null)
+//   - offType='half_off': 반차. start_time/end_time는 OFF 시간 범위.
+//       오전 반차(특정 시간부터 출근) → start_time='11:00', end_time=<출근 시간>
+//       오후 반차(특정 시간까지만 근무) → start_time=<퇴근 시간>, end_time='20:00'
+//       autoAssignGroomer의 시간 범위 충돌 로직(start/end overlap)에서 그대로 활용됨.
+//   - 매장 휴무일(수/일)은 자동 제외.
+
+export async function createStaffOffs(
+  staffId: string,
+  dates: string[],
+  offType: 'dayoff' | 'half_off',
+  startTime?: string | null,
+  endTime?: string | null,
+): Promise<{
+  ok: boolean
+  error?: string
+  insertedCount?: number
+  skippedCount?: number
+}> {
+  if (!staffId) return { ok: false, error: '미용사를 선택해 주세요' }
+  if (!dates || dates.length === 0) {
+    return { ok: false, error: '날짜를 선택해 주세요' }
+  }
+  if (offType === 'half_off' && !startTime && !endTime) {
+    return { ok: false, error: '반차 시간을 선택해 주세요' }
+  }
+
+  // 수/일 제외
+  const validDates: string[] = []
+  let skippedCount = 0
+  for (const d of dates) {
+    const parts = d.split('-').map(Number)
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+      skippedCount++
+      continue
+    }
+    const [y, m, dd] = parts
+    const dow = new Date(Date.UTC(y, m - 1, dd)).getUTCDay()
+    if (isClosedDow(dow)) {
+      skippedCount++
+      continue
+    }
+    validDates.push(d)
+  }
+
+  if (validDates.length === 0) {
+    return {
+      ok: false,
+      error: '등록 가능한 날짜가 없습니다 (수/일은 매장 휴무로 자동 제외)',
+    }
+  }
+
+  const supabase = await createClient()
+  const rows = validDates.map((d) => ({
+    staff_id: staffId,
+    off_date: d,
+    off_type: offType,
+    start_time: offType === 'half_off' ? (startTime ?? null) : null,
+    end_time: offType === 'half_off' ? (endTime ?? null) : null,
+    branch_id: null,
+  }))
+  const { error } = await supabase.from('staff_off').insert(rows)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/booking')
+  revalidatePath('/admin/booking/staff')
+  return {
+    ok: true,
+    insertedCount: validDates.length,
+    skippedCount,
+  }
+}
+
+export type StaffOffWithStaff = StaffOff & { staff_name: string }
+
+/** 오늘(KST) 이상의 staff_off 목록 — 미용사 이름 포함. */
+export async function getUpcomingStaffOffs(): Promise<StaffOffWithStaff[]> {
+  const supabase = await createClient()
+  // KST 기준 오늘 날짜
+  const now = new Date()
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const todayKst = kst.toISOString().slice(0, 10)
+
+  const { data, error } = await supabase
+    .from('staff_off')
+    .select(
+      `id, staff_id, off_date, off_type, start_time, end_time,
+       staff:staff_id ( name )`,
+    )
+    .gte('off_date', todayKst)
+    .neq('off_type', 'lunch')
+    .order('off_date', { ascending: true })
+
+  if (error || !data) return []
+  return data.map((row: any) => ({
+    id: row.id,
+    staff_id: row.staff_id,
+    off_date: row.off_date,
+    off_type: row.off_type,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    staff_name: row.staff?.name ?? '',
+  }))
 }
 
 

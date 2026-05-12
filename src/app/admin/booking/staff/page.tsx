@@ -5,16 +5,22 @@
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import StaffManager from '@/components/booking/StaffManager'
-import type { Staff } from '@/lib/booking/actions'
+import StaffOffManager from '@/components/booking/StaffOffManager'
+import { getUpcomingStaffOffs, type Staff } from '@/lib/booking/actions'
 
 export default async function StaffSettingsPage() {
   const supabase = await createClient()
-  const { data } = await supabase
-    .from('staff')
-    .select('id, name, signature_color, display_order, is_active, branch_id')
-    .order('display_order', { ascending: true })
+  // 직원 + 미래 휴무 병렬 조회
+  const [{ data: staffData }, offs] = await Promise.all([
+    supabase
+      .from('staff')
+      .select('id, name, signature_color, display_order, is_active, branch_id')
+      .order('display_order', { ascending: true }),
+    getUpcomingStaffOffs(),
+  ])
 
-  const staff = (data ?? []) as Staff[]
+  const staff = (staffData ?? []) as Staff[]
+  const activeStaff = staff.filter((s) => s.is_active)
 
   return (
     <div>
@@ -44,6 +50,22 @@ export default async function StaffSettingsPage() {
       </div>
 
       <StaffManager initialStaff={staff} />
+
+      {/* 휴무 관리 */}
+      <div className="mt-10">
+        <h2
+          style={{
+            fontSize: 18,
+            letterSpacing: '0.08em',
+            fontWeight: 600,
+            color: '#1A1A1A',
+            marginBottom: 16,
+          }}
+        >
+          휴무 관리
+        </h2>
+        <StaffOffManager staff={activeStaff} initialOffs={offs} />
+      </div>
     </div>
   )
 }

@@ -501,47 +501,140 @@ function tryStaffOff(
 
 // ─── 멀티 파싱 헬퍼 ───
 
+/** 단일 토큰이 미지정 키워드인지(정확 일치). */
+function isUnassignedKeyword(token: string): boolean {
+  return (UNASSIGNED_KEYWORDS as readonly string[]).includes(token)
+}
+
 /**
- * 남은 토큰 배열을 (펫 토큰들, 서비스) 그룹으로 분리.
- * 일반 순서: pet ... [breed] service → 그룹 push.
- * 서비스 먼저 나오면 pendingService로 보관 후 뒤따라오는 pet 토큰과 페어링.
- * 2-token 복합 서비스("목욕 얼굴컷" → "목욕+얼굴컷")는 우선 매칭.
+ * 단일 토큰이 미용사 이름(풀네임 또는 성 제외)인지 검사.
+ * - isStaff=true, name=<full>: 결정됨
+ * - isStaff=true, name=null: 동명이인 등 모호 (토큰만 소비, 미지정 fallback)
+ * - isStaff=false: 미용사 아님
  */
-function splitPetServiceGroups(
+function matchStaffToken(
+  token: string,
+  staffList: string[],
+): { isStaff: boolean; name: string | null } {
+  const names = staffList.filter(Boolean)
+  const lowerToken = token.toLowerCase()
+
+  // 풀네임 정확 일치
+  const exactFull = names.find((s) => s.toLowerCase() === lowerToken)
+  if (exactFull) return { isStaff: true, name: exactFull }
+
+  // 성 제외 (한국 성씨 1자 가정)
+  const candidates = names.filter(
+    (s) => s.length >= 2 && s.slice(1).toLowerCase() === lowerToken,
+  )
+  if (candidates.length === 1) return { isStaff: true, name: candidates[0] }
+  if (candidates.length >= 2) return { isStaff: true, name: null }
+
+  return { isStaff: false, name: null }
+}
+
+type SplitGroup = {
+  pet: string[]
+  service: string | null
+  staff: string | null
+  unassigned: boolean
+}
+
+/**
+ * 남은 토큰 배열을 그룹별로 분리.
+ *
+ * 토큰 종류:
+ *  - service: pendingService로 보관
+ *  - 미지정 키워드: 현재 그룹의 unassigned=true 후 그룹 종료. 그룹 시작 전이면 preGroup.
+ *  - staff 토큰: 현재 그룹의 staff 지정 후 그룹 종료. 그룹 시작 전이면 preGroup.
+ *  - 그 외: 펫/품종 토큰으로 누적.
+ *
+ * preGroup(전체에 적용되는 staff/unassigned)은 자체 modifier가 없는 그룹에만 적용.
+ */
+function splitGroups(
   rest: string,
-): Array<{ pet: string[]; service: string | null }> {
+  staffList: string[],
+): SplitGroup[] {
   const tokens = rest.trim().split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return []
 
-  const groups: Array<{ pet: string[]; service: string | null }> = []
+  const groups: SplitGroup[] = []
   let currentPet: string[] = []
   let pendingService: string | null = null
+  let preGroupStaff: string | null = null
+  let preGroupUnassigned = false
 
-  for (let i = 0; i < tokens.length; i++) {
-    const match = tryMatchServiceAtToken(tokens, i)
-    if (match) {
-      if (currentPet.length > 0) {
-        // pet → service: 그룹 완성
-        groups.push({ pet: currentPet, service: match.service })
-        currentPet = []
-        pendingService = null
-      } else if (pendingService) {
-        // 연속 service (드문 케이스) — 이전 service를 빈 펫 그룹으로 우선 push
-        groups.push({ pet: [], service: pendingService })
-        pendingService = match.service
-      } else {
-        // service 먼저 → pet 뒤에 옴
-        pendingService = match.service
-      }
-      i += match.length - 1  // 소비된 토큰 스킵
-    } else {
-      currentPet.push(tokens[i])
+  function finalize(staff: string | null, unassigned: boolean) {
+    if (currentPet.length > 0 || pendingService) {
+      groups.push({
+        pet: currentPet,
+        service: pendingService,
+        staff,
+        unassigned,
+      })
     }
+    currentPet = []
+    pendingService = null
   }
 
-  // 마지막 잔여 처리
+  for (let i = 0; i < tokens.length; i++) {
+    // 1) service 우선 매칭 (2-token 복합 포함)
+    const serviceMatch = tryMatchServiceAtToken(tokens, i)
+    if (serviceMatch) {
+      if (pendingService) {
+        // 연속 service (드문 케이스) — 빈 펫 그룹으로 먼저 종료
+        finalize(null, false)
+      }
+      pendingService = serviceMatch.service
+      i += serviceMatch.length - 1
+      continue
+    }
+
+    const token = tokens[i]
+
+    // 2) 미지정
+    if (isUnassignedKeyword(token)) {
+      if (currentPet.length === 0 && !pendingService) {
+        // 그룹 시작 전 → preGroup
+        preGroupUnassigned = true
+      } else {
+        finalize(null, true)
+      }
+      continue
+    }
+
+    // 3) 미용사
+    const sm = matchStaffToken(token, staffList)
+    if (sm.isStaff) {
+      if (currentPet.length === 0 && !pendingService) {
+        // 그룹 시작 전 → preGroup (단, preGroupUnassigned가 이미 true면 무시)
+        if (sm.name && !preGroupUnassigned) {
+          preGroupStaff = sm.name
+        }
+        // ambiguous면 토큰만 소비
+      } else {
+        // ambiguous 미용사면 staff=null (autoAssign 후보)로 그룹 종료
+        finalize(sm.name, false)
+      }
+      continue
+    }
+
+    // 4) 펫/품종 토큰
+    currentPet.push(token)
+  }
+
+  // 마지막 잔여 (service 또는 staff 종료 없이 끝난 경우)
   if (currentPet.length > 0 || pendingService) {
-    groups.push({ pet: currentPet, service: pendingService })
+    finalize(null, false)
+  }
+
+  // preGroup 적용 — 자체 modifier 없는 그룹에만
+  if (preGroupUnassigned || preGroupStaff) {
+    for (const g of groups) {
+      if (g.staff || g.unassigned) continue
+      if (preGroupUnassigned) g.unassigned = true
+      else if (preGroupStaff) g.staff = preGroupStaff
+    }
   }
 
   return groups
@@ -626,20 +719,12 @@ export function parseBookingLine(
   const durRes = parseDuration(rest)
   if (durRes) rest = rest.replace(durRes.matched, ' ')
 
-  // 6) "신규"
+  // 6) "신규" (전역)
   const newRes = extractIsNew(rest)
   rest = newRes.rest
 
-  // 7) "지정없음"
-  const unaRes = extractUnassigned(rest)
-  rest = unaRes.rest
-
-  // 8) 미용사 (전역 적용)
-  const staffRes = extractStaff(rest, staffList)
-  rest = staffRes.rest
-  const staffName = unaRes.unassigned ? null : staffRes.staffName
-
-  // 9) 체중·나이·전화번호 (전역 메모로 합침)
+  // 7) 체중·나이·전화번호 (전역 메모로 합침)
+  //    staff/unassigned는 그룹별 처리로 이동 — 여기선 추출하지 않음.
   const waRes = extractWeightAge(rest)
   rest = waRes.rest
   const phoneRes = extractPhone(rest)
@@ -651,13 +736,18 @@ export function parseBookingLine(
   if (parenNote) noteParts.push(parenNote)
   const note = noteParts.length ? noteParts.join(' | ') : null
 
-  // 10) 남은 텍스트를 pet+service 그룹으로 분리
-  const groups = splitPetServiceGroups(rest)
+  // 8) 남은 텍스트를 pet+service+staff/unassigned 그룹으로 분리
+  const groups = splitGroups(rest, staffList)
 
   // 그룹이 없고 신규 플래그도 없으면 에러
   if (groups.length === 0) {
     if (newRes.isNew) {
-      groups.push({ pet: [], service: null })
+      groups.push({
+        pet: [],
+        service: null,
+        staff: null,
+        unassigned: false,
+      })
     } else {
       return { type: 'error', message: '반려견 이름을 찾지 못했습니다' }
     }
@@ -672,7 +762,7 @@ export function parseBookingLine(
       if (newRes.isNew) {
         resolvedPetName = '신규'
       } else {
-        // 펫 이름이 없는 그룹은 건너뜀 (예: 서비스만 단독으로 남은 케이스)
+        // 펫 이름이 없는 그룹은 건너뜀 (서비스만 단독)
         continue
       }
     }
@@ -683,11 +773,11 @@ export function parseBookingLine(
       breed,
       service: g.service,
       duration: durRes ? durRes.duration : defaultDuration(g.service),
-      staffName,
+      staffName: g.unassigned ? null : g.staff,
       note,
       raw: input,
       isNewCustomer: newRes.isNew,
-      unassigned: unaRes.unassigned,
+      unassigned: g.unassigned,
     })
   }
 
