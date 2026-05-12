@@ -112,6 +112,22 @@ function buildCalendarDays(year: number, month: number): CalendarDay[] {
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const
 
+// 일=0 ~ 토=6 (UTCDay 기준)
+const KO_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const
+
+/** 한국 성씨 1자 가정 — "강수진" → "수진" */
+function givenName(fullName: string | null | undefined): string | null {
+  if (!fullName) return null
+  return fullName.length >= 2 ? fullName.slice(1) : fullName
+}
+
+/** "5/13(화)" 형태로 포맷 */
+function formatDateHeader(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+  return `${m}/${d}(${KO_WEEKDAYS[dow]})`
+}
+
 export default function MonthlyView({
   year,
   month,
@@ -126,8 +142,48 @@ export default function MonthlyView({
   const [localAppts, setLocalAppts] = useState<Appointment[]>(appointments)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
+  const [copiedDate, setCopiedDate] = useState<string | null>(null)
 
   useEffect(() => { setLocalAppts(appointments) }, [appointments])
+
+  /** 해당 날짜의 예약을 시간순 텍스트로 클립보드에 복사 */
+  async function handleCopyDay(
+    e: React.MouseEvent,
+    dateStr: string,
+    dayAppts: Appointment[],
+  ) {
+    e.stopPropagation()
+    const sorted = [...dayAppts].sort((a, b) => a.start_at.localeCompare(b.start_at))
+
+    const lines: string[] = [formatDateHeader(dateStr)]
+    for (const a of sorted) {
+      const time = isoToKstHHMM(a.start_at)
+      const staffMember = staff.find((s) => s.id === a.staff_id)
+      const staffShort = givenName(staffMember?.name ?? null)
+
+      const parts: string[] = [time]
+      if (a.pet_name) parts.push(a.pet_name)
+      if (a.pet_breed) parts.push(a.pet_breed)
+      if (a.service) parts.push(a.service)
+      let line = parts.join(' ')
+      if (staffShort) line += ` - ${staffShort}`
+      if (a.assign_type === 'random') line += ' (자동)'
+      const noteTrim = a.note?.trim()
+      if (noteTrim) line += ` (${noteTrim})`
+      lines.push(line)
+    }
+    const text = lines.join('\n')
+
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedDate(dateStr)
+      setTimeout(() => {
+        setCopiedDate((cur) => (cur === dateStr ? null : cur))
+      }, 1500)
+    } catch {
+      // 클립보드 권한 없으면 무시
+    }
+  }
 
   async function handleMonthlyDrop(e: React.DragEvent, targetDate: string) {
     e.preventDefault()
@@ -250,6 +306,7 @@ export default function MonthlyView({
                   onDrop={(e) => handleMonthlyDrop(e, calDay.date)}
                   className={dragOverDate === calDay.date ? 'bg-[#C9A96E]/10 ring-1 ring-[#C9A96E]/30' : ''}
                   style={{
+                    position: 'relative',
                     minHeight: 120,
                     borderRight: '1px solid #E8E5E0',
                     borderBottom: '1px solid #E8E5E0',
@@ -288,6 +345,52 @@ export default function MonthlyView({
                     >
                       휴무
                     </span>
+                  )}
+
+                  {/* 복사 버튼 — 예약 있을 때만, 우측 상단 */}
+                  {dayAppts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyDay(e, calDay.date, dayAppts)}
+                      aria-label="이 날짜의 예약 복사"
+                      title="이 날짜의 예약 복사"
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        width: 18,
+                        height: 18,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#C9A96E',
+                        fontSize: 12,
+                        lineHeight: 1,
+                        padding: 0,
+                      }}
+                    >
+                      {copiedDate === calDay.date ? (
+                        <span style={{ fontWeight: 700 }}>✓</span>
+                      ) : (
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <rect x="9" y="9" width="13" height="13" rx="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      )}
+                    </button>
                   )}
 
                   {/* 예약 목록 */}

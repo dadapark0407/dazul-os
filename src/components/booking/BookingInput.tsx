@@ -593,23 +593,6 @@ export default function BookingInput({
         </div>
       )}
 
-      {/* ─── 중복 시간 확인 모달 ─── */}
-      {conflictConfirm && (
-        <ModalShell title="시간 중복 확인" onClose={conflictConfirm.onCancel}>
-          <div style={{ fontSize: 14, color: '#1A1A1A', marginBottom: 20, lineHeight: 1.6 }}>
-            {conflictConfirm.message}
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={conflictConfirm.onCancel} style={btnSecondary}>
-              취소
-            </button>
-            <button onClick={conflictConfirm.onConfirm} style={btnPrimary}>
-              등록
-            </button>
-          </div>
-        </ModalShell>
-      )}
-
       {/* ─── 다중 매칭 선택 모달 ─── */}
       {pending && pending.matches.length >= 2 && (
         <ModalShell title="고객 선택" onClose={handleCancel}>
@@ -699,6 +682,24 @@ export default function BookingInput({
               style={btnPrimary}
             >
               {petCreating ? '등록 중…' : '등록 후 예약'}
+            </button>
+          </div>
+        </ModalShell>
+      )}
+
+      {/* ─── 중복 시간 확인 모달 ─── */}
+      {/* 매칭/신규 모달 위에 표시되도록 가장 마지막에 렌더 (같은 z-index에서 DOM 순서로 스택) */}
+      {conflictConfirm && (
+        <ModalShell title="시간 중복 확인" onClose={conflictConfirm.onCancel}>
+          <div style={{ fontSize: 14, color: '#1A1A1A', marginBottom: 20, lineHeight: 1.6 }}>
+            {conflictConfirm.message}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={conflictConfirm.onCancel} style={btnSecondary}>
+              취소
+            </button>
+            <button onClick={conflictConfirm.onConfirm} style={btnPrimary}>
+              등록
             </button>
           </div>
         </ModalShell>
