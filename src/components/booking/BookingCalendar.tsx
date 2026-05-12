@@ -11,6 +11,7 @@ import BookingInput from './BookingInput'
 import SlotFinder from './SlotFinder'
 import TimelineGrid from './TimelineGrid'
 import MonthlyView from './MonthlyView'
+import DailySidePanel from './DailySidePanel'
 import {
   getBookingData,
   getMonthlyData,
@@ -84,6 +85,8 @@ export default function BookingCalendar({
 
   // ── 뷰 상태 ──
   const [view, setView] = useState<'daily' | 'monthly'>('daily')
+  // ── 사이드 패널(오버레이) 열림 여부 ──
+  const [panelOpen, setPanelOpen] = useState(false)
   const [viewYear, setViewYear] = useState(() => parseInt(initialDate.slice(0, 4)))
   const [viewMonth, setViewMonth] = useState(() => parseInt(initialDate.slice(5, 7)))
   const [monthlyAppts, setMonthlyAppts] = useState<Appointment[]>([])
@@ -276,6 +279,7 @@ export default function BookingCalendar({
     viewMonth === parseInt(todayStr.slice(5, 7))
 
   return (
+    <>
     <div className="flex flex-col gap-4">
       {/* ─── 날짜 네비게이션 ─── */}
       <div
@@ -564,6 +568,81 @@ export default function BookingCalendar({
         </>
       )}
     </div>
+
+    {/* ─── 사이드 패널 토글 버튼 — AdminLayout 헤더(52px) 아래에 배치하여 로그아웃 버튼과 겹치지 않게 ─── */}
+    <button
+      type="button"
+      onClick={() => setPanelOpen((v) => !v)}
+      aria-label="사이드 패널 열기/닫기"
+      title="사이드 패널"
+      style={{
+        position: 'fixed',
+        top: 64,
+        right: 16,
+        width: 40,
+        height: 40,
+        background: panelOpen ? '#1A1A1A' : '#FFFFFF',
+        color: panelOpen ? '#FFFFFF' : '#1A1A1A',
+        border: '1px solid #E8E5E0',
+        borderRadius: 0,
+        cursor: 'pointer',
+        zIndex: 70,
+        fontSize: 18,
+        lineHeight: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'inherit',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      }}
+    >
+      {panelOpen ? '×' : '📝'}
+    </button>
+
+    {/* ─── 백드롭 (열려있을 때만, 클릭 시 닫힘) ─── */}
+    {panelOpen && (
+      <div
+        onClick={() => setPanelOpen(false)}
+        aria-hidden
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.3)',
+          zIndex: 60,
+        }}
+      />
+    )}
+
+    {/* ─── 드로어 패널 — transform으로 슬라이드 애니메이션 ─── */}
+    <aside
+      onClick={(e) => e.stopPropagation()}
+      aria-hidden={!panelOpen}
+      style={{
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 260,
+        background: '#FAFAF8',
+        borderLeft: '1px solid #E8E5E0',
+        borderRadius: 0,
+        zIndex: 65,
+        transform: panelOpen ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform 0.2s ease',
+        overflowY: 'auto',
+        // top padding 116 = 토글 버튼(top:64 + height:40) 아래 12px 여백
+        padding: '116px 16px 16px',
+        boxSizing: 'border-box',
+      }}
+    >
+      <DailySidePanel
+        date={date}
+        staff={staff}
+        appointments={view === 'daily' ? appointments : monthlyAppts}
+        mode={view}
+      />
+    </aside>
+    </>
   )
 }
 

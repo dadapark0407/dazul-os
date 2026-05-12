@@ -442,6 +442,82 @@ export async function createStaffOffs(
 
 export type StaffOffWithStaff = StaffOff & { staff_name: string }
 
+
+// ─── 고정(정기) 예약 ───
+
+export type RecurringAppointment = {
+  id: string
+  pet_id: string | null
+  pet_name: string
+  pet_breed: string | null
+  weekday: number               // 0=일 ~ 6=토
+  staff_id: string | null
+  staff_name: string | null     // 조인 결과
+  note: string | null
+}
+
+export async function listRecurringAppointments(): Promise<RecurringAppointment[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('recurring_appointments')
+    .select(
+      `id, pet_id, pet_name, pet_breed, weekday, staff_id, note,
+       staff:staff_id ( name )`,
+    )
+    .order('weekday', { ascending: true })
+    .order('pet_name', { ascending: true })
+  if (error || !data) return []
+  return data.map((row: any) => ({
+    id: row.id,
+    pet_id: row.pet_id ?? null,
+    pet_name: row.pet_name,
+    pet_breed: row.pet_breed ?? null,
+    weekday: row.weekday,
+    staff_id: row.staff_id ?? null,
+    staff_name: row.staff?.name ?? null,
+    note: row.note ?? null,
+  }))
+}
+
+export async function createRecurringAppointment(input: {
+  petName: string
+  petBreed?: string | null
+  weekday: number
+  staffId?: string | null
+  note?: string | null
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!input.petName?.trim()) {
+    return { ok: false, error: '반려견 이름을 입력해 주세요' }
+  }
+  if (input.weekday < 0 || input.weekday > 6) {
+    return { ok: false, error: '요일이 올바르지 않습니다' }
+  }
+  const supabase = await createClient()
+  const { error } = await supabase.from('recurring_appointments').insert({
+    pet_name: input.petName.trim(),
+    pet_breed: input.petBreed?.trim() || null,
+    weekday: input.weekday,
+    staff_id: input.staffId || null,
+    note: input.note?.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/booking')
+  return { ok: true }
+}
+
+export async function deleteRecurringAppointment(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('recurring_appointments')
+    .delete()
+    .eq('id', id)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/booking')
+  return { ok: true }
+}
+
 /** 오늘(KST) 이상의 staff_off 목록 — 미용사 이름 포함. */
 export async function getUpcomingStaffOffs(): Promise<StaffOffWithStaff[]> {
   const supabase = await createClient()
