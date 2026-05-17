@@ -8,6 +8,7 @@ import {
   setAutoFollowupEnabled,
 } from '@/lib/autoFollowup'
 import { ALL_NAV_ITEMS } from '@/lib/navigation'
+import DashboardLink from '@/components/admin/DashboardLink'
 import {
   LayoutDashboard, PawPrint, Calendar, ClipboardList,
   BarChart2, Package, Users, CreditCard, Megaphone, Bell,
@@ -372,14 +373,11 @@ function HiddenNavSection() {
             <div className="overflow-hidden border border-dz-border/50 bg-white">
               {items.map((item, idx) => {
                 const Icon = ICON_MAP[item.icon]
-                return (
-                  <Link
-                    key={item.id}
-                    href={item.href}
-                    className={`flex items-center gap-4 px-5 py-4 transition-all duration-400 hover:bg-dz-surface group ${
-                      idx < items.length - 1 ? 'border-b border-dz-border/30' : ''
-                    }`}
-                  >
+                const itemClassName = `flex items-center gap-4 px-5 py-4 transition-all duration-400 hover:bg-dz-surface group ${
+                  idx < items.length - 1 ? 'border-b border-dz-border/30' : ''
+                }`
+                const inner = (
+                  <>
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-dz-border/50 bg-dz-surface transition-colors group-hover:border-dz-accent/30">
                       {Icon && <Icon className="h-4 w-4 text-dz-accent" />}
                     </div>
@@ -388,6 +386,18 @@ function HiddenNavSection() {
                       <p className="text-[10px] text-dz-muted/40">{item.href}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-dz-border transition-colors group-hover:text-dz-accent" />
+                  </>
+                )
+                if (item.id === 'dashboard') {
+                  return (
+                    <DashboardLink key={item.id} href={item.href} className={itemClassName}>
+                      {inner}
+                    </DashboardLink>
+                  )
+                }
+                return (
+                  <Link key={item.id} href={item.href} className={itemClassName}>
+                    {inner}
                   </Link>
                 )
               })}

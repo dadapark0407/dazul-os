@@ -38,10 +38,17 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // / — 로그인 상태면 /admin으로
+  // / — 로그인 상태면 /admin/booking으로
   if (pathname === '/' && user) {
     const url = request.nextUrl.clone()
-    url.pathname = '/admin'
+    url.pathname = '/admin/booking'
+    return NextResponse.redirect(url)
+  }
+
+  // /admin (정확히) → /admin/booking
+  if (pathname === '/admin' && user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/admin/booking'
     return NextResponse.redirect(url)
   }
 
