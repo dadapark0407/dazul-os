@@ -16,6 +16,7 @@ import {
   type PetMatch,
   type CancelReason,
 } from '@/lib/booking/actions'
+import { pickActor, getOrPickActor } from './ActorPicker'
 
 const CANCEL_REASONS: CancelReason[] = ['보호자 취소', '노쇼', '매장 사정']
 
@@ -87,7 +88,6 @@ export default function AppointmentBlock({
     : isRandom
     ? {
         background: color,
-        opacity: 0.7,
         border: `2px dashed ${color}`,
         color: '#FFFFFF',
       }
@@ -203,14 +203,15 @@ export default function AppointmentBlock({
         {appointment.note && (
           <div
             style={{
-              marginTop: 2,
-              fontSize: 10,
-              opacity: 0.75,
+              marginTop: 3,
+              fontSize: 12,
+              opacity: 0.9,
+              color: '#FFFFFF',
               whiteSpace: 'normal',
               wordBreak: 'break-word',
             }}
           >
-            {appointment.note}
+            📝 {appointment.note}
           </div>
         )}
 
@@ -329,6 +330,8 @@ export function DetailModal({
   const [petBreed, setPetBreed] = useState<string | null>(appointment.pet_breed ?? null)
   const [guardianId, setGuardianId] = useState<string | null>(appointment.guardian_id)
   const [guardianName, setGuardianName] = useState<string | null>(appointment.guardian_name ?? null)
+  const [guardianPhone, setGuardianPhone] = useState<string | null>(appointment.guardian_phone ?? null)
+  const [phoneCopied, setPhoneCopied] = useState(false)
 
   // 인라인 검색
   const [showSearch, setShowSearch] = useState(false)
@@ -354,25 +357,43 @@ export function DetailModal({
     setPetBreed(m.breed)
     setGuardianId(m.guardian_id)
     setGuardianName(m.guardian_name)
+    setGuardianPhone(m.guardian_phone)
     setShowSearch(false)
     setSearchQuery('')
     setSearchResults([])
   }
 
+  async function copyPhone() {
+    if (!guardianPhone) return
+    try {
+      await navigator.clipboard.writeText(guardianPhone)
+      setPhoneCopied(true)
+      setTimeout(() => setPhoneCopied(false), 1500)
+    } catch {
+      // 권한 없으면 무시
+    }
+  }
+
   async function handleSave() {
+    // 수정은 보조 작업 — 세션 처리자 사용 (없으면 1회 모달)
+    const actor = await getOrPickActor()
     setBusy(true)
     setError(null)
     try {
-      const r = await updateAppointment(appointment.id, {
-        start_at: kstPartsToIso(date, time),
-        duration_min: duration,
-        staff_id: staffId,
-        note: note.trim() || null,
-        pet_id: petId,
-        guardian_id: guardianId,
-        pet_name: petName,
-        pet_breed: petBreed,
-      })
+      const r = await updateAppointment(
+        appointment.id,
+        {
+          start_at: kstPartsToIso(date, time),
+          duration_min: duration,
+          staff_id: staffId,
+          note: note.trim() || null,
+          pet_id: petId,
+          guardian_id: guardianId,
+          pet_name: petName,
+          pet_breed: petBreed,
+        },
+        actor,
+      )
       if (!r.ok) {
         setError(r.error)
         return
@@ -387,10 +408,13 @@ export function DetailModal({
   }
 
   async function handleCancel(reason: CancelReason) {
+    // 취소는 주요 작업 — 매번 처리자 선택
+    const actor = await pickActor()
+    if (!actor) return
     setBusy(true)
     setError(null)
     try {
-      const r = await cancelAppointment(appointment.id, reason)
+      const r = await cancelAppointment(appointment.id, reason, actor)
       if (!r.ok) {
         setError(r.error)
         return
@@ -403,10 +427,13 @@ export function DetailModal({
   }
 
   async function handleDelete() {
+    // 삭제는 주요 작업 — 매번 처리자 선택
+    const actor = await pickActor()
+    if (!actor) return
     setBusy(true)
     setError(null)
     try {
-      const r = await deleteAppointment(appointment.id)
+      const r = await deleteAppointment(appointment.id, actor)
       if (!r.ok) {
         setError(r.error)
         return
@@ -554,6 +581,64 @@ export function DetailModal({
         >
           예약 상세
         </div>
+
+        {/* 보호자 정보 */}
+        {(guardianName || guardianPhone) && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '10px 12px',
+              background: '#FAFAF8',
+              border: '1px solid #E8E5E0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {guardianName && (
+                <span style={{ fontSize: 11, color: '#8A8A7A', letterSpacing: '0.04em' }}>
+                  {guardianName}
+                </span>
+              )}
+              {guardianPhone ? (
+                <a
+                  href={`tel:${guardianPhone.replace(/[^0-9+]/g, '')}`}
+                  style={{
+                    fontSize: 14,
+                    color: '#C9A96E',
+                    textDecoration: 'underline',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  {guardianPhone}
+                </a>
+              ) : (
+                <span style={{ fontSize: 12, color: '#8A8A7A' }}>전화번호 없음</span>
+              )}
+            </div>
+            {guardianPhone && (
+              <button
+                type="button"
+                onClick={copyPhone}
+                style={{
+                  fontSize: 11,
+                  letterSpacing: '0.05em',
+                  padding: '6px 10px',
+                  background: '#FFFFFF',
+                  border: '1px solid #E8E5E0',
+                  color: phoneCopied ? '#7A9E8A' : '#1A1A1A',
+                  cursor: 'pointer',
+                  borderRadius: 0,
+                }}
+              >
+                {phoneCopied ? '✓ 복사됨' : '복사'}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col gap-4" style={{ fontSize: 13, color: '#1A1A1A' }}>
           {/* 1. 날짜 */}

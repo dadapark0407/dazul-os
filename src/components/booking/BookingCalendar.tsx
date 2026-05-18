@@ -12,6 +12,9 @@ import SlotFinder from './SlotFinder'
 import TimelineGrid from './TimelineGrid'
 import MonthlyView from './MonthlyView'
 import SidePanelOverlay from './SidePanelOverlay'
+import AuditHistoryModal from './AuditHistoryModal'
+import { pickActor } from './ActorPicker'
+import { getSessionActor } from '@/lib/booking/actor-client'
 import {
   getBookingData,
   getMonthlyData,
@@ -70,6 +73,26 @@ function todayKst(): string {
   return kst.toISOString().slice(0, 10)
 }
 
+// ─── 중앙 헤더용 공유 스타일 ───
+const arrowBtnStyle: React.CSSProperties = {
+  fontSize: 14,
+  color: '#1A1A1A',
+  background: '#FFFFFF',
+  border: '1px solid #E8E5E0',
+  padding: '4px 10px',
+  cursor: 'pointer',
+  borderRadius: 0,
+}
+const dateTextBtnStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: '4px 8px',
+  font: 'inherit',
+  color: 'inherit',
+  letterSpacing: 'inherit',
+  cursor: 'pointer',
+}
+
 export default function BookingCalendar({
   initialDate,
   initialStaff,
@@ -101,6 +124,18 @@ export default function BookingCalendar({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerYear, setPickerYear] = useState(viewYear)
   const pickerRef = useRef<HTMLDivElement | null>(null)
+
+  // ── 변경 이력 모달 ──
+  const [auditOpen, setAuditOpen] = useState(false)
+
+  // ── 현재 세션 처리자 (UI 표시용) ──
+  const [actorLabel, setActorLabel] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return getSessionActor()?.staff_name ?? null
+  })
+  function refreshActorLabel() {
+    setActorLabel(getSessionActor()?.staff_name ?? null)
+  }
 
   // ── 일간 헤더 날짜 피커 ──
   const [dateOpen, setDateOpen] = useState(false)
@@ -312,17 +347,56 @@ export default function BookingCalendar({
     setView(v)
   }
 
-  const isToday = date === todayKst()
-  const todayStr = todayKst()
-  const isThisMonth =
-    view === 'monthly' &&
-    viewYear === parseInt(todayStr.slice(0, 4)) &&
-    viewMonth === parseInt(todayStr.slice(5, 7))
-
   return (
     <>
     <div className="flex flex-col gap-4">
-      {/* ─── 날짜 네비게이션 ─── */}
+      {/* ─── 1행: 제목 + 일간/월간 탭 ─── */}
+      <div className="flex flex-wrap items-center gap-3">
+        <h1
+          style={{
+            fontSize: 22,
+            letterSpacing: '0.08em',
+            fontWeight: 600,
+            color: '#1A1A1A',
+            margin: 0,
+          }}
+        >
+          예약 관리
+        </h1>
+        <div style={{ display: 'inline-flex', border: '1px solid #E8E5E0' }}>
+          <button
+            onClick={() => handleSetView('daily')}
+            style={{
+              fontSize: 12,
+              letterSpacing: '0.05em',
+              padding: '8px 14px',
+              background: view === 'daily' ? '#1A1A1A' : '#FFFFFF',
+              color: view === 'daily' ? '#FFFFFF' : '#1A1A1A',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            일간
+          </button>
+          <button
+            onClick={() => handleSetView('monthly')}
+            style={{
+              fontSize: 12,
+              letterSpacing: '0.05em',
+              padding: '8px 14px',
+              background: view === 'monthly' ? '#1A1A1A' : '#FFFFFF',
+              color: view === 'monthly' ? '#FFFFFF' : '#1A1A1A',
+              border: 'none',
+              borderLeft: '1px solid #E8E5E0',
+              cursor: 'pointer',
+            }}
+          >
+            월간
+          </button>
+        </div>
+      </div>
+
+      {/* ─── 2행: [변경 이력 / 처리자]  ← 날짜 →  [직원 설정] ─── */}
       <div
         className="flex flex-wrap items-center gap-2"
         style={{
@@ -331,106 +405,46 @@ export default function BookingCalendar({
           border: '1px solid #E8E5E0',
         }}
       >
+        {/* 좌 */}
         <div className="flex items-center gap-2">
-          {/* 뷰 토글 (일간 / 월간) */}
-          <div style={{ display: 'inline-flex', border: '1px solid #E8E5E0' }}>
-            <button
-              onClick={() => handleSetView('daily')}
-              style={{
-                fontSize: 12,
-                letterSpacing: '0.05em',
-                padding: '8px 12px',
-                background: view === 'daily' ? '#1A1A1A' : '#FFFFFF',
-                color: view === 'daily' ? '#FFFFFF' : '#1A1A1A',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              일간
-            </button>
-            <button
-              onClick={() => handleSetView('monthly')}
-              style={{
-                fontSize: 12,
-                letterSpacing: '0.05em',
-                padding: '8px 12px',
-                background: view === 'monthly' ? '#1A1A1A' : '#FFFFFF',
-                color: view === 'monthly' ? '#FFFFFF' : '#1A1A1A',
-                border: 'none',
-                borderLeft: '1px solid #E8E5E0',
-                cursor: 'pointer',
-              }}
-            >
-              월간
-            </button>
-          </div>
-
-          {/* 날짜/월 네비 */}
+          {/* 변경 이력 */}
           <button
-            onClick={() => view === 'daily' ? setDate(shiftDate(date, -1)) : shiftMonth(-1)}
-            className="px-3 py-2"
+            onClick={() => setAuditOpen(true)}
             style={{
-              fontSize: 14,
-              color: '#1A1A1A',
+              fontSize: 12,
+              letterSpacing: '0.05em',
+              padding: '8px 12px',
               background: '#FFFFFF',
+              color: '#1A1A1A',
               border: '1px solid #E8E5E0',
               cursor: 'pointer',
             }}
-            aria-label="이전"
           >
-            ←
+            변경 이력
           </button>
-          {view === 'daily' ? (
-            <button
-              onClick={() => setDate(todayKst())}
-              className="px-3 py-2"
-              style={{
-                fontSize: 13,
-                letterSpacing: '0.05em',
-                color: isToday ? '#FFFFFF' : '#1A1A1A',
-                background: isToday ? '#1A1A1A' : '#FFFFFF',
-                border: '1px solid #1A1A1A',
-                cursor: 'pointer',
-              }}
-            >
-              오늘
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                const t = todayKst()
-                setViewYear(parseInt(t.slice(0, 4)))
-                setViewMonth(parseInt(t.slice(5, 7)))
-              }}
-              className="px-3 py-2"
-              style={{
-                fontSize: 13,
-                letterSpacing: '0.05em',
-                color: isThisMonth ? '#FFFFFF' : '#1A1A1A',
-                background: isThisMonth ? '#1A1A1A' : '#FFFFFF',
-                border: '1px solid #1A1A1A',
-                cursor: 'pointer',
-              }}
-            >
-              이번 달
-            </button>
-          )}
+
+          {/* 세션 처리자 */}
           <button
-            onClick={() => view === 'daily' ? setDate(shiftDate(date, 1)) : shiftMonth(1)}
-            className="px-3 py-2"
+            onClick={async () => {
+              await pickActor()
+              refreshActorLabel()
+            }}
+            title="처리자 변경"
             style={{
-              fontSize: 14,
-              color: '#1A1A1A',
-              background: '#FFFFFF',
+              fontSize: 11,
+              letterSpacing: '0.05em',
+              padding: '8px 10px',
+              background: '#FAFAF8',
+              color: actorLabel ? '#1A1A1A' : '#8A8A7A',
               border: '1px solid #E8E5E0',
               cursor: 'pointer',
             }}
-            aria-label="다음"
           >
-            →
+            처리자: {actorLabel ?? '미지정'} ↻
           </button>
         </div>
 
+        {/* 중앙 — 날짜 네비 */}
         <div
           ref={pickerRef}
           className="w-full text-center order-3 sm:order-2 sm:flex-1 sm:w-auto"
@@ -443,41 +457,75 @@ export default function BookingCalendar({
           }}
         >
           {view === 'daily' ? (
-            <button
-              type="button"
-              onClick={() => setDateOpen((v) => !v)}
+            <div
               style={{
-                background: 'transparent',
-                border: 'none',
-                padding: '4px 8px',
-                font: 'inherit',
-                color: 'inherit',
-                letterSpacing: 'inherit',
-                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                justifyContent: 'center',
               }}
-              aria-haspopup="dialog"
-              aria-expanded={dateOpen}
             >
-              {formatKoDate(date)}
-            </button>
+              <button
+                type="button"
+                onClick={() => setDate(shiftDate(date, -1))}
+                aria-label="이전 날"
+                style={arrowBtnStyle}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateOpen((v) => !v)}
+                style={dateTextBtnStyle}
+                aria-haspopup="dialog"
+                aria-expanded={dateOpen}
+              >
+                {formatKoDate(date)}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDate(shiftDate(date, 1))}
+                aria-label="다음 날"
+                style={arrowBtnStyle}
+              >
+                →
+              </button>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setPickerOpen((v) => !v)}
+            <div
               style={{
-                background: 'transparent',
-                border: 'none',
-                padding: '4px 8px',
-                font: 'inherit',
-                color: 'inherit',
-                letterSpacing: 'inherit',
-                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                justifyContent: 'center',
               }}
-              aria-haspopup="dialog"
-              aria-expanded={pickerOpen}
             >
-              {viewYear}년 {viewMonth}월
-            </button>
+              <button
+                type="button"
+                onClick={() => shiftMonth(-1)}
+                aria-label="이전 달"
+                style={arrowBtnStyle}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                style={dateTextBtnStyle}
+                aria-haspopup="dialog"
+                aria-expanded={pickerOpen}
+              >
+                {viewYear}년 {viewMonth}월
+              </button>
+              <button
+                type="button"
+                onClick={() => shiftMonth(1)}
+                aria-label="다음 달"
+                style={arrowBtnStyle}
+              >
+                →
+              </button>
+            </div>
           )}
           {isPending && (
             <span style={{ marginLeft: 8, fontSize: 12, color: '#888' }}>
@@ -516,7 +564,7 @@ export default function BookingCalendar({
           )}
         </div>
 
-        {/* 우측 — 직원 설정 링크 */}
+        {/* 우 — 직원 설정 링크 */}
         <Link
           href="/admin/booking/staff"
           className="order-2 ml-auto sm:order-3 sm:ml-0"
@@ -568,7 +616,7 @@ export default function BookingCalendar({
       {view === 'monthly' && (
         <>
           <BookingInput
-            date={todayStr}
+            date={todayKst()}
             staff={staff}
             appointments={monthlyAppts}
             onCreated={handleAppointmentCreated}
@@ -677,6 +725,9 @@ export default function BookingCalendar({
         </>
       )}
     </div>
+
+    {/* ─── 변경 이력 모달 ─── */}
+    <AuditHistoryModal open={auditOpen} onClose={() => setAuditOpen(false)} />
 
     {/* ─── 사이드 패널 오버레이 (토글 + 드로어) ─── */}
     <SidePanelOverlay

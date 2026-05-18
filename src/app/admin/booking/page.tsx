@@ -29,18 +29,6 @@ export default async function BookingPage({
 
   return (
     <div>
-      <h1
-        className="mb-6"
-        style={{
-          fontSize: 22,
-          letterSpacing: '0.08em',
-          fontWeight: 600,
-          color: '#1A1A1A',
-        }}
-      >
-        예약 관리
-      </h1>
-
       <BookingCalendar
         initialDate={date}
         initialStaff={initial.staff}

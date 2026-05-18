@@ -13,6 +13,7 @@ import type {
   StaffOff,
 } from '@/lib/booking/actions'
 import { updateAppointment } from '@/lib/booking/actions'
+import { getSessionActor } from '@/lib/booking/actor-client'
 
 type Props = {
   date: string
@@ -265,10 +266,11 @@ export default function TimelineGrid({
           : a,
       ))
 
-      const result = await updateAppointment(cur.appointmentId, {
-        start_at: newStartAt,
-        staff_id: staffId,
-      })
+      const result = await updateAppointment(
+        cur.appointmentId,
+        { start_at: newStartAt, staff_id: staffId },
+        getSessionActor(),
+      )
 
       if (!result.ok) {
         setLocalAppts(prev)
@@ -361,9 +363,11 @@ export default function TimelineGrid({
       // 변경 없으면 서버 호출 생략
       if (updated.duration_min === original.duration_min) return
 
-      const result = await updateAppointment(cur.appointmentId, {
-        duration_min: updated.duration_min,
-      })
+      const result = await updateAppointment(
+        cur.appointmentId,
+        { duration_min: updated.duration_min },
+        getSessionActor(),
+      )
 
       if (!result.ok) {
         // 실패 시 원복

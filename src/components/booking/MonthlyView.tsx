@@ -6,8 +6,10 @@
 
 import { useState, useEffect } from 'react'
 import { DetailModal } from './AppointmentBlock'
+import MonthlySearch from './MonthlySearch'
 import type { Appointment, Staff } from '@/lib/booking/actions'
 import { updateAppointment } from '@/lib/booking/actions'
+import { getSessionActor } from '@/lib/booking/actor-client'
 import { isClosedDow } from '@/lib/booking/constants'
 
 type Props = {
@@ -208,7 +210,11 @@ export default function MonthlyView({
       cur.map((a) => (a.id === appointmentId ? { ...a, start_at: newStartAt } : a)),
     )
 
-    const result = await updateAppointment(appointmentId, { start_at: newStartAt })
+    const result = await updateAppointment(
+      appointmentId,
+      { start_at: newStartAt },
+      getSessionActor(),
+    )
 
     if (!result.ok) {
       setLocalAppts(prev)
@@ -243,6 +249,11 @@ export default function MonthlyView({
 
   return (
     <>
+      {/* ── 검색 (월간 뷰 상단) ── */}
+      <div style={{ marginBottom: 12 }}>
+        <MonthlySearch onPick={(d) => onDateSelect(d)} />
+      </div>
+
       <div
         style={{
           background: '#FFFFFF',

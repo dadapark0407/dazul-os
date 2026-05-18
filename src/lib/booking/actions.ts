@@ -58,6 +58,7 @@ export type Appointment = {
   pet_name?: string | null
   pet_breed?: string | null
   guardian_name?: string | null
+  guardian_phone?: string | null
   service?: string | null
   assign_type?: 'fixed' | 'random'
   cancel_reason?: string | null    // '보호자 취소' | '노쇼' | '매장 사정'
@@ -65,6 +66,23 @@ export type Appointment = {
 }
 
 export type CancelReason = '보호자 취소' | '노쇼' | '매장 사정'
+
+export type ActorInput = {
+  staff_id: string | null
+  staff_name: string
+} | null
+
+export type AuditAction = 'created' | 'updated' | 'cancelled' | 'deleted'
+
+export type AuditLog = {
+  id: string
+  action: AuditAction
+  appointment_id: string | null
+  staff_actor_id: string | null
+  staff_actor_name: string
+  description: string
+  created_at: string
+}
 
 export type StaffOff = {
   id: string
@@ -114,7 +132,7 @@ export async function getBookingData(date: string): Promise<BookingData> {
          note, raw_input, pet_name, pet_breed, service, assign_type,
          cancel_reason, cancelled_at,
          pets:pet_id ( name, breed ),
-         guardians:guardian_id ( name )`,
+         guardians:guardian_id ( name, phone )`,
       )
       .gte('start_at', dayStartUtc)
       .lte('start_at', dayEndUtc)
@@ -144,6 +162,7 @@ export async function getBookingData(date: string): Promise<BookingData> {
     pet_name: row.pets?.name ?? row.pet_name ?? null,
     pet_breed: row.pets?.breed ?? row.pet_breed ?? null,
     guardian_name: row.guardians?.name ?? null,
+    guardian_phone: row.guardians?.phone ?? null,
     service: row.service ?? null,
     assign_type: row.assign_type ?? 'fixed',
     cancel_reason: row.cancel_reason ?? null,
@@ -199,7 +218,7 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
          note, raw_input, pet_name, pet_breed, service, assign_type,
          cancel_reason, cancelled_at,
          pets:pet_id ( name, breed ),
-         guardians:guardian_id ( name )`,
+         guardians:guardian_id ( name, phone )`,
       )
       .gte('start_at', calStart.toISOString())
       .lt('start_at', calEnd.toISOString())
@@ -223,6 +242,7 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
     pet_name: row.pets?.name ?? row.pet_name ?? null,
     pet_breed: row.pets?.breed ?? row.pet_breed ?? null,
     guardian_name: row.guardians?.name ?? null,
+    guardian_phone: row.guardians?.phone ?? null,
     service: row.service ?? null,
     assign_type: row.assign_type ?? 'fixed',
     cancel_reason: row.cancel_reason ?? null,
@@ -236,9 +256,62 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
 }
 
 
+// ─── 변경 이력 (audit) ───
+
+/** KST 기준 짧은 날짜 문자열 — 6/1(토) 11:00 */
+function kstShort(iso: string): string {
+  const d = new Date(iso)
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  const KO = ['일', '월', '화', '수', '목', '금', '토']
+  const m = kst.getUTCMonth() + 1
+  const day = kst.getUTCDate()
+  const dow = KO[kst.getUTCDay()]
+  const h = String(kst.getUTCHours()).padStart(2, '0')
+  const mm = String(kst.getUTCMinutes()).padStart(2, '0')
+  return `${m}/${day}(${dow}) ${h}:${mm}`
+}
+
+/** audit_logs에 한 줄 기록. 실패해도 비즈니스 액션에는 영향 없음. */
+async function writeAuditLog(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  args: {
+    action: AuditAction
+    appointment_id: string | null
+    actor: ActorInput
+    description: string
+  },
+) {
+  try {
+    await supabase.from('audit_logs').insert({
+      action: args.action,
+      appointment_id: args.appointment_id,
+      staff_actor_id: args.actor?.staff_id ?? null,
+      staff_actor_name: args.actor?.staff_name ?? '미지정',
+      description: args.description,
+    })
+  } catch {
+    // 이력 기록 실패는 무시 — 메인 액션 결과를 막지 않음
+  }
+}
+
+/** "다다 푸들 미용 6/1(토) 11:00" 형태 라벨 */
+function summarizeAppt(args: {
+  pet_name?: string | null
+  pet_breed?: string | null
+  service?: string | null
+  start_at?: string | null
+}): string {
+  const parts: string[] = []
+  if (args.pet_name) parts.push(args.pet_name)
+  if (args.pet_breed) parts.push(args.pet_breed)
+  if (args.service) parts.push(args.service)
+  if (args.start_at) parts.push(kstShort(args.start_at))
+  return parts.join(' ')
+}
+
 // ─── 생성 / 수정 / 삭제 ───
 
-export async function createAppointment(data: AppointmentInput) {
+export async function createAppointment(data: AppointmentInput, actor: ActorInput = null) {
   const supabase = await createClient()
   const { data: row, error } = await supabase
     .from('appointments')
@@ -263,6 +336,20 @@ export async function createAppointment(data: AppointmentInput) {
   if (error) {
     return { ok: false as const, error: error.message }
   }
+
+  const label = summarizeAppt({
+    pet_name: data.pet_name,
+    pet_breed: data.pet_breed,
+    service: data.service,
+    start_at: data.start_at,
+  })
+  await writeAuditLog(supabase, {
+    action: 'created',
+    appointment_id: row.id,
+    actor,
+    description: `${label || '예약'} 등록`,
+  })
+
   revalidatePath('/admin/booking')
   return { ok: true as const, data: row }
 }
@@ -270,27 +357,76 @@ export async function createAppointment(data: AppointmentInput) {
 export async function updateAppointment(
   id: string,
   data: Partial<AppointmentInput>,
+  actor: ActorInput = null,
 ) {
   const supabase = await createClient()
+
+  // 변경 전 스냅샷 — 이력 설명용
+  const { data: before } = await supabase
+    .from('appointments')
+    .select('pet_name, pet_breed, service, start_at')
+    .eq('id', id)
+    .maybeSingle()
+
   const { error } = await supabase
     .from('appointments')
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return { ok: false as const, error: error.message }
+
+  // 어떤 필드가 바뀌었는지 간단히 추적
+  const changedKeys: string[] = []
+  if (data.start_at !== undefined) changedKeys.push('시간')
+  if (data.duration_min !== undefined) changedKeys.push('시간 길이')
+  if (data.staff_id !== undefined) changedKeys.push('미용사')
+  if (data.service !== undefined) changedKeys.push('서비스')
+  if (data.note !== undefined) changedKeys.push('메모')
+  if (data.pet_name !== undefined || data.pet_breed !== undefined) changedKeys.push('반려견')
+  const changeNote = changedKeys.length > 0 ? ` (${changedKeys.join(', ')} 변경)` : ''
+
+  const label = summarizeAppt({
+    pet_name: data.pet_name ?? before?.pet_name,
+    pet_breed: data.pet_breed ?? before?.pet_breed,
+    service: data.service ?? before?.service,
+    start_at: data.start_at ?? before?.start_at,
+  })
+  await writeAuditLog(supabase, {
+    action: 'updated',
+    appointment_id: id,
+    actor,
+    description: `${label || '예약'} 수정${changeNote}`,
+  })
+
   revalidatePath('/admin/booking')
   return { ok: true as const }
 }
 
 /** soft delete — deleted_at 세팅 */
-export async function deleteAppointment(id: string) {
+export async function deleteAppointment(id: string, actor: ActorInput = null) {
   const supabase = await createClient()
+
+  const { data: before } = await supabase
+    .from('appointments')
+    .select('pet_name, pet_breed, service, start_at')
+    .eq('id', id)
+    .maybeSingle()
+
   const { error } = await supabase
     .from('appointments')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return { ok: false as const, error: error.message }
+
+  const label = summarizeAppt(before ?? {})
+  await writeAuditLog(supabase, {
+    action: 'deleted',
+    appointment_id: id,
+    actor,
+    description: `${label || '예약'} 삭제`,
+  })
+
   revalidatePath('/admin/booking')
   return { ok: true as const }
 }
@@ -301,9 +437,20 @@ export async function deleteAppointment(id: string) {
  *   그 외 → status='cancelled'
  * cancel_reason / cancelled_at 기록.
  */
-export async function cancelAppointment(id: string, reason: CancelReason) {
+export async function cancelAppointment(
+  id: string,
+  reason: CancelReason,
+  actor: ActorInput = null,
+) {
   const supabase = await createClient()
   const status = reason === '노쇼' ? 'noshow' : 'cancelled'
+
+  const { data: before } = await supabase
+    .from('appointments')
+    .select('pet_name, pet_breed, service, start_at')
+    .eq('id', id)
+    .maybeSingle()
+
   const { error } = await supabase
     .from('appointments')
     .update({
@@ -315,8 +462,51 @@ export async function cancelAppointment(id: string, reason: CancelReason) {
     .eq('id', id)
 
   if (error) return { ok: false as const, error: error.message }
+
+  const label = summarizeAppt(before ?? {})
+  await writeAuditLog(supabase, {
+    action: 'cancelled',
+    appointment_id: id,
+    actor,
+    description: `${label || '예약'} 취소 (${reason})`,
+  })
+
   revalidatePath('/admin/booking')
   return { ok: true as const }
+}
+
+/**
+ * 처리자 선택용 staff 목록 — 비활성(is_active=false) 포함, 표시순.
+ * 캘린더/자동배정은 is_active=true만 사용하지만, "누가 처리했나요?" 모달에서는
+ * 휴직 중인 직원도 과거 작업을 기록할 수 있어야 한다.
+ * (staff 테이블에 deleted_at 컬럼이 없으므로 별도 필터 불필요)
+ */
+export async function getStaffForActor(): Promise<Staff[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('staff')
+    .select('id, name, signature_color, display_order, is_active, branch_id')
+    .order('is_active', { ascending: false })   // 활성 먼저
+    .order('display_order', { ascending: true })
+  return (data ?? []) as Staff[]
+}
+
+/** 변경 이력 조회 — 최근 200건, 옵션 query는 description ILIKE %q% */
+export async function getAuditLogs(query?: string): Promise<AuditLog[]> {
+  const supabase = await createClient()
+  let q = supabase
+    .from('audit_logs')
+    .select('id, action, appointment_id, staff_actor_id, staff_actor_name, description, created_at')
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  const trimmed = (query ?? '').trim()
+  if (trimmed) {
+    q = q.ilike('description', `%${trimmed}%`)
+  }
+
+  const { data } = await q
+  return (data ?? []) as AuditLog[]
 }
 
 export async function createStaffOff(data: StaffOffInput) {
@@ -802,6 +992,66 @@ export async function searchPetsByQuery(query: string): Promise<PetMatch[]> {
     guardian_name: p.guardians?.name ?? null,
     guardian_phone: p.guardians?.phone ?? null,
   }))
+}
+
+// ─── 월간 예약 검색 ───
+
+export type AppointmentSearchHit = {
+  id: string
+  start_at: string
+  date: string             // YYYY-MM-DD (KST)
+  time: string             // HH:MM (KST)
+  pet_name: string | null
+  pet_breed: string | null
+  service: string | null
+  staff_name: string | null
+}
+
+/** 오늘 이후 예약을 강아지 이름으로 검색 (취소/노쇼 제외, 최대 20개) */
+export async function searchAppointmentsByPetName(
+  query: string,
+): Promise<AppointmentSearchHit[]> {
+  const q = (query ?? '').trim()
+  if (!q) return []
+  const supabase = await createClient()
+
+  // 오늘 KST 자정을 UTC로 변환
+  const now = new Date()
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const todayKst = kstNow.toISOString().slice(0, 10)
+  const todayStartUtc = new Date(`${todayKst}T00:00:00+09:00`).toISOString()
+
+  const { data } = await supabase
+    .from('appointments')
+    .select(
+      `id, start_at, pet_name, pet_breed, service, status, staff_id,
+       pets:pet_id ( name, breed ),
+       staff:staff_id ( name )`,
+    )
+    .ilike('pet_name', `%${q}%`)
+    .is('deleted_at', null)
+    .neq('status', 'cancelled')
+    .neq('status', 'noshow')
+    .gte('start_at', todayStartUtc)
+    .order('start_at', { ascending: true })
+    .limit(20)
+
+  return (data ?? []).map((row: any) => {
+    const d = new Date(row.start_at)
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+    const date = kst.toISOString().slice(0, 10)
+    const time = `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`
+    return {
+      id: row.id,
+      start_at: row.start_at,
+      date,
+      time,
+      pet_name: row.pets?.name ?? row.pet_name ?? null,
+      pet_breed: row.pets?.breed ?? row.pet_breed ?? null,
+      service: row.service ?? null,
+      staff_name: row.staff?.name ?? null,
+    }
+  })
 }
 
 /** 신규 보호자 + 반려견 등록 */

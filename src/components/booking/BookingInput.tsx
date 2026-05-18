@@ -19,6 +19,7 @@ import {
   type Staff,
   type Appointment,
 } from '@/lib/booking/actions'
+import { pickActor } from './ActorPicker'
 
 type Props = {
   date: string                // YYYY-MM-DD (KST)
@@ -60,6 +61,7 @@ type QueueState = {
   successCount: number
   totalLines: number
   successDates: string[]
+  actor: import('@/lib/booking/actor-client').SessionActor | null
 }
 
 /** "HH:MM" + "YYYY-MM-DD" → KST ISO 문자열 */
@@ -354,19 +356,22 @@ export default function BookingInput({
     if (appt.isNewCustomer) {
       const startIso = kstToIso(targetDate, appt.time)
       await checkConflictThen(staffId, startIso, appt.duration, line, originalIdx, async () => {
-        const r = await createAppointment({
-          start_at: startIso,
-          duration_min: appt.duration,
-          pet_id: null,
-          guardian_id: null,
-          staff_id: staffId,
-          note: appt.note,
-          raw_input: appt.raw,
-          pet_name: appt.petName,
-          pet_breed: appt.breed,
-          service: appt.service,
-          assign_type: assignType,
-        })
+        const r = await createAppointment(
+          {
+            start_at: startIso,
+            duration_min: appt.duration,
+            pet_id: null,
+            guardian_id: null,
+            staff_id: staffId,
+            note: appt.note,
+            raw_input: appt.raw,
+            pet_name: appt.petName,
+            pet_breed: appt.breed,
+            service: appt.service,
+            assign_type: assignType,
+          },
+          queueRef.current?.actor ?? null,
+        )
         const q2 = queueRef.current
         if (q2) {
           if (!r.ok) q2.failed.push({ line, originalIdx, msg: r.error })
@@ -434,19 +439,22 @@ export default function BookingInput({
       guardian_name?: string | null   // 표시용 fallback
     },
   ) {
-    const r = await createAppointment({
-      start_at: kstToIso(targetDate, appt.time),
-      duration_min: appt.duration,
-      pet_id: pet.id,
-      guardian_id: pet.guardian_id,
-      staff_id: staffId,
-      note: appt.note,
-      raw_input: appt.raw,
-      pet_name: pet.name,
-      pet_breed: pet.breed,
-      service: appt.service,
-      assign_type: assignType,
-    })
+    const r = await createAppointment(
+      {
+        start_at: kstToIso(targetDate, appt.time),
+        duration_min: appt.duration,
+        pet_id: pet.id,
+        guardian_id: pet.guardian_id,
+        staff_id: staffId,
+        note: appt.note,
+        raw_input: appt.raw,
+        pet_name: pet.name,
+        pet_breed: pet.breed,
+        service: appt.service,
+        assign_type: assignType,
+      },
+      queueRef.current?.actor ?? null,
+    )
     const q = queueRef.current
     if (q) {
       if (!r.ok) {
@@ -580,6 +588,11 @@ export default function BookingInput({
   // ─── 제출 ───
   async function handleSubmit() {
     if (!text.trim() || busy) return
+
+    // 등록은 주요 작업 — 한 번에 여러 줄이어도 처리자는 1회만 선택
+    const actor = await pickActor()
+    if (!actor) return
+
     setErrorMessages([])
     setBusy(true)
 
@@ -599,6 +612,7 @@ export default function BookingInput({
       successCount: 0,
       totalLines: lines.length,
       successDates: [],
+      actor,
     }
 
     await processNext()
