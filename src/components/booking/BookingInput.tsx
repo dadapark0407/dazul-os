@@ -15,6 +15,7 @@ import {
   findPetsByName,
   createPetWithGuardian,
   autoAssignGroomer,
+  getLatestGroomingDuration,
   type PetMatch,
   type Staff,
   type Appointment,
@@ -132,6 +133,28 @@ export default function BookingInput({
     const d = new Date(iso)
     const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
     return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`
+  }
+
+  /**
+   * 소요시간 자동 결정:
+   * - 사용자가 명시적으로 입력한 경우 → 그대로 사용
+   * - pet_id가 있으면 → 해당 반려견의 최근 visit_records.grooming_duration_minutes 조회
+   * - 없으면 → 180분 (기본값)
+   * - pet_id 없음 (신규 등) → 파서가 결정한 서비스 기본값 그대로
+   */
+  async function resolveDurationForPet(
+    appt: ParsedAppointment,
+    petId: string | null,
+  ): Promise<number> {
+    if (appt.durationExplicit) return appt.duration
+    if (!petId) return appt.duration
+    try {
+      const recent = await getLatestGroomingDuration(petId)
+      if (recent && recent > 0) return recent
+    } catch {
+      // 조회 실패 시 fallback
+    }
+    return 180
   }
 
   async function checkConflictThen(
@@ -400,13 +423,14 @@ export default function BookingInput({
     if (matches.length === 1) {
       const m = matches[0]
       const startIso = kstToIso(targetDate, appt.time)
-      await checkConflictThen(staffId, startIso, appt.duration, line, originalIdx, async () => {
+      const resolvedDuration = await resolveDurationForPet(appt, m.id)
+      await checkConflictThen(staffId, startIso, resolvedDuration, line, originalIdx, async () => {
         await saveWithPet(line, originalIdx, targetDate, appt, staffId, assignType, {
           id: m.id,
           guardian_id: m.guardian_id,
           name: m.name,
           breed: m.breed,
-        })
+        }, resolvedDuration)
       })
       return
     }
@@ -438,11 +462,13 @@ export default function BookingInput({
       breed: string | null
       guardian_name?: string | null   // 표시용 fallback
     },
+    durationOverride?: number,         // 호출 측에서 자동 소요시간을 미리 결정한 경우
   ) {
+    const duration = durationOverride ?? (await resolveDurationForPet(appt, pet.id))
     const r = await createAppointment(
       {
         start_at: kstToIso(targetDate, appt.time),
-        duration_min: appt.duration,
+        duration_min: duration,
         pet_id: pet.id,
         guardian_id: pet.guardian_id,
         staff_id: staffId,
@@ -482,14 +508,15 @@ export default function BookingInput({
     setSaving(true)
     try {
       const startIso = kstToIso(p.targetDate, p.appointment.time)
-      await checkConflictThen(p.staffId, startIso, p.appointment.duration, p.line, p.originalIdx, async () => {
+      const resolvedDuration = await resolveDurationForPet(p.appointment, match.id)
+      await checkConflictThen(p.staffId, startIso, resolvedDuration, p.line, p.originalIdx, async () => {
         await saveWithPet(p.line, p.originalIdx, p.targetDate, p.appointment, p.staffId, p.assignType, {
           id: match.id,
           guardian_id: match.guardian_id,
           name: match.name,
           breed: match.breed,
           guardian_name: match.guardian_name,
-        })
+        }, resolvedDuration)
       })
     } finally {
       setSaving(false)
@@ -518,14 +545,15 @@ export default function BookingInput({
       const p = pending
       const np = newPet
       const startIso = kstToIso(p.targetDate, p.appointment.time)
-      await checkConflictThen(p.staffId, startIso, p.appointment.duration, p.line, p.originalIdx, async () => {
+      const resolvedDuration = await resolveDurationForPet(p.appointment, r.petId)
+      await checkConflictThen(p.staffId, startIso, resolvedDuration, p.line, p.originalIdx, async () => {
         await saveWithPet(p.line, p.originalIdx, p.targetDate, p.appointment, p.staffId, p.assignType, {
           id: r.petId,
           guardian_id: r.guardianId,
           name: np.petName,
           breed: np.breed,
           guardian_name: np.guardianName.trim() || null,
-        })
+        }, resolvedDuration)
       })
     } finally {
       setPetCreating(false)

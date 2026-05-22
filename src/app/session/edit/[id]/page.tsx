@@ -708,6 +708,7 @@ function EditRecordForm() {
 
   // ─── 미용 스타일 ───
   const [groomingStyle, setGroomingStyle] = useState({ face: '', body: '', legs: '', tail: '', sanitary: '' })
+  const [groomingDurationMin, setGroomingDurationMin] = useState<number | null>(null)
   const [groomingPrefilled, setGroomingPrefilled] = useState(false)
   const setGS = (key: keyof typeof groomingStyle, val: string) => {
     setGroomingStyle((prev) => ({ ...prev, [key]: val }))
@@ -978,6 +979,11 @@ function EditRecordForm() {
         })
       }
 
+      // ─── 미용 소요시간 ───
+      if (typeof d.grooming_duration_minutes === 'number') {
+        setGroomingDurationMin(d.grooming_duration_minutes)
+      }
+
       // ─── 다음 방문 날짜 ───
       if (d.next_visit_date) {
         setNextVisitOption('custom')
@@ -1226,6 +1232,7 @@ function EditRecordForm() {
           grooming_style: Object.values(groomingStyle).some((v) => v.trim())
             ? groomingStyle
             : null,
+          grooming_duration_minutes: groomingDurationMin,
           care_actions: selectedProductIds.length > 0
             ? allProducts.filter((p) => selectedProductIds.includes(p.id)).map((p) => `${p.name}${p.brand ? ` (${p.brand})` : ''}`).join(', ')
             : null,
@@ -1681,6 +1688,44 @@ function EditRecordForm() {
                       color: groomingPrefilled && groomingStyle.sanitary ? '#6B6B6B' : '#0A0A0A',
                     }}
                   />
+                </div>
+
+                {/* 미용 소요시간 — 다음 예약 기본값으로 사용 */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-light uppercase tracking-[0.15em] text-[#6B6B6B]">
+                    미용 소요시간
+                  </label>
+                  <select
+                    value={groomingDurationMin ?? ''}
+                    onChange={(e) =>
+                      setGroomingDurationMin(e.target.value === '' ? null : Number(e.target.value))
+                    }
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: '#FFFFFF',
+                      border: '1px solid #E8E5E0',
+                      borderRadius: 0,
+                      fontSize: 13,
+                      color: '#0A0A0A',
+                      outline: 'none',
+                      letterSpacing: '0.02em',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="">미입력</option>
+                    <option value="90">1시간 30분</option>
+                    <option value="120">2시간</option>
+                    <option value="150">2시간 30분</option>
+                    <option value="180">3시간</option>
+                    <option value="210">3시간 30분</option>
+                    <option value="240">4시간</option>
+                    <option value="270">4시간 30분</option>
+                    <option value="300">5시간</option>
+                  </select>
+                  <p style={{ marginTop: 6, fontSize: 10, color: '#8A8A7A', letterSpacing: '0.02em' }}>
+                    다음 예약 입력 시 기본 소요시간으로 사용됩니다
+                  </p>
                 </div>
               </div>
             </Card>

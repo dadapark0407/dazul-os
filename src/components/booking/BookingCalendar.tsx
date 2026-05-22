@@ -6,7 +6,6 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import BookingInput from './BookingInput'
 import SlotFinder from './SlotFinder'
 import TimelineGrid from './TimelineGrid'
@@ -30,8 +29,16 @@ type DailyCacheEntry = {
   staff: Staff[]
   appointments: Appointment[]
   staffOff: StaffOff[]
+  fetchedAt: number
 }
-type MonthlyCacheEntry = { staff: Staff[]; appointments: Appointment[] }
+type MonthlyCacheEntry = {
+  staff: Staff[]
+  appointments: Appointment[]
+  fetchedAt: number
+}
+
+// 캐시가 이 시간보다 fresh하면 백그라운드 revalidate 생략
+const CACHE_FRESH_MS = 60_000
 
 function monthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`
@@ -99,7 +106,6 @@ export default function BookingCalendar({
   initialAppointments,
   initialStaffOff,
 }: Props) {
-  const router = useRouter()
   const [date, setDate] = useState(initialDate)
   const [staff, setStaff] = useState<Staff[]>(initialStaff)
   const [appointments, setAppointments] =
@@ -198,7 +204,10 @@ export default function BookingCalendar({
       staff: initialStaff,
       appointments: initialAppointments,
       staffOff: initialStaffOff,
+      fetchedAt: Date.now(),
     })
+    // 초기 진입 시 인접 날짜 프리페치 (백그라운드)
+    prefetchAdjacent(initialDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -222,10 +231,13 @@ export default function BookingCalendar({
   }
 
   // 날짜 변경 시 데이터 재조회 (캐시 활용)
+  // - URL 동기화는 history.replaceState로 (Next 소프트 네비 안 트리거 → 서버 라운드트립 회피)
   useEffect(() => {
     if (date === initialDate) return
     refresh(date)
-    router.replace(`/admin/booking?date=${date}`)
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `/admin/booking?date=${date}`)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date])
 
@@ -237,9 +249,10 @@ export default function BookingCalendar({
   }, [view, viewYear, viewMonth])
 
   /**
-   * 일간 데이터 — stale-while-revalidate.
-   * - 캐시 히트: 즉시 화면 반영 + 백그라운드 fresh fetch
-   * - 캐시 미스: 스켈레톤 표시 + fetch
+   * 일간 데이터 — stale-while-revalidate + 신선도 체크.
+   * - 캐시 hit AND fresh: 화면 반영 + revalidate 생략 (가장 빠름)
+   * - 캐시 hit AND stale: 화면 반영 + 백그라운드 revalidate
+   * - 캐시 미스: 스켈레톤 + fetch
    * - skipCache=true: 캐시 hydration 건너뛰고 fetch만 (낙관적 업데이트 후 검증용)
    */
   function refresh(
@@ -248,41 +261,69 @@ export default function BookingCalendar({
   ) {
     const d = targetDate ?? date
     const cached = opts.skipCache ? undefined : dailyCacheRef.current.get(d)
+    const isFresh = cached && Date.now() - cached.fetchedAt < CACHE_FRESH_MS
     if (cached) {
       setStaff(cached.staff)
       setAppointments(cached.appointments)
       setStaffOff(cached.staffOff)
       setDailyLoading(false)
+      // 신선하면 백그라운드 revalidate 생략 (인접 프리페치만 수행)
+      if (isFresh) {
+        prefetchAdjacent(d)
+        return
+      }
     } else if (!opts.skipCache) {
       // 캐시 미스 → 스켈레톤
       setDailyLoading(true)
     }
     startTransition(async () => {
       const data = await getBookingData(d)
-      dailyCacheRef.current.set(d, data)
+      dailyCacheRef.current.set(d, { ...data, fetchedAt: Date.now() })
       if (dateRef.current === d) {
         setStaff(data.staff)
         setAppointments(data.appointments)
         setStaffOff(data.staffOff)
         setDailyLoading(false)
+        prefetchAdjacent(d)
       }
     })
   }
 
-  /** 월간 데이터 — stale-while-revalidate. */
+  /**
+   * 현재 날짜 기준 ±1일을 백그라운드로 미리 fetch.
+   * 캐시 hit + fresh이면 스킵, fetch 결과는 dailyCacheRef에 저장만 (state 미변경).
+   */
+  function prefetchAdjacent(d: string) {
+    const targets = [shiftDate(d, -1), shiftDate(d, 1)]
+    for (const t of targets) {
+      const cached = dailyCacheRef.current.get(t)
+      if (cached && Date.now() - cached.fetchedAt < CACHE_FRESH_MS) continue
+      getBookingData(t)
+        .then((data) => {
+          dailyCacheRef.current.set(t, { ...data, fetchedAt: Date.now() })
+        })
+        .catch(() => {
+          // 프리페치 실패는 무시
+        })
+    }
+  }
+
+  /** 월간 데이터 — stale-while-revalidate + 신선도 체크. */
   function refreshMonthly(opts: { skipCache?: boolean } = {}) {
     const key = monthKey(viewYear, viewMonth)
     const cached = opts.skipCache ? undefined : monthlyCacheRef.current.get(key)
+    const isFresh = cached && Date.now() - cached.fetchedAt < CACHE_FRESH_MS
     if (cached) {
       setStaff(cached.staff)
       setMonthlyAppts(cached.appointments)
       setMonthlyLoading(false)
+      if (isFresh) return
     } else if (!opts.skipCache) {
       setMonthlyLoading(true)
     }
     startTransition(async () => {
       const data = await getMonthlyData(viewYear, viewMonth)
-      monthlyCacheRef.current.set(key, data)
+      monthlyCacheRef.current.set(key, { ...data, fetchedAt: Date.now() })
       if (
         viewRef.current === 'monthly' &&
         monthKey(viewYearRef.current, viewMonthRef.current) === key

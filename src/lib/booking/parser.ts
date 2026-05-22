@@ -13,6 +13,8 @@ export type ParsedAppointment = {
   breed: string | null
   service: string | null    // 서비스 키워드 (미용/목욕/스파 등)
   duration: number          // 분 단위
+  /** 입력에서 명시적으로 소요시간을 지정했는지 (false면 서비스 기본값). */
+  durationExplicit: boolean
   staffName: string | null  // null = 미용사 미지정
   note: string | null
   raw: string               // 원본 입력
@@ -778,6 +780,7 @@ export function parseBookingLine(
       breed,
       service: g.service,
       duration: durRes ? durRes.duration : defaultDuration(g.service),
+      durationExplicit: !!durRes,
       staffName: g.unassigned ? null : g.staff,
       note,
       raw: input,

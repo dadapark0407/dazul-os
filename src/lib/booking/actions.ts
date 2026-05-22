@@ -971,6 +971,29 @@ export async function findPetsByName(
   return all
 }
 
+/**
+ * 해당 반려견의 가장 최근 visit_records에서 grooming_duration_minutes 조회.
+ * 예약 입력 시 소요시간이 생략된 경우 기본값으로 사용.
+ * 값이 없으면 null 반환 — 호출 측에서 fallback 적용.
+ */
+export async function getLatestGroomingDuration(
+  petId: string,
+): Promise<number | null> {
+  if (!petId) return null
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('visit_records')
+    .select('grooming_duration_minutes')
+    .eq('pet_id', petId)
+    .not('grooming_duration_minutes', 'is', null)
+    .is('deleted_at', null)
+    .order('visit_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const v = data?.grooming_duration_minutes
+  return typeof v === 'number' && v > 0 ? v : null
+}
+
 /** 이름 부분 검색 (ilike) — 고객 연결 팝업용 */
 export async function searchPetsByQuery(query: string): Promise<PetMatch[]> {
   if (!query.trim()) return []
