@@ -273,9 +273,24 @@ function GuardianRows({
         className="transition-colors hover:bg-neutral-50"
       >
         <td className="px-4 py-3">
-          <span className="font-medium text-neutral-900">
+          <div className="font-medium text-neutral-900">
             {guardian.name ?? '이름 없음'}
-          </span>
+          </div>
+          {guardian.pets.length > 0 && (
+            <div className="text-xs" style={{ color: '#8A8A7A', marginTop: 2 }}>
+              {(() => {
+                const shown = guardian.pets.slice(0, 3)
+                const extra = guardian.pets.length - shown.length
+                const label = shown
+                  .map((p) => {
+                    const name = p.name ?? '이름 없음'
+                    return p.breed ? `${name} (${p.breed})` : name
+                  })
+                  .join(' · ')
+                return extra > 0 ? `${label} 외 ${extra}마리` : label
+              })()}
+            </div>
+          )}
         </td>
         <td className="px-4 py-3 text-neutral-700">{guardian.phone ? formatPhone(guardian.phone) : '-'}</td>
         <td className="px-4 py-3">
