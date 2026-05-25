@@ -136,10 +136,23 @@ export default function BookingInput({
   }
 
   /**
+   * 서비스 타입별 fallback 소요시간 (분):
+   * - 미용/전체미용 포함 → 180 (3시간)
+   * - 목욕만 포함        → 90 (1시간 30분)
+   * - 그 외 / 불명       → 180
+   */
+  function fallbackDurationByService(service: string | null): number {
+    if (!service) return 180
+    if (service.includes('미용')) return 180
+    if (service.includes('목욕')) return 90
+    return 180
+  }
+
+  /**
    * 소요시간 자동 결정:
    * - 사용자가 명시적으로 입력한 경우 → 그대로 사용
    * - pet_id가 있으면 → 해당 반려견의 최근 visit_records.grooming_duration_minutes 조회
-   * - 없으면 → 180분 (기본값)
+   * - 없으면 → 서비스 타입별 fallback (목욕 90, 미용/불명 180)
    * - pet_id 없음 (신규 등) → 파서가 결정한 서비스 기본값 그대로
    */
   async function resolveDurationForPet(
@@ -154,7 +167,7 @@ export default function BookingInput({
     } catch {
       // 조회 실패 시 fallback
     }
-    return 180
+    return fallbackDurationByService(appt.service)
   }
 
   async function checkConflictThen(
