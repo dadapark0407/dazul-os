@@ -44,6 +44,20 @@ function monthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`
 }
 
+/** 두 달치 예약을 id 기준으로 dedupe해 머지. (getMonthlyData가 grid 범위로 가져와서 boundary 중복 가능) */
+function mergeAppointments(a: Appointment[], b: Appointment[]): Appointment[] {
+  const seen = new Set<string>()
+  const out: Appointment[] = []
+  for (const list of [a, b]) {
+    for (const appt of list) {
+      if (seen.has(appt.id)) continue
+      seen.add(appt.id)
+      out.push(appt)
+    }
+  }
+  return out
+}
+
 function isoToKstDate(iso: string): string {
   const d = new Date(iso)
   const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
@@ -308,30 +322,64 @@ export default function BookingCalendar({
     }
   }
 
-  /** 월간 데이터 — stale-while-revalidate + 신선도 체크. */
+  /** 월간 데이터 — 현재월 + 다음월 두 달치 fetch + 머지 (id 기준 dedupe). */
   function refreshMonthly(opts: { skipCache?: boolean } = {}) {
-    const key = monthKey(viewYear, viewMonth)
-    const cached = opts.skipCache ? undefined : monthlyCacheRef.current.get(key)
-    const isFresh = cached && Date.now() - cached.fetchedAt < CACHE_FRESH_MS
-    if (cached) {
-      setStaff(cached.staff)
-      setMonthlyAppts(cached.appointments)
+    const ny = viewMonth === 12 ? viewYear + 1 : viewYear
+    const nm = viewMonth === 12 ? 1 : viewMonth + 1
+    const keyA = monthKey(viewYear, viewMonth)
+    const keyB = monthKey(ny, nm)
+    const cachedA = opts.skipCache ? undefined : monthlyCacheRef.current.get(keyA)
+    const cachedB = opts.skipCache ? undefined : monthlyCacheRef.current.get(keyB)
+    const freshA = cachedA && Date.now() - cachedA.fetchedAt < CACHE_FRESH_MS
+    const freshB = cachedB && Date.now() - cachedB.fetchedAt < CACHE_FRESH_MS
+
+    // 캐시 히트분으로 즉시 화면 표시
+    if (cachedA || cachedB) {
+      setStaff((cachedA ?? cachedB)!.staff)
+      setMonthlyAppts(
+        mergeAppointments(cachedA?.appointments ?? [], cachedB?.appointments ?? []),
+      )
       setMonthlyLoading(false)
-      if (isFresh) return
+      // 두 달 모두 fresh면 fetch 생략
+      if (freshA && freshB) return
     } else if (!opts.skipCache) {
       setMonthlyLoading(true)
     }
+
     startTransition(async () => {
-      const data = await getMonthlyData(viewYear, viewMonth)
-      monthlyCacheRef.current.set(key, { ...data, fetchedAt: Date.now() })
-      if (
-        viewRef.current === 'monthly' &&
-        monthKey(viewYearRef.current, viewMonthRef.current) === key
-      ) {
-        setStaff(data.staff)
-        setMonthlyAppts(data.appointments)
-        setMonthlyLoading(false)
+      // 한쪽 실패해도 다른 쪽은 살리기 위해 allSettled
+      const [resA, resB] = await Promise.allSettled([
+        freshA ? Promise.resolve(null) : getMonthlyData(viewYear, viewMonth),
+        freshB ? Promise.resolve(null) : getMonthlyData(ny, nm),
+      ])
+      const now = Date.now()
+      let dataA: MonthlyCacheEntry | undefined = cachedA
+      let dataB: MonthlyCacheEntry | undefined = cachedB
+      if (resA.status === 'fulfilled' && resA.value) {
+        dataA = { ...resA.value, fetchedAt: now }
+        monthlyCacheRef.current.set(keyA, dataA)
       }
+      if (resB.status === 'fulfilled' && resB.value) {
+        dataB = { ...resB.value, fetchedAt: now }
+        monthlyCacheRef.current.set(keyB, dataB)
+      }
+      // 사용자가 다른 월로 이동했으면 무시
+      if (
+        viewRef.current !== 'monthly' ||
+        monthKey(viewYearRef.current, viewMonthRef.current) !== keyA
+      ) {
+        return
+      }
+      // 둘 다 실패하고 캐시도 없으면 그대로 두기 (이전 표시 유지)
+      if (!dataA && !dataB) {
+        setMonthlyLoading(false)
+        return
+      }
+      setStaff((dataA ?? dataB)!.staff)
+      setMonthlyAppts(
+        mergeAppointments(dataA?.appointments ?? [], dataB?.appointments ?? []),
+      )
+      setMonthlyLoading(false)
     })
   }
 

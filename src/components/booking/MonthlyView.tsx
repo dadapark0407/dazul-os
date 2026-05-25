@@ -133,6 +133,11 @@ function formatDateHeader(dateStr: string): string {
   return `${m}/${d}(${KO_WEEKDAYS[dow]})`
 }
 
+function nextYM(year: number, month: number): { year: number; month: number } {
+  if (month === 12) return { year: year + 1, month: 1 }
+  return { year, month: month + 1 }
+}
+
 export default function MonthlyView({
   year,
   month,
@@ -224,7 +229,6 @@ export default function MonthlyView({
   }
 
   const today = todayKst()
-  const calDays = buildCalendarDays(year, month)
 
   // UI 레이어 필터 — 표시만 거름 (드래그/수정 등은 localAppts 전체 기준 그대로)
   //   - 취소/노쇼는 캘린더에서 완전히 숨김
@@ -235,7 +239,7 @@ export default function MonthlyView({
     return true
   })
 
-  // 날짜별 예약 그룹화
+  // 날짜별 예약 그룹화 (두 달치 모두 한 맵에)
   const apptsByDate = new Map<string, Appointment[]>()
   for (const a of visibleAppts) {
     const d = isoToKstDate(a.start_at)
@@ -247,69 +251,69 @@ export default function MonthlyView({
     ? staff.find((s) => s.id === filterGroomerId)?.name ?? null
     : null
 
-  return (
-    <>
-      {/* ── 검색 (월간 뷰 상단) ── */}
-      <div style={{ marginBottom: 12 }}>
-        <MonthlySearch onPick={(d) => onDateSelect(d)} />
-      </div>
+  const next = nextYM(year, month)
 
-      <div
-        style={{
-          background: '#FFFFFF',
-          border: '1px solid #E8E5E0',
-          overflowX: 'auto',
-        }}
-      >
-        <div style={{ minWidth: 560 }}>
-
-          {/* ── 필터 헤더 (필터 활성 시) ── */}
+  /** 한 달치 섹션 렌더링 (월 헤더 + 요일 헤더 + 날짜 셀 그리드). */
+  function renderMonthSection(y: number, m: number, isFirst: boolean) {
+    const calDays = buildCalendarDays(y, m)
+    return (
+      <div style={{ borderTop: isFirst ? 'none' : '1px solid #E8E5E0' }}>
+        {/* 월 헤더 */}
+        <div
+          style={{
+            padding: '12px 14px',
+            background: '#FAFAF8',
+            borderBottom: '1px solid #E8E5E0',
+            fontSize: 13,
+            letterSpacing: '0.05em',
+            fontWeight: 600,
+            color: '#1A1A1A',
+          }}
+        >
+          {y}년 {m}월
           {filteredStaffName && (
+            <span style={{ marginLeft: 8, color: '#C9A96E' }}>— {filteredStaffName}</span>
+          )}
+        </div>
+
+        {/* 요일 헤더 */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: GRID_COLUMNS,
+            borderBottom: '1px solid #E8E5E0',
+          }}
+        >
+          {WEEKDAYS.map((day) => (
             <div
+              key={day}
               style={{
-                padding: '10px 14px',
-                borderBottom: '1px solid #E8E5E0',
-                background: '#FAFAF8',
-                fontSize: 13,
-                letterSpacing: '0.05em',
+                padding: '10px 0',
+                textAlign: 'center',
+                fontSize: 12,
+                letterSpacing: '0.08em',
                 fontWeight: 600,
-                color: '#1A1A1A',
+                color: '#888',
+                borderRight: '1px solid #E8E5E0',
               }}
             >
-              {month}월 — <span style={{ color: '#C9A96E' }}>{filteredStaffName}</span>
+              {day}
             </div>
-          )}
+          ))}
+        </div>
 
-          {/* ── 요일 헤더 ── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: GRID_COLUMNS,
-              borderBottom: '1px solid #E8E5E0',
-            }}
-          >
-            {WEEKDAYS.map((day) => (
-              <div
-                key={day}
-                style={{
-                  padding: '10px 0',
-                  textAlign: 'center',
-                  fontSize: 12,
-                  letterSpacing: '0.08em',
-                  fontWeight: 600,
-                  color: '#888',
-                  borderRight: '1px solid #E8E5E0',
-                }}
-              >
-                {day}
-              </div>
-            ))}
-          </div>
+        {/* 날짜 셀 그리드 */}
+        <div style={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS }}>
+          {calDays.map((calDay) => renderDayCell(calDay))}
+        </div>
+      </div>
+    )
+  }
 
-          {/* ── 날짜 셀 그리드 ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS }}>
-            {calDays.map((calDay) => {
-              const dayAppts = apptsByDate.get(calDay.date) ?? []
+  /** 단일 셀 렌더링 — 두 달치 그리드에서 공통 사용.
+   *  off-month 칸(이전/다음 달 그리드 패딩)은 예약/복사 버튼 미표시 — 다른 섹션에서 표시되므로 중복 방지. */
+  function renderDayCell(calDay: CalendarDay) {
+              const dayAppts = calDay.currentMonth ? (apptsByDate.get(calDay.date) ?? []) : []
               const isToday = calDay.date === today
               const [yy, mm, dd] = calDay.date.split('-').map(Number)
               const dow = new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay()
@@ -503,9 +507,26 @@ export default function MonthlyView({
                   </div>
                 </div>
               )
-            })}
-          </div>
+  }
 
+  return (
+    <>
+      {/* ── 검색 (월간 뷰 상단) ── */}
+      <div style={{ marginBottom: 12 }}>
+        <MonthlySearch onPick={(d) => onDateSelect(d)} />
+      </div>
+
+      <div
+        style={{
+          background: '#FFFFFF',
+          border: '1px solid #E8E5E0',
+          overflowX: 'auto',
+          overflowY: 'auto',
+        }}
+      >
+        <div style={{ minWidth: 560 }}>
+          {renderMonthSection(year, month, true)}
+          {renderMonthSection(next.year, next.month, false)}
         </div>
       </div>
 

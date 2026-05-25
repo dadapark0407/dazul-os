@@ -34,23 +34,50 @@ function idStr(obj: R, key: string): string {
   return ''
 }
 
-// spa_level 한글 라벨 변환
+// spa_level 한글 라벨 변환 (표시용 축약 — DB는 원본 그대로)
 const SPA_LABEL_MAP: Record<string, string> = {
-  basic: '베이직 코스',
-  premium: '✨ 에센셜 스파 코스',
-  essential: '✨ 에센셜 스파 코스',
-  deep: '💎 시그니처 팩 코스',
-  signature: '💎 시그니처 팩 코스',
-  prestige: '👑 프레스티지 풀 케어 코스',
+  basic: '베이직',
+  premium: '에센셜',
+  essential: '에센셜',
+  deep: '시그니처',
+  signature: '시그니처',
+  prestige: '프레스티지',
 }
 function fmtSpa(raw: string): string {
   return SPA_LABEL_MAP[raw] ?? raw
+}
+
+// 서비스명 축약 (표시용 — DB는 원본 그대로)
+const SVC_LABEL_MAP: Record<string, string> = {
+  '전체미용': '미용',
+  '목욕관리': '목욕',
+}
+function fmtSvc(raw: string): string {
+  return SVC_LABEL_MAP[raw] ?? raw
 }
 
 function parseGroomingStyle(obj: R): Record<string, string> {
   const gs = obj.grooming_style
   if (gs && typeof gs === 'object' && !Array.isArray(gs)) return gs as Record<string, string>
   return {}
+}
+
+// skin_status 등 "항목1, 항목2(메모), ..." 형식 파싱
+function parseItemsWithMemos(raw: string): { items: string[]; memos: Record<string, string> } {
+  const items: string[] = []
+  const memos: Record<string, string> = {}
+  if (!raw) return { items, memos }
+  for (const part of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const m = part.match(/^(.+?)\((.+)\)$/)
+    if (m) {
+      const key = m[1].trim()
+      items.push(key)
+      memos[key] = m[2].trim()
+    } else {
+      items.push(part)
+    }
+  }
+  return { items, memos }
 }
 
 function parseCondition(cond: string): Record<string, string> {
@@ -96,22 +123,60 @@ export default function CareHistoryTable({
 }) {
   const router = useRouter()
   const [hoverId, setHoverId] = useState<string | null>(null)
+  const [modal, setModal] = useState<{ rec: R; type: 'products' | 'style' | 'health' } | null>(null)
 
-  // care_actions 에서 샴푸/스파/팩 항목만 추출
-  function extractKeyProducts(raw: string): { label: string; value: string }[] {
-    if (!raw) return []
-    const out: Record<string, string[]> = { '샴푸': [], '스파': [], '팩': [] }
+  // care_actions 에서 샴푸/스파/팩 카테고리별 제품명 추출
+  function extractProductsByCategory(raw: string): { 샴푸: string[]; 스파: string[]; 팩: string[] } {
+    const out: { 샴푸: string[]; 스파: string[]; 팩: string[] } = { 샴푸: [], 스파: [], 팩: [] }
+    if (!raw) return out
     for (const itemRaw of raw.split(',')) {
       const label = itemRaw.trim()
       if (!label) continue
       const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
       const cat = productCategoryMap[productName]
-      if (cat && out[cat]) out[cat].push(productName)
+      if (cat === '샴푸' || cat === '스파' || cat === '팩') {
+        out[cat].push(productName)
+      }
     }
-    return (['샴푸', '스파', '팩'] as const)
-      .filter((k) => out[k].length > 0)
-      .map((k) => ({ label: k, value: out[k].join(', ') }))
+    return out
   }
+
+  // care_actions 에서 모든 카테고리별 제품명 추출 (팝업용)
+  function extractAllProducts(raw: string): Record<string, string[]> {
+    const out: Record<string, string[]> = {}
+    if (!raw) return out
+    for (const itemRaw of raw.split(',')) {
+      const label = itemRaw.trim()
+      if (!label) continue
+      const productName = label.replace(/\s*\([^)]*\)\s*$/, '').trim()
+      const cat = productCategoryMap[productName] || '기타'
+      if (!out[cat]) out[cat] = []
+      out[cat].push(productName)
+    }
+    return out
+  }
+
+  // 미용 스타일 부위 라벨
+  const STYLE_LABELS: Array<[string, string]> = [
+    ['face', '얼굴'],
+    ['body', '몸'],
+    ['legs', '다리'],
+    ['tail', '꼬리'],
+    ['sanitary', '위생'],
+    ['ears', '귀'],
+    ['head', '머리'],
+    ['mustache', '수염'],
+  ]
+
+  // 팝업용 날짜 헤더
+  function fmtPopupDate(v: string, suffix = '케어 기록'): string {
+    const d = new Date(v)
+    if (isNaN(d.getTime())) return v
+    return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} ${suffix}`
+  }
+
+  // 클릭 가능한 셀의 추가 스타일
+  const CLICKABLE = { cursor: 'pointer' as const }
 
   if (records.length === 0) {
     return (
@@ -213,15 +278,15 @@ export default function CareHistoryTable({
             </tr>
             {/* 2행: 세부 컬럼 */}
             <tr>
-              <th style={HD}>서비스</th>
-              <th style={HD}>스파/팩</th>
-              <th style={HD}>사용제품</th>
+              <th style={{ ...HD, width: 60 }}>서비스</th>
+              <th style={{ ...HD, minWidth: 100 }}>스파/팩</th>
+              <th style={{ ...HD, minWidth: 160 }}>사용제품</th>
               <th style={HD}>얼굴</th>
               <th style={HD}>몸</th>
               <th style={HD}>다리</th>
               <th style={HD}>꼬리</th>
               <th style={HD}>위생</th>
-              <th style={HD}>피부</th>
+              <th style={{ ...HD, minWidth: 500, maxWidth: 500 }}>피부</th>
               <th style={HD}>엉킴</th>
               <th style={HD}>눈</th>
               <th style={HD}>귀</th>
@@ -260,46 +325,104 @@ export default function CareHistoryTable({
                   <td className={i % 2 === 1 ? 'dz-sticky-odd' : 'dz-sticky-even'} style={{ ...cell, ...STICKY2, background: stickyBg }}>
                     {fmtWeight(r) || '-'}
                   </td>
-                  <td style={cell}>{svc || '-'}</td>
-                  <td style={{ ...cell, color: spa ? GOLD : undefined, fontWeight: spa ? 500 : 400 }}>
-                    {spa ? fmtSpa(spa) : '-'}
-                  </td>
-                  <td style={{ ...cell, maxWidth: 120, overflow: 'visible', whiteSpace: 'normal' }}>
+                  <td style={{ ...cell, width: 60 }}>{svc ? fmtSvc(svc) : '-'}</td>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 100, overflow: 'visible', whiteSpace: 'normal' }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'products' }) }}
+                  >
                     {(() => {
-                      const items = extractKeyProducts(s(r, 'care_actions'))
-                      if (items.length === 0) return '-'
+                      const cats = extractProductsByCategory(s(r, 'care_actions'))
+                      const extras = [...cats['스파'], ...cats['팩']]
+                      if (!spa && extras.length === 0) return '-'
+                      return (
+                        <div>
+                          {spa && (
+                            <span style={{ color: GOLD, fontWeight: 500 }}>{fmtSpa(spa)}</span>
+                          )}
+                          {extras.map((name, i) => (
+                            <div
+                              key={`${name}-${i}`}
+                              style={{ fontSize: 11, color: '#8A8A7A', marginTop: i === 0 && spa ? 2 : 0 }}
+                            >
+                              {name}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                  </td>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 160, overflow: 'visible', whiteSpace: 'normal' }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'products' }) }}
+                  >
+                    {(() => {
+                      const shampoos = extractProductsByCategory(s(r, 'care_actions'))['샴푸']
+                      if (shampoos.length === 0) return '-'
                       return (
                         <span>
-                          {items.map((it) => (
-                            <span key={it.label} style={{ display: 'block', whiteSpace: 'normal' }}>
-                              <span style={{ color: '#8A8A7A' }}>{it.label}:</span> {it.value}
+                          {shampoos.map((name, i) => (
+                            <span key={`${name}-${i}`} style={{ display: 'block', whiteSpace: 'normal' }}>
+                              {name}
                             </span>
                           ))}
                         </span>
                       )
                     })()}
                   </td>
-                  <td style={{ ...cell, minWidth: 60 }}>{gs.face || '-'}</td>
-                  <td style={{ ...cell, minWidth: 60 }}>{gs.body || '-'}</td>
-                  <td style={{ ...cell, minWidth: 60 }}>{gs.legs || '-'}</td>
-                  <td style={{ ...cell, minWidth: 60 }}>{gs.tail || '-'}</td>
-                  <td style={{ ...cell, minWidth: 60 }}>{gs.sanitary || '-'}</td>
-                  <td style={{ ...cell, minWidth: 60, color: hasIssue(s(r, 'skin_status')) ? GOLD : undefined }}>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60 }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'style' }) }}
+                  >{gs.face || '-'}</td>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60 }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'style' }) }}
+                  >{gs.body || '-'}</td>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60 }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'style' }) }}
+                  >{gs.legs || '-'}</td>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60 }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'style' }) }}
+                  >{gs.tail || '-'}</td>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60 }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'style' }) }}
+                  >{gs.sanitary || '-'}</td>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 500, maxWidth: 500, whiteSpace: 'normal', wordBreak: 'keep-all', color: hasIssue(s(r, 'skin_status')) ? GOLD : undefined }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'health' }) }}
+                  >
                     {s(r, 'skin_status') || '-'}
                   </td>
-                  <td style={{ ...cell, minWidth: 60, color: hasIssue(s(r, 'coat_status')) ? GOLD : undefined }}>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60, color: hasIssue(s(r, 'coat_status')) ? GOLD : undefined }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'health' }) }}
+                  >
                     {s(r, 'coat_status') || '-'}
                   </td>
-                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.eyes ?? '') ? GOLD : undefined }}>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60, color: hasIssue(cond.eyes ?? '') ? GOLD : undefined }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'health' }) }}
+                  >
                     {cond.eyes || '-'}
                   </td>
-                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.ears ?? '') ? GOLD : undefined }}>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60, color: hasIssue(cond.ears ?? '') ? GOLD : undefined }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'health' }) }}
+                  >
                     {cond.ears || '-'}
                   </td>
-                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.teeth ?? '') ? GOLD : undefined }}>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60, color: hasIssue(cond.teeth ?? '') ? GOLD : undefined }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'health' }) }}
+                  >
                     {cond.teeth || '-'}
                   </td>
-                  <td style={{ ...cell, minWidth: 60, color: hasIssue(cond.nail ?? '') ? GOLD : undefined }}>
+                  <td
+                    style={{ ...cell, ...CLICKABLE, minWidth: 60, color: hasIssue(cond.nail ?? '') ? GOLD : undefined }}
+                    onClick={(e) => { e.stopPropagation(); setModal({ rec: r, type: 'health' }) }}
+                  >
                     {cond.nail || '-'}
                   </td>
                   <td style={{ ...cell, maxWidth: 200, overflow: 'visible', whiteSpace: 'normal' }}>
@@ -311,6 +434,214 @@ export default function CareHistoryTable({
           </tbody>
         </table>
       </div>
+
+      {modal && (
+        <div
+          onClick={() => setModal(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E8E5E0',
+              maxWidth: 480,
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              padding: 24,
+              position: 'relative',
+              borderRadius: 0,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setModal(null)}
+              aria-label="닫기"
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                background: 'none',
+                border: 'none',
+                fontSize: 18,
+                color: '#8A8A7A',
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+            <p style={{ fontSize: 12, letterSpacing: '0.1em', color: '#8A8A7A', marginBottom: 20 }}>
+              {fmtPopupDate(
+                s(modal.rec, 'visit_date'),
+                modal.type === 'health' ? '건강 체크' : '케어 기록',
+              )}
+            </p>
+
+            {modal.type === 'health' ? (
+              (() => {
+                const GOOD_VALUES = new Set(['좋음', '깨끗함', '없음', '적당함', '양호'])
+                const coatRaw = s(modal.rec, 'coat_status').replace(/^\s*엉킴\s*:\s*/, '').trim()
+                const cond = parseCondition(s(modal.rec, 'condition_status'))
+                const sections: Array<[string, string]> = [
+                  ['피부', s(modal.rec, 'skin_status')],
+                  ['엉킴', coatRaw],
+                  ['눈', cond.eyes ?? ''],
+                  ['귀', cond.ears ?? ''],
+                  ['치아', cond.teeth ?? ''],
+                  ['발톱', cond.nail ?? ''],
+                ]
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {sections.map(([label, raw]) => {
+                      const { items, memos } = parseItemsWithMemos(raw)
+                      return (
+                        <div key={label}>
+                          <p style={{ fontSize: 14, fontWeight: 500, color: '#1A1A1A', marginBottom: 6 }}>
+                            {label}
+                          </p>
+                          {items.length === 0 ? (
+                            <p style={{ fontSize: 13, color: '#8A8A7A' }}>-</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {items.map((it, i) => {
+                                const good = GOOD_VALUES.has(it)
+                                const memo = memos[it]
+                                return (
+                                  <div key={`${it}-${i}`} style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span
+                                      style={{
+                                        display: 'inline-block',
+                                        padding: '4px 10px',
+                                        fontSize: 13,
+                                        fontWeight: good ? 400 : 500,
+                                        background: good ? '#F0EDE8' : 'rgba(201,169,110,0.15)',
+                                        color: good ? '#6B6B6B' : '#C9A96E',
+                                        borderRadius: 0,
+                                        lineHeight: 1.4,
+                                      }}
+                                    >
+                                      {it}
+                                    </span>
+                                    {memo && (
+                                      <span style={{ fontSize: 11, color: '#8A8A7A', marginTop: 2, paddingLeft: 2 }}>
+                                        {memo}
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()
+            ) : modal.type === 'products' ? (
+              (() => {
+                const grouped = extractAllProducts(s(modal.rec, 'care_actions'))
+                const order = ['샴푸', '린스', '스파', '팩', '피부케어', '피모케어', '기타']
+                const cats = order.filter((c) => (grouped[c]?.length ?? 0) > 0)
+                if (cats.length === 0) {
+                  return <p style={{ fontSize: 13, color: '#8A8A7A' }}>등록된 제품이 없습니다.</p>
+                }
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {cats.map((cat) => (
+                      <div key={cat}>
+                        <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#C9A96E', textTransform: 'uppercase' as const, marginBottom: 6 }}>
+                          {cat}
+                        </p>
+                        {grouped[cat].map((name, i) => (
+                          <p key={`${name}-${i}`} style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6 }}>
+                            {name}
+                          </p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()
+            ) : (
+              (() => {
+                const gs = parseGroomingStyle(modal.rec)
+                const items = STYLE_LABELS.filter(([key]) => {
+                  const v = gs[key]
+                  return v && String(v).trim()
+                })
+                if (items.length === 0) {
+                  return <p style={{ fontSize: 13, color: '#8A8A7A' }}>미용 스타일 기록이 없습니다.</p>
+                }
+                const memo = s(modal.rec, 'special_notes')
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {items.map(([key, label]) => (
+                      <div key={key}>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: '#1A1A1A', marginBottom: 4 }}>
+                          {label}
+                        </p>
+                        <p style={{ fontSize: 14, color: '#6B6B6B', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                          {gs[key]}
+                        </p>
+                      </div>
+                    ))}
+                    {memo && (
+                      <div style={{ borderTop: '1px solid #E8E5E0', paddingTop: 12, marginTop: 4 }}>
+                        <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#C9A96E', textTransform: 'uppercase' as const, marginBottom: 6 }}>
+                          Memo
+                        </p>
+                        <p style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                          {memo}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()
+            )}
+
+            {(() => {
+              const rid = idStr(modal.rec, 'id')
+              if (!rid) return null
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModal(null)
+                    router.push(`/session/edit/${rid}`)
+                  }}
+                  style={{
+                    marginTop: 24,
+                    width: '100%',
+                    border: '1px solid #C9A96E',
+                    color: '#C9A96E',
+                    background: '#FFFFFF',
+                    padding: '8px 20px',
+                    fontSize: 14,
+                    letterSpacing: '0.05em',
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  수정하기
+                </button>
+              )
+            })()}
+          </div>
+        </div>
+      )}
     </section>
   )
 }

@@ -219,7 +219,7 @@ export default function AdminGuardiansPage() {
           <table className="min-w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid #E8E5E0' }} className="text-left text-neutral-500">
-                <th className="px-4 py-3 font-semibold">이름</th>
+                <th className="px-4 py-3 font-semibold">반려견 / 보호자</th>
                 <th className="px-4 py-3 font-semibold">연락처</th>
                 <th className="px-4 py-3 font-semibold">반려견 수</th>
                 <th className="px-4 py-3 font-semibold">최근 방문</th>
@@ -273,11 +273,12 @@ function GuardianRows({
         className="transition-colors hover:bg-neutral-50"
       >
         <td className="px-4 py-3">
-          <div className="font-medium text-neutral-900">
-            {guardian.name ?? '이름 없음'}
-          </div>
-          {guardian.pets.length > 0 && (
-            <div className="text-xs" style={{ color: '#8A8A7A', marginTop: 2 }}>
+          {guardian.pets.length === 0 ? (
+            <div className="text-sm font-medium" style={{ color: '#8A8A7A' }}>
+              등록된 반려견 없음
+            </div>
+          ) : (
+            <div className="text-sm font-medium" style={{ color: '#1A1A1A' }}>
               {(() => {
                 const shown = guardian.pets.slice(0, 3)
                 const extra = guardian.pets.length - shown.length
@@ -291,6 +292,9 @@ function GuardianRows({
               })()}
             </div>
           )}
+          <div className="text-xs" style={{ color: '#8A8A7A', marginTop: 1 }}>
+            {guardian.name ?? '이름 없음'}
+          </div>
         </td>
         <td className="px-4 py-3 text-neutral-700">{guardian.phone ? formatPhone(guardian.phone) : '-'}</td>
         <td className="px-4 py-3">
