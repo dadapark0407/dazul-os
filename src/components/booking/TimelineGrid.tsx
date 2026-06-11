@@ -12,7 +12,7 @@ import type {
   Staff,
   StaffOff,
 } from '@/lib/booking/actions'
-import { updateAppointment } from '@/lib/booking/actions'
+import { updateAppointment, createStaffOff } from '@/lib/booking/actions'
 import { getSessionActor } from '@/lib/booking/actor-client'
 
 type Props = {
@@ -160,6 +160,11 @@ export default function TimelineGrid({
   const [localAppts, setLocalAppts] = useState<Appointment[]>(activeAppointments)
   const [dragState, setDragState] = useState<DragState | null>(null)
   const [resizeState, setResizeState] = useState<ResizeState | null>(null)
+  // 시간 블락 추가 모달 대상 미용사
+  const [timeBlockTarget, setTimeBlockTarget] = useState<{
+    staffId: string
+    staffName: string
+  } | null>(null)
 
   // refs (document mouse 핸들러에서 최신값 참조용)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -530,6 +535,26 @@ export default function TimelineGrid({
                       {col.name}
                     </span>
                   )}
+                  {!col.isUnassigned && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTimeBlockTarget({ staffId: col.key, staffName: col.name })
+                      }
+                      title="시간 블락 추가"
+                      className="cursor-pointer hover:text-[#C9A96E] transition-colors"
+                      style={{
+                        fontSize: 12,
+                        lineHeight: 1,
+                        color: '#BBB',
+                        background: 'none',
+                        border: 'none',
+                        padding: '2px 4px',
+                      }}
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -592,7 +617,13 @@ export default function TimelineGrid({
                   const entries: LaneEntry[] = []
 
                   for (const o of offs) {
-                    if (o.off_type !== 'lunch' || !o.start_time) continue
+                    if (
+                      (o.off_type !== 'lunch' &&
+                        o.off_type !== 'half_off' &&
+                        o.off_type !== 'time_block') ||
+                      !o.start_time
+                    )
+                      continue
                     const startOffset = hhmmToOffsetMin(o.start_time)
                     if (startOffset < 0) continue
                     const dur = o.end_time
@@ -625,6 +656,26 @@ export default function TimelineGrid({
                     const blockHeight = minToPx(item.durationMin)
 
                     if (item.kind === 'lunch') {
+                      const offType = item.off.off_type
+                      const isHalfOff = offType === 'half_off'
+                      const isTimeBlock = offType === 'time_block'
+                      // 라벨: 시간 블락은 사유 우선 (12자 잘라냄)
+                      const rawReason = (item.off.reason ?? '').trim()
+                      const label = isTimeBlock
+                        ? rawReason
+                          ? rawReason.length > 12
+                            ? `${rawReason.slice(0, 12)}…`
+                            : rawReason
+                          : '블락'
+                        : isHalfOff
+                          ? '반차'
+                          : '점심'
+                      const bg = isTimeBlock
+                        ? '#F0EDE8'
+                        : isHalfOff
+                          ? '#E8E5E0'
+                          : '#C9A96E'
+                      const fg = isTimeBlock || isHalfOff ? '#666666' : '#FFFFFF'
                       const laneStyle: React.CSSProperties =
                         item.totalLanes === 1
                           ? { left: 4, right: 4 }
@@ -635,22 +686,26 @@ export default function TimelineGrid({
                       return (
                         <div
                           key={`lunch-${item.id}`}
+                          title={isTimeBlock && rawReason ? rawReason : undefined}
                           style={{
                             position: 'absolute',
                             top,
                             ...laneStyle,
                             height: blockHeight,
-                            background: '#C9A96E',
+                            background: bg,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: 11,
-                            color: '#FFFFFF',
+                            color: fg,
                             letterSpacing: '0.05em',
                             pointerEvents: 'none',
+                            overflow: 'hidden',
+                            padding: '0 4px',
+                            textAlign: 'center',
                           }}
                         >
-                          점심
+                          {label}
                         </div>
                       )
                     }
@@ -738,6 +793,253 @@ export default function TimelineGrid({
           )}
         </div>
       )}
+
+      {/* ─── 시간 블락 추가 모달 ─── */}
+      {timeBlockTarget && (
+        <TimeBlockModal
+          date={date}
+          staffId={timeBlockTarget.staffId}
+          staffName={timeBlockTarget.staffName}
+          onClose={() => setTimeBlockTarget(null)}
+          onCreated={() => {
+            setTimeBlockTarget(null)
+            onChanged()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── 시간 블락 추가 모달 ───
+
+const REASON_PRESETS = ['외부 미팅', '교육', '개인 사정'] as const
+
+/** 30분 단위 시간 옵션: 11:00 ~ 20:00 */
+const TIME_OPTIONS: string[] = (() => {
+  const out: string[] = []
+  for (let min = START_HOUR * 60; min <= END_HOUR * 60; min += SLOT_MIN) {
+    const h = Math.floor(min / 60)
+    const m = min % 60
+    out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+  }
+  return out
+})()
+
+function TimeBlockModal({
+  date,
+  staffId,
+  staffName,
+  onClose,
+  onCreated,
+}: {
+  date: string
+  staffId: string
+  staffName: string
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [blockDate, setBlockDate] = useState(date)
+  const [startTime, setStartTime] = useState('14:00')
+  const [endTime, setEndTime] = useState('15:00')
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit() {
+    if (saving) return
+    if (startTime >= endTime) {
+      setError('종료 시간이 시작 시간보다 늦어야 합니다')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    const res = await createStaffOff({
+      staff_id: staffId,
+      off_date: blockDate,
+      off_type: 'time_block',
+      start_time: startTime,
+      end_time: endTime,
+      reason: reason.trim() || null,
+    })
+    setSaving(false)
+    if (!res.ok) {
+      setError(res.error ?? '등록에 실패했습니다')
+      return
+    }
+    onCreated()
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    letterSpacing: '0.15em',
+    color: '#8A8A7A',
+    textTransform: 'uppercase',
+    display: 'block',
+    marginBottom: 6,
+  }
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#FAFAF8',
+    border: '1px solid #E8E5E0',
+    borderRadius: 0,
+    padding: '8px 10px',
+    fontSize: 14,
+    color: '#1A1A1A',
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.35)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF',
+          border: '1px solid #E8E5E0',
+          borderRadius: 0,
+          width: '100%',
+          maxWidth: 360,
+          padding: 20,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 13,
+              letterSpacing: '0.15em',
+              fontWeight: 600,
+              color: '#1A1A1A',
+              textTransform: 'uppercase',
+            }}
+          >
+            시간 블락 — {staffName}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 16,
+              color: '#8A8A7A',
+              cursor: 'pointer',
+              padding: 4,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>날짜</label>
+          <input
+            type="date"
+            value={blockDate}
+            onChange={(e) => setBlockDate(e.target.value)}
+            style={fieldStyle}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>시작</label>
+            <select
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              style={fieldStyle}
+            >
+              {TIME_OPTIONS.slice(0, -1).map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>종료</label>
+            <select
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              style={fieldStyle}
+            >
+              {TIME_OPTIONS.slice(1).map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>사유</label>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {REASON_PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setReason(p)}
+                style={{
+                  border: `1px solid ${reason === p ? '#C9A96E' : '#E8E5E0'}`,
+                  background: reason === p ? 'rgba(201,169,110,0.12)' : '#FFFFFF',
+                  color: reason === p ? '#C9A96E' : '#6B6B6B',
+                  fontSize: 12,
+                  padding: '5px 10px',
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="직접 입력"
+            style={fieldStyle}
+          />
+        </div>
+
+        {error && (
+          <p style={{ fontSize: 12, color: '#C0392B', marginBottom: 10 }}>{error}</p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={saving}
+          style={{
+            width: '100%',
+            background: '#C9A96E',
+            color: '#FFFFFF',
+            border: 'none',
+            borderRadius: 0,
+            padding: '10px 0',
+            fontSize: 14,
+            letterSpacing: '0.1em',
+            cursor: saving ? 'default' : 'pointer',
+            opacity: saving ? 0.6 : 1,
+          }}
+        >
+          {saving ? '등록 중…' : '등록'}
+        </button>
+      </div>
     </div>
   )
 }

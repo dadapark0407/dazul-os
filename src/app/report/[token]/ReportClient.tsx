@@ -529,19 +529,6 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
             ))}
           </div>
 
-          {/* HOME CARE */}
-          {tips.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <SH>{t.homeCare}</SH>
-              {tips.map((tip, i) => (
-                <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 10 }}>
-                  <span style={{ color: C.gold, fontSize: 13, flexShrink: 0 }}>—</span>
-                  <p style={{ fontSize: 13, color: C.text, lineHeight: 1.8, fontWeight: 300 }}>{tip}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* NEXT VISIT */}
           {(nextDate || rec.next_visit_recommendation) && (
             <div style={{ marginBottom: 32, padding: '28px 0', borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, textAlign: 'center' }}>
@@ -567,6 +554,19 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
               <p style={{ fontSize: 13, color: C.text, lineHeight: 2, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
                 {tr(rec.comment, trMap, lang)}
               </p>
+            </div>
+          )}
+
+          {/* HOME CARE */}
+          {tips.length > 0 && (
+            <div style={{ marginTop: 28 }}>
+              <SH>{t.homeCare}</SH>
+              {tips.map((tip, i) => (
+                <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 10 }}>
+                  <span style={{ color: C.gold, fontSize: 13, flexShrink: 0 }}>—</span>
+                  <p style={{ fontSize: 13, color: C.text, lineHeight: 1.8, fontWeight: 300 }}>{tip}</p>
+                </div>
+              ))}
             </div>
           )}
         </div>

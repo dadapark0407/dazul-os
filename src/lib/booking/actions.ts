@@ -29,9 +29,10 @@ export type AppointmentInput = {
 export type StaffOffInput = {
   staff_id: string
   off_date: string         // YYYY-MM-DD
-  off_type: 'lunch' | 'dayoff' | 'half_off'
+  off_type: 'lunch' | 'dayoff' | 'half_off' | 'time_block'
   start_time?: string | null  // "HH:MM"
   end_time?: string | null    // "HH:MM"
+  reason?: string | null      // 시간 블락 사유
   branch_id?: string | null
 }
 
@@ -88,9 +89,10 @@ export type StaffOff = {
   id: string
   staff_id: string
   off_date: string
-  off_type: 'lunch' | 'dayoff' | 'half_off'
+  off_type: 'lunch' | 'dayoff' | 'half_off' | 'time_block'
   start_time: string | null
   end_time: string | null
+  reason?: string | null      // 시간 블락 사유 (off_type=time_block)
 }
 
 export type BookingData = {
@@ -140,7 +142,7 @@ export async function getBookingData(date: string): Promise<BookingData> {
       .order('start_at', { ascending: true }),
     supabase
       .from('staff_off')
-      .select('id, staff_id, off_date, off_type, start_time, end_time')
+      .select('id, staff_id, off_date, off_type, start_time, end_time, reason')
       .eq('off_date', date),
   ])
 
@@ -517,6 +519,7 @@ export async function createStaffOff(data: StaffOffInput) {
     off_type: data.off_type,
     start_time: data.start_time ?? null,
     end_time: data.end_time ?? null,
+    reason: data.reason ?? null,
     branch_id: data.branch_id ?? null,
   })
 
@@ -753,7 +756,7 @@ export async function getUpcomingStaffOffs(): Promise<StaffOffWithStaff[]> {
   const { data, error } = await supabase
     .from('staff_off')
     .select(
-      `id, staff_id, off_date, off_type, start_time, end_time,
+      `id, staff_id, off_date, off_type, start_time, end_time, reason,
        staff:staff_id ( name )`,
     )
     .gte('off_date', todayKst)
@@ -768,6 +771,7 @@ export async function getUpcomingStaffOffs(): Promise<StaffOffWithStaff[]> {
     off_type: row.off_type,
     start_time: row.start_time,
     end_time: row.end_time,
+    reason: row.reason ?? null,
     staff_name: row.staff?.name ?? '',
   }))
 }
