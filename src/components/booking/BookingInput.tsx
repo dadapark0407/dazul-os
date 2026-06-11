@@ -151,8 +151,9 @@ export default function BookingInput({
   /**
    * 소요시간 자동 결정:
    * - 사용자가 명시적으로 입력한 경우 → 그대로 사용
+   * - 목욕(미용 미포함)이면 → 과거 미용 기록 무시, fallback 90분
    * - pet_id가 있으면 → 해당 반려견의 최근 visit_records.grooming_duration_minutes 조회
-   * - 없으면 → 서비스 타입별 fallback (목욕 90, 미용/불명 180)
+   * - 없으면 → 서비스 타입별 fallback (목욕 90, 미용 180, 불명 180)
    * - pet_id 없음 (신규 등) → 파서가 결정한 서비스 기본값 그대로
    */
   async function resolveDurationForPet(
@@ -160,6 +161,13 @@ export default function BookingInput({
     petId: string | null,
   ): Promise<number> {
     if (appt.durationExplicit) return appt.duration
+    if (
+      appt.service &&
+      appt.service.includes('목욕') &&
+      !appt.service.includes('미용')
+    ) {
+      return fallbackDurationByService(appt.service)
+    }
     if (!petId) return appt.duration
     try {
       const recent = await getLatestGroomingDuration(petId)

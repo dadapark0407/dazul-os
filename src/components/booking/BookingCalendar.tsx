@@ -38,7 +38,7 @@ type MonthlyCacheEntry = {
 }
 
 // 캐시가 이 시간보다 fresh하면 백그라운드 revalidate 생략
-const CACHE_FRESH_MS = 60_000
+const CACHE_FRESH_MS = 300_000
 
 function monthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`
@@ -201,6 +201,8 @@ export default function BookingCalendar({
   // ── 클라이언트 캐시 (날짜/월 단위) ──
   const dailyCacheRef = useRef<Map<string, DailyCacheEntry>>(new Map())
   const monthlyCacheRef = useRef<Map<string, MonthlyCacheEntry>>(new Map())
+  // 프리페치 중복 발사 방지 — fetch 진행 중인 날짜 집합
+  const prefetchingDates = useRef<Set<string>>(new Set())
 
   // ── race guard용 ref ──
   const dateRef = useRef(date)
@@ -247,7 +249,6 @@ export default function BookingCalendar({
   // 날짜 변경 시 데이터 재조회 (캐시 활용)
   // - URL 동기화는 history.replaceState로 (Next 소프트 네비 안 트리거 → 서버 라운드트립 회피)
   useEffect(() => {
-    if (date === initialDate) return
     refresh(date)
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', `/admin/booking?date=${date}`)
@@ -312,12 +313,18 @@ export default function BookingCalendar({
     for (const t of targets) {
       const cached = dailyCacheRef.current.get(t)
       if (cached && Date.now() - cached.fetchedAt < CACHE_FRESH_MS) continue
+      // 이미 fetch 진행 중이면 중복 발사 스킵
+      if (prefetchingDates.current.has(t)) continue
+      prefetchingDates.current.add(t)
       getBookingData(t)
         .then((data) => {
           dailyCacheRef.current.set(t, { ...data, fetchedAt: Date.now() })
         })
         .catch(() => {
           // 프리페치 실패는 무시
+        })
+        .finally(() => {
+          prefetchingDates.current.delete(t)
         })
     }
   }

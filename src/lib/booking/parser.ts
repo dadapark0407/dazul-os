@@ -208,10 +208,10 @@ function extractNote(input: string): { note: string | null; rest: string } {
 // ─── 서비스별 기본 소요시간 ───
 
 function defaultDuration(service: string | null): number {
-  if (!service) return 120
+  if (!service) return 180
   if (service.includes('미용')) return 180
   if (service.includes('목욕')) return 90
-  return 120
+  return 180
 }
 
 

@@ -158,13 +158,16 @@ export default function TimelineGrid({
     [appointments],
   )
   const [localAppts, setLocalAppts] = useState<Appointment[]>(activeAppointments)
+  // prop 변경 시 렌더 단계에서 즉시 동기화 — useEffect 방식의 1프레임 이전 데이터 렌더 제거
+  const [prevActiveAppts, setPrevActiveAppts] = useState(activeAppointments)
+  if (prevActiveAppts !== activeAppointments) {
+    setPrevActiveAppts(activeAppointments)
+    setLocalAppts(activeAppointments)
+  }
   const [dragState, setDragState] = useState<DragState | null>(null)
   const [resizeState, setResizeState] = useState<ResizeState | null>(null)
-  // 시간 블락 추가 모달 대상 미용사
-  const [timeBlockTarget, setTimeBlockTarget] = useState<{
-    staffId: string
-    staffName: string
-  } | null>(null)
+  // 시간 블락 추가 모달 대상 미용사 ID
+  const [timeBlockTarget, setTimeBlockTarget] = useState<string | null>(null)
 
   // refs (document mouse 핸들러에서 최신값 참조용)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -175,7 +178,6 @@ export default function TimelineGrid({
   useEffect(() => { dragStateRef.current = dragState }, [dragState])
   useEffect(() => { localApptsRef.current = localAppts }, [localAppts])
   useEffect(() => { resizeStateRef.current = resizeState }, [resizeState])
-  useEffect(() => { setLocalAppts(activeAppointments) }, [activeAppointments])
 
   // 시간 라벨
   const timeLabels: string[] = []
@@ -538,9 +540,7 @@ export default function TimelineGrid({
                   {!col.isUnassigned && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setTimeBlockTarget({ staffId: col.key, staffName: col.name })
-                      }
+                      onClick={() => setTimeBlockTarget(col.key)}
                       title="시간 블락 추가"
                       className="cursor-pointer hover:text-[#C9A96E] transition-colors"
                       style={{
@@ -798,8 +798,8 @@ export default function TimelineGrid({
       {timeBlockTarget && (
         <TimeBlockModal
           date={date}
-          staffId={timeBlockTarget.staffId}
-          staffName={timeBlockTarget.staffName}
+          staffId={timeBlockTarget}
+          staff={staff}
           onClose={() => setTimeBlockTarget(null)}
           onCreated={() => {
             setTimeBlockTarget(null)
@@ -813,7 +813,14 @@ export default function TimelineGrid({
 
 // ─── 시간 블락 추가 모달 ───
 
-const REASON_PRESETS = ['외부 미팅', '교육', '개인 사정'] as const
+// 사유 프리셋 — 대상에 따라 다른 목록 표시
+const REASON_PRESETS_ONE = ['오전 반차', '오후 반차', '외부 미팅', '교육', '개인 사정'] as const
+const REASON_PRESETS_ALL = ['매장 청소', '전체 교육', '임시 휴점'] as const
+
+const pad = (n: number) => String(n).padStart(2, '0')
+const OPEN_TIME = `${pad(START_HOUR)}:00`   // 11:00
+const CLOSE_TIME = `${pad(END_HOUR)}:00`    // 20:00
+const HALF_SPLIT = '13:00'                  // 반차 기준 시각
 
 /** 30분 단위 시간 옵션: 11:00 ~ 20:00 */
 const TIME_OPTIONS: string[] = (() => {
@@ -829,13 +836,13 @@ const TIME_OPTIONS: string[] = (() => {
 function TimeBlockModal({
   date,
   staffId,
-  staffName,
+  staff,
   onClose,
   onCreated,
 }: {
   date: string
   staffId: string
-  staffName: string
+  staff: Staff[]
   onClose: () => void
   onCreated: () => void
 }) {
@@ -843,8 +850,22 @@ function TimeBlockModal({
   const [startTime, setStartTime] = useState('14:00')
   const [endTime, setEndTime] = useState('15:00')
   const [reason, setReason] = useState('')
+  const [target, setTarget] = useState<'one' | 'all'>('one')
+  const [selectedStaffId, setSelectedStaffId] = useState(staffId)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 프리셋 선택 — 반차는 시간 자동 설정
+  function pickPreset(p: string) {
+    setReason(p)
+    if (p === '오전 반차') {
+      setStartTime(OPEN_TIME)
+      setEndTime(HALF_SPLIT)
+    } else if (p === '오후 반차') {
+      setStartTime(HALF_SPLIT)
+      setEndTime(CLOSE_TIME)
+    }
+  }
 
   async function handleSubmit() {
     if (saving) return
@@ -852,19 +873,34 @@ function TimeBlockModal({
       setError('종료 시간이 시작 시간보다 늦어야 합니다')
       return
     }
+    const targetIds =
+      target === 'all' ? staff.map((s) => s.id) : [selectedStaffId]
+    if (targetIds.length === 0) {
+      setError('대상 미용사가 없습니다')
+      return
+    }
     setSaving(true)
     setError(null)
-    const res = await createStaffOff({
-      staff_id: staffId,
-      off_date: blockDate,
-      off_type: 'time_block',
-      start_time: startTime,
-      end_time: endTime,
-      reason: reason.trim() || null,
-    })
+    const results = await Promise.all(
+      targetIds.map((id) =>
+        createStaffOff({
+          staff_id: id,
+          off_date: blockDate,
+          off_type: 'time_block',
+          start_time: startTime,
+          end_time: endTime,
+          reason: reason.trim() || null,
+        }),
+      ),
+    )
     setSaving(false)
-    if (!res.ok) {
-      setError(res.error ?? '등록에 실패했습니다')
+    const failed = results.filter((r) => !r.ok)
+    if (failed.length > 0) {
+      setError(
+        failed.length === results.length
+          ? ((failed[0] as { error?: string }).error ?? '등록에 실패했습니다')
+          : `일부 등록 실패 (${failed.length}/${results.length})`,
+      )
       return
     }
     onCreated()
@@ -930,7 +966,7 @@ function TimeBlockModal({
               textTransform: 'uppercase',
             }}
           >
-            시간 블락 — {staffName}
+            시간 블락
           </span>
           <button
             type="button"
@@ -946,6 +982,48 @@ function TimeBlockModal({
           >
             ✕
           </button>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>대상</label>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {([
+              { v: 'one', label: '특정 미용사' },
+              { v: 'all', label: '전체 미용사' },
+            ] as const).map((t) => (
+              <button
+                key={t.v}
+                type="button"
+                onClick={() => {
+                  setTarget(t.v)
+                  setReason('')
+                }}
+                style={{
+                  flex: 1,
+                  border: `1px solid ${target === t.v ? '#C9A96E' : '#E8E5E0'}`,
+                  background: target === t.v ? 'rgba(201,169,110,0.12)' : '#FFFFFF',
+                  color: target === t.v ? '#C9A96E' : '#6B6B6B',
+                  fontSize: 12,
+                  padding: '6px 0',
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {target === 'one' && (
+            <select
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              style={fieldStyle}
+            >
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -988,11 +1066,11 @@ function TimeBlockModal({
         <div style={{ marginBottom: 18 }}>
           <label style={labelStyle}>사유</label>
           <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {REASON_PRESETS.map((p) => (
+            {(target === 'all' ? REASON_PRESETS_ALL : REASON_PRESETS_ONE).map((p) => (
               <button
                 key={p}
                 type="button"
-                onClick={() => setReason(p)}
+                onClick={() => pickPreset(p)}
                 style={{
                   border: `1px solid ${reason === p ? '#C9A96E' : '#E8E5E0'}`,
                   background: reason === p ? 'rgba(201,169,110,0.12)' : '#FFFFFF',
