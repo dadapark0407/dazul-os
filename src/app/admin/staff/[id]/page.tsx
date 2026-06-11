@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { ROLE_LABELS, ROLES, type Role } from '@/lib/roles'
+import { ROLE_LABELS, ROLE_KEYS, type Role } from '@/lib/roles'
 
 // TODO: owner 역할만 접근 가능하도록 제한 필요
 // TODO: 스태프 수정 폼 별도 페이지 or 인라인 편집
@@ -138,7 +138,7 @@ export default function AdminStaffDetailPage() {
   }
 
   const name = str(staff, 'name') ?? '이름 없음'
-  const role = str(staff, 'role') ?? 'staff'
+  const role = str(staff, 'role') ?? 'designer'
   const isActive = bool(staff, 'is_active') !== false
   const userId = str(staff, 'user_id')
   const createdAt = str(staff, 'created_at')
@@ -219,7 +219,7 @@ export default function AdminStaffDetailPage() {
           주의: 역할을 변경하면 해당 스태프의 접근 범위가 즉시 바뀝니다.
         </p>
         <div className="flex flex-wrap gap-2">
-          {ROLES.map((r) => (
+          {ROLE_KEYS.map((r) => (
             <button
               key={r}
               type="button"

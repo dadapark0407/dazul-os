@@ -6,6 +6,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
+import { getDefaultBranchId } from '@/lib/branch'
 import { isClosedDow } from './constants'
 
 // ─── 타입 ───
@@ -120,6 +121,22 @@ export async function getBookingData(date: string): Promise<BookingData> {
   const dayStartUtc = new Date(`${date}T00:00:00+09:00`).toISOString()
   const dayEndUtc = new Date(`${date}T23:59:59.999+09:00`).toISOString()
 
+  // 매장별 분리 — branch_id가 확인될 때만 필터 (없으면 기존 전체 조회 유지)
+  const branchId = await getDefaultBranchId()
+  let apptQuery = supabase
+    .from('appointments')
+    .select(
+      `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
+       note, raw_input, pet_name, pet_breed, service, assign_type,
+       cancel_reason, cancelled_at,
+       pets:pet_id ( name, breed ),
+       guardians:guardian_id ( name, phone )`,
+    )
+    .gte('start_at', dayStartUtc)
+    .lte('start_at', dayEndUtc)
+    .is('deleted_at', null)
+  if (branchId) apptQuery = apptQuery.eq('branch_id', branchId)
+
   // 3개 쿼리 병렬 실행 — 서로 독립적이라 Promise.all로 동시 발사
   const [staffRes, apptRes, offRes] = await Promise.all([
     supabase
@@ -127,19 +144,7 @@ export async function getBookingData(date: string): Promise<BookingData> {
       .select('id, name, signature_color, display_order, is_active, branch_id')
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
-    supabase
-      .from('appointments')
-      .select(
-        `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
-         note, raw_input, pet_name, pet_breed, service, assign_type,
-         cancel_reason, cancelled_at,
-         pets:pet_id ( name, breed ),
-         guardians:guardian_id ( name, phone )`,
-      )
-      .gte('start_at', dayStartUtc)
-      .lte('start_at', dayEndUtc)
-      .is('deleted_at', null)
-      .order('start_at', { ascending: true }),
+    apptQuery.order('start_at', { ascending: true }),
     supabase
       .from('staff_off')
       .select('id, staff_id, off_date, off_type, start_time, end_time, reason')
@@ -206,6 +211,22 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
   const calEnd = new Date(`${nextYear}-${nextMo}-01T00:00:00+09:00`)
   calEnd.setTime(calEnd.getTime() + endOffset * 86400000)
 
+  // 매장별 분리 — branch_id가 확인될 때만 필터 (없으면 기존 전체 조회 유지)
+  const branchId = await getDefaultBranchId()
+  let apptQuery = supabase
+    .from('appointments')
+    .select(
+      `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
+       note, raw_input, pet_name, pet_breed, service, assign_type,
+       cancel_reason, cancelled_at,
+       pets:pet_id ( name, breed ),
+       guardians:guardian_id ( name, phone )`,
+    )
+    .gte('start_at', calStart.toISOString())
+    .lt('start_at', calEnd.toISOString())
+    .is('deleted_at', null)
+  if (branchId) apptQuery = apptQuery.eq('branch_id', branchId)
+
   // 2개 쿼리 병렬 실행
   const [staffRes, apptRes] = await Promise.all([
     supabase
@@ -213,19 +234,7 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
       .select('id, name, signature_color, display_order, is_active, branch_id')
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
-    supabase
-      .from('appointments')
-      .select(
-        `id, start_at, duration_min, status, pet_id, guardian_id, staff_id,
-         note, raw_input, pet_name, pet_breed, service, assign_type,
-         cancel_reason, cancelled_at,
-         pets:pet_id ( name, breed ),
-         guardians:guardian_id ( name, phone )`,
-      )
-      .gte('start_at', calStart.toISOString())
-      .lt('start_at', calEnd.toISOString())
-      .is('deleted_at', null)
-      .order('start_at', { ascending: true }),
+    apptQuery.order('start_at', { ascending: true }),
   ])
 
   const staffRows = staffRes.data
@@ -323,7 +332,8 @@ export async function createAppointment(data: AppointmentInput, actor: ActorInpu
       pet_id: data.pet_id,
       guardian_id: data.guardian_id,
       staff_id: data.staff_id,
-      branch_id: data.branch_id ?? null,
+      // 미지정 시 현재 매장 귀속 — branch 필터 조회에서 누락되지 않도록
+      branch_id: data.branch_id ?? (await getDefaultBranchId()),
       status: data.status ?? 'confirmed',
       note: data.note ?? null,
       raw_input: data.raw_input ?? null,
@@ -829,6 +839,17 @@ export async function findAvailableSlots(
   const dayStartUtc = new Date(`${weekStartDate}T00:00:00+09:00`).toISOString()
   const dayEndUtc = new Date(`${endDate}T23:59:59.999+09:00`).toISOString()
 
+  // 매장별 분리 — branch_id가 확인될 때만 필터 (없으면 기존 전체 조회 유지)
+  const branchId = await getDefaultBranchId()
+  let apptQuery = supabase
+    .from('appointments')
+    .select('start_at, duration_min')
+    .eq('staff_id', groomerId)
+    .gte('start_at', dayStartUtc)
+    .lte('start_at', dayEndUtc)
+    .is('deleted_at', null)
+  if (branchId) apptQuery = apptQuery.eq('branch_id', branchId)
+
   const [offRes, apptRes] = await Promise.all([
     supabase
       .from('staff_off')
@@ -836,13 +857,7 @@ export async function findAvailableSlots(
       .eq('staff_id', groomerId)
       .gte('off_date', weekStartDate)
       .lte('off_date', endDate),
-    supabase
-      .from('appointments')
-      .select('start_at, duration_min')
-      .eq('staff_id', groomerId)
-      .gte('start_at', dayStartUtc)
-      .lte('start_at', dayEndUtc)
-      .is('deleted_at', null),
+    apptQuery,
   ])
 
   // 날짜별 종일 휴무 여부
@@ -1048,7 +1063,9 @@ export async function searchAppointmentsByPetName(
   const todayKst = kstNow.toISOString().slice(0, 10)
   const todayStartUtc = new Date(`${todayKst}T00:00:00+09:00`).toISOString()
 
-  const { data } = await supabase
+  // 매장별 분리 — branch_id가 확인될 때만 필터
+  const branchId = await getDefaultBranchId()
+  let searchQuery = supabase
     .from('appointments')
     .select(
       `id, start_at, pet_name, pet_breed, service, status, staff_id,
@@ -1060,6 +1077,9 @@ export async function searchAppointmentsByPetName(
     .neq('status', 'cancelled')
     .neq('status', 'noshow')
     .gte('start_at', todayStartUtc)
+  if (branchId) searchQuery = searchQuery.eq('branch_id', branchId)
+
+  const { data } = await searchQuery
     .order('start_at', { ascending: true })
     .limit(20)
 
@@ -1206,13 +1226,16 @@ export async function autoAssignGroomer(
     return null
   }
 
-  // 당일 모든 예약 (active)
-  const { data: apptRows, error: apErr } = await supabase
+  // 당일 모든 예약 (active) — branch_id가 확인될 때만 매장 필터
+  const branchId = await getDefaultBranchId()
+  let dayApptQuery = supabase
     .from('appointments')
     .select('staff_id, start_at, duration_min')
     .gte('start_at', dayStartUtc)
     .lte('start_at', dayEndUtc)
     .is('deleted_at', null)
+  if (branchId) dayApptQuery = dayApptQuery.eq('branch_id', branchId)
+  const { data: apptRows, error: apErr } = await dayApptQuery
 
   if (apErr) console.log('[autoAssign] appt query error', apErr.message)
   const dayAppts = apptRows ?? []

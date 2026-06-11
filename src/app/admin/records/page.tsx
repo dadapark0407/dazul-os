@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getDefaultBranchId } from '@/lib/branch'
 import SidePanelOverlay from '@/components/booking/SidePanelOverlay'
 import {
   getBookingData,
@@ -104,10 +105,15 @@ export default function AdminRecordsPage() {
     async function fetchData() {
       setLoading(true)
 
-      const { data: recordsData } = await supabase
+      // 매장별 분리 — branch_id가 확인될 때만 필터 (없으면 기존 전체 조회 유지)
+      const branchId = await getDefaultBranchId()
+      let recordsQuery = supabase
         .from('visit_records')
         .select('id, visit_date, service_type, pet_id, guardian_id, created_at')
         .is('deleted_at', null)
+      if (branchId) recordsQuery = recordsQuery.eq('branch_id', branchId)
+
+      const { data: recordsData } = await recordsQuery
         .order('visit_date', { ascending: false })
         .limit(200)
 

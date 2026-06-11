@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getDefaultBranchId } from '@/lib/branch'
 
 // =============================================================
 // DAZUL OS — 방문 기록 Server Action
@@ -225,6 +226,7 @@ export async function saveVisitRecord(
 
     // visit_records INSERT
     const visitPayload: Record<string, unknown> = {
+      branch_id: await getDefaultBranchId(),
       pet_id: payload.petId,
       guardian_id: payload.guardianId || null,
       pet_name: payload.petName || null,

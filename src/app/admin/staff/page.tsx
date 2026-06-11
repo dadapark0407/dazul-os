@@ -91,13 +91,13 @@ export default function AdminStaffPage() {
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete set null,
   name text not null,
-  role text not null default 'staff',
+  role text not null default 'designer',
   is_active boolean not null default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- 역할 값: owner, director, manager, staff`}
+-- 역할 값: owner, director, lead_designer, manager, designer, intern`}
             </pre>
           </div>
 
@@ -106,10 +106,12 @@ export default function AdminStaffPage() {
               역할 계층
             </p>
             <ul className="space-y-1.5 text-sm text-neutral-600">
-              <li><strong>대표 (owner)</strong> — 모든 기능 + 설정 + 스태프 관리</li>
+              <li><strong>원장 (owner)</strong> — 모든 기능 + 설정 + 스태프 관리 (전 매장)</li>
               <li><strong>부원장 (director)</strong> — 대부분 기능 + 일부 설정</li>
-              <li><strong>매니저 (manager)</strong> — 운영 기능 (기록, 제품, 팔로업)</li>
-              <li><strong>스태프 (staff)</strong> — 기본 기록 작성 + 조회</li>
+              <li><strong>실장 (lead_designer)</strong> — 매장 운영 총괄</li>
+              <li><strong>팀장 (manager)</strong> — 운영 기능 (기록, 제품, 팔로업)</li>
+              <li><strong>디자이너 (designer)</strong> — 기본 기록 작성 + 조회</li>
+              <li><strong>인턴 (intern)</strong> — 제한적 조회</li>
             </ul>
           </div>
         </div>
@@ -142,10 +144,12 @@ export default function AdminStaffPage() {
         <div className="flex gap-2 overflow-x-auto">
           {[
             { key: 'all', label: '전체' },
-            { key: 'owner', label: '대표' },
+            { key: 'owner', label: '원장' },
             { key: 'director', label: '부원장' },
-            { key: 'manager', label: '매니저' },
-            { key: 'staff', label: '스태프' },
+            { key: 'lead_designer', label: '실장' },
+            { key: 'manager', label: '팀장' },
+            { key: 'designer', label: '디자이너' },
+            { key: 'intern', label: '인턴' },
           ].map((tab) => (
             <button
               key={tab.key}

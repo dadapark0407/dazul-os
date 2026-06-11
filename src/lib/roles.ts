@@ -7,74 +7,83 @@
 // =============================================================
 
 /**
- * 역할 계층 (권한 높은 순)
+ * 직급 계층 (숫자가 클수록 높은 권한)
  *
- * owner    — 대표 / 사업주. 모든 기능 접근 + 설정 변경 + 스태프 관리
- * director — 부원장 / 총괄. 대부분 기능 접근 + 일부 설정
- * manager  — 매니저. 운영 기능 접근 (기록, 제품, 팔로업 등)
- * staff    — 스태프. 기본 기록 작성 + 조회
+ * owner         — 원장. 모든 기능 + 설정 + 스태프 관리 (전 매장)
+ * director      — 부원장. 대부분 기능 + 일부 설정
+ * lead_designer — 실장. 매장 운영 총괄
+ * manager       — 팀장. 운영 기능 (기록, 제품, 팔로업 등)
+ * designer      — 디자이너. 기본 기록 작성 + 조회
+ * intern        — 인턴. 제한적 조회
  */
-export const ROLES = ['owner', 'director', 'manager', 'staff'] as const
-export type Role = (typeof ROLES)[number]
+export const ROLES = {
+  owner: 50,
+  director: 40,
+  lead_designer: 30,
+  manager: 25,
+  designer: 20,
+  intern: 10,
+} as const
 
-/** 역할 한글 라벨 */
+export type Role = keyof typeof ROLES
+
+/** 직급 한글명 매핑 */
 export const ROLE_LABELS: Record<Role, string> = {
-  owner: '대표',
+  owner: '원장',
   director: '부원장',
-  manager: '매니저',
-  staff: '스태프',
-}
+  lead_designer: '실장',
+  manager: '팀장',
+  designer: '디자이너',
+  intern: '인턴',
+} as const
 
-/** 역할 계층 레벨 (숫자가 클수록 높은 권한) */
-const ROLE_LEVEL: Record<Role, number> = {
-  owner: 40,
-  director: 30,
-  manager: 20,
-  staff: 10,
-}
+/** 직급 키 목록 (권한 높은 순) — UI에서 순회할 때 사용 */
+export const ROLE_KEYS = (Object.keys(ROLES) as Role[]).sort(
+  (a, b) => ROLES[b] - ROLES[a]
+)
 
 /**
- * 주어진 역할이 최소 요구 역할 이상인지 확인
+ * 주어진 직급이 최소 요구 직급 이상인지 확인
  *
  * @example
- * hasMinRole('manager', 'staff')   // true — manager ≥ staff
- * hasMinRole('staff', 'manager')   // false — staff < manager
- * hasMinRole(null, 'staff')        // false — 역할 없음
+ * hasMinRole('manager', 'designer')   // true — manager(25) ≥ designer(20)
+ * hasMinRole('intern', 'manager')     // false — intern(10) < manager(25)
+ * hasMinRole(null, 'designer')        // false — 직급 없음
  */
 export function hasMinRole(
   userRole: string | null | undefined,
   minRole: Role
 ): boolean {
   if (!userRole) return false
-  const level = ROLE_LEVEL[userRole as Role]
+  const level = ROLES[userRole as Role]
   if (level === undefined) return false
-  return level >= ROLE_LEVEL[minRole]
+  return level >= ROLES[minRole]
 }
 
 /**
- * 역할이 유효한 Role 타입인지 확인
+ * 직급이 유효한 Role 타입인지 확인
  */
 export function isValidRole(value: unknown): value is Role {
-  return typeof value === 'string' && ROLES.includes(value as Role)
+  return typeof value === 'string' && value in ROLES
 }
 
 // =============================================================
-// 페이지별 최소 역할 매핑 (향후 미들웨어 또는 레이아웃에서 사용)
+// 페이지별 최소 직급 매핑 (향후 미들웨어 또는 레이아웃에서 사용)
 // =============================================================
 
 /**
- * 관리 페이지별 최소 접근 역할
+ * 관리 페이지별 최소 접근 직급
  *
  * TODO: Supabase Auth 연동 후 admin layout에서 이 맵으로 접근 제어 적용
  * TODO: 미들웨어(middleware.ts)에서 서버 사이드 검증 추가
  */
 export const ADMIN_ROUTE_MIN_ROLE: Record<string, Role> = {
-  '/admin': 'staff',
-  '/admin/pets': 'staff',
-  '/admin/guardians': 'staff',
-  '/admin/records': 'staff',
+  '/admin': 'designer',
+  '/admin/pets': 'designer',
+  '/admin/guardians': 'designer',
+  '/admin/records': 'designer',
   '/admin/products': 'manager',
-  '/admin/followups': 'staff',
+  '/admin/followups': 'designer',
   '/admin/templates': 'manager',
   '/admin/staff': 'owner',
   '/admin/settings': 'director',
@@ -117,7 +126,7 @@ export async function getStaffProfileByUserId(
 }
 
 /**
- * 현재 로그인 유저의 역할 확인
+ * 현재 로그인 유저의 직급 확인
  *
  * TODO: Supabase Auth 연동 시 구현
  * 현재는 항상 'owner' 반환 (개발 중 모든 접근 허용)

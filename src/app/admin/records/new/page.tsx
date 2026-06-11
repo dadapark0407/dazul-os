@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useRef, useState, useTransition } fro
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { buildSiteUrl } from '@/lib/siteUrl'
+import { getDefaultBranchId } from '@/lib/branch'
 
 // ─────────────────────────────────────────────
 // 타입
@@ -1086,6 +1087,9 @@ function SessionForm() {
         //   }
         //   if (photoUrls.length > 0) payload.photo_urls = photoUrls
         // }
+
+        // 현재 매장 귀속 — 멀티 로케이션 대비
+        payload.branch_id = await getDefaultBranchId()
 
         const { data: insertedRows, error: insertError } = await supabase
           .from('visit_records')
