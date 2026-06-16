@@ -10,6 +10,7 @@ import BookingInput from './BookingInput'
 import SlotFinder from './SlotFinder'
 import TimelineGrid from './TimelineGrid'
 import MonthlyView from './MonthlyView'
+import RecurringGenerateButton from './RecurringGenerateButton'
 import SidePanelOverlay from './SidePanelOverlay'
 import AuditHistoryModal from './AuditHistoryModal'
 import { pickActor } from './ActorPicker'
@@ -489,6 +490,19 @@ export default function BookingCalendar({
           >
             월간
           </button>
+        </div>
+
+        {/* 이번 달 루틴 예약 생성 */}
+        <div className="ml-auto">
+          <RecurringGenerateButton
+            year={view === 'monthly' ? viewYear : parseInt(date.slice(0, 4))}
+            month={view === 'monthly' ? viewMonth : parseInt(date.slice(5, 7))}
+            onGenerated={() => {
+              monthlyCacheRef.current.clear()
+              if (view === 'monthly') refreshMonthly({ skipCache: true })
+              else refresh(undefined, { skipCache: true })
+            }}
+          />
         </div>
       </div>
 

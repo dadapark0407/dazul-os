@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import CareHistoryTable from './CareHistoryTable'
+import RecurringScheduleSection from './RecurringScheduleSection'
 
 type R = Record<string, unknown>
 
@@ -468,6 +469,15 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
               )}
             </div>
           </div>
+
+          {/* 반복 방문 설정 */}
+          {guardianId && (
+            <RecurringScheduleSection
+              petId={String(activePet.id)}
+              guardianId={guardianId}
+              branchId={branchId}
+            />
+          )}
 
           {/* 케어 히스토리 테이블 */}
           <CareHistoryTable
