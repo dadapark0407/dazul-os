@@ -78,24 +78,6 @@ export async function POST(req: NextRequest) {
 
     const { start, end } = monthRangeKst(year, month)
 
-    // 이미 해당 월에 루틴 예약이 생성되었는지 확인 (마커로 식별)
-    const { data: existing, error: existErr } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('branch_id', BRANCH_ID)
-      .eq('raw_input', RECURRING_MARKER)
-      .is('deleted_at', null)
-      .gte('start_at', start)
-      .lt('start_at', end)
-      .limit(1)
-
-    if (existErr) {
-      return NextResponse.json({ error: existErr.message }, { status: 500 })
-    }
-    if (existing && existing.length > 0) {
-      return NextResponse.json({ alreadyGenerated: true })
-    }
-
     // 활성 루틴 스케줄 조회
     const { data: schedules, error: schedErr } = await supabase
       .from('recurring_schedules')

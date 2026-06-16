@@ -36,8 +36,6 @@ export default function RecurringGenerateButton({ year, month, onGenerated }: Pr
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setToast({ type: 'err', text: data?.error ?? '생성에 실패했습니다.' })
-      } else if (data?.alreadyGenerated) {
-        setToast({ type: 'warn', text: '이미 생성된 달입니다.' })
       } else {
         const created = data?.created ?? 0
         const skipped = data?.skipped ?? 0
