@@ -39,7 +39,14 @@ export default function RecurringGenerateButton({ year, month, onGenerated }: Pr
       } else if (data?.alreadyGenerated) {
         setToast({ type: 'warn', text: '이미 생성된 달입니다.' })
       } else {
-        setToast({ type: 'ok', text: `${data?.created ?? 0}건 생성 완료` })
+        const created = data?.created ?? 0
+        const skipped = data?.skipped ?? 0
+        setToast({
+          type: 'ok',
+          text: skipped > 0
+            ? `${created}건 생성 완료, ${skipped}건 건너뜀`
+            : `${created}건 생성 완료`,
+        })
         onGenerated?.()
       }
     } catch {

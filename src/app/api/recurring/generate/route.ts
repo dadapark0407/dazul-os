@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
     }
     const list = (schedules ?? []) as RecurringSchedule[]
     if (list.length === 0) {
-      return NextResponse.json({ created: 0 })
+      return NextResponse.json({ created: 0, skipped: 0 })
     }
 
     // 반려견 스냅샷(이름/품종) — 표시용 컬럼 채우기
@@ -144,12 +144,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 중복 감지용 — 이번 달 기존 예약의 (pet_id + 시작시각) 키 집합.
+    // start_at 은 timestamptz 라 표현이 달라질 수 있어 epoch(ms)로 정규화해 비교.
+    const dedupKeys = new Set<string>()
+    const { data: monthAppts } = await supabase
+      .from('appointments')
+      .select('pet_id, start_at')
+      .eq('branch_id', BRANCH_ID)
+      .in('pet_id', petIds)
+      .is('deleted_at', null)
+      .gte('start_at', start)
+      .lt('start_at', end)
+    for (const a of monthAppts ?? []) {
+      if (!a.pet_id || !a.start_at) continue
+      dedupKeys.add(`${a.pet_id}|${new Date(a.start_at as string).getTime()}`)
+    }
+
     const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
     const pad = (n: number) => String(n).padStart(2, '0')
 
     type ApptInsert = Record<string, unknown>
     const inserts: ApptInsert[] = []
     const indexUpdates: { id: string; index: number }[] = []
+    let skipped = 0
 
     for (const s of list) {
       const patternLen = s.service_pattern.length
@@ -174,11 +191,18 @@ export async function POST(req: NextRequest) {
       const recentDuration = durationMap.get(s.pet_id)
       let idx = s.current_pattern_index
       for (const date of selected) {
+        const startAt = `${date}T${s.preferred_time}+09:00`
+        // 같은 pet + 같은 시작시각이 이미 있으면 건너뜀 (회차 인덱스도 advance하지 않음)
+        const key = `${s.pet_id}|${new Date(startAt).getTime()}`
+        if (dedupKeys.has(key)) {
+          skipped++
+          continue
+        }
         const service = s.service_pattern[idx % patternLen]
         // 미용·가위컷·스포팅 회차에만 담당 미용사 배정, 그 외(목욕/목욕(부분)/기계컷)는 미배정
         const staffId = isGroomingService(service) ? s.grooming_stylist_id ?? null : null
         inserts.push({
-          start_at: `${date}T${s.preferred_time}+09:00`,
+          start_at: startAt,
           duration_min: recentDuration ?? fallbackDuration(service),
           pet_id: s.pet_id,
           guardian_id: s.guardian_id,
@@ -192,13 +216,14 @@ export async function POST(req: NextRequest) {
           pet_breed: pet?.breed ?? null,
           assign_type: 'fixed',
         })
+        dedupKeys.add(key)
         idx++
       }
       indexUpdates.push({ id: s.id, index: idx % patternLen })
     }
 
     if (inserts.length === 0) {
-      return NextResponse.json({ created: 0 })
+      return NextResponse.json({ created: 0, skipped })
     }
 
     const { error: insertErr } = await supabase
@@ -219,7 +244,7 @@ export async function POST(req: NextRequest) {
       )
     )
 
-    return NextResponse.json({ created: inserts.length })
+    return NextResponse.json({ created: inserts.length, skipped })
   } catch (e) {
     console.error(e)
     return NextResponse.json(

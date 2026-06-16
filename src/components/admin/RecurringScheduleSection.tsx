@@ -22,7 +22,7 @@ const WEEKDAY_OPTIONS: { value: number; label: string }[] = [
 const FREQUENCY_OPTIONS = [1, 2, 3, 4, 5, 6] as const
 
 // 케어 패턴 태그 후보
-const SERVICE_TAGS = ['목욕', '목욕(부분)', '기계컷', '스포팅', '가위컷', '미용']
+const SERVICE_TAGS = ['목욕', '목욕(부분)', '미용']
 
 // 미용 담당이 필요한(=담당 선생님 배정 대상) 서비스
 const GROOMING_SERVICES = ['미용', '가위컷', '스포팅']
@@ -295,41 +295,6 @@ export default function RecurringScheduleSection({ petId, guardianId, branchId }
             </select>
           </div>
 
-          {/* 현재 회차 */}
-          <div>
-            <label style={labelStyle}>현재 회차</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-                disabled={pattern.length === 0}
-                style={{ ...inputStyle, padding: '8px 12px', cursor: 'pointer' }}
-              >
-                ◀
-              </button>
-              <span style={{ fontSize: 13, color: '#1A1A1A', minWidth: 56, textAlign: 'center' }}>
-                {pattern.length === 0
-                  ? '-'
-                  : `${currentIndex + 1} / ${pattern.length}회차`}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentIndex((i) => (pattern.length === 0 ? 0 : Math.min(pattern.length - 1, i + 1)))
-                }
-                disabled={pattern.length === 0}
-                style={{ ...inputStyle, padding: '8px 12px', cursor: 'pointer' }}
-              >
-                ▶
-              </button>
-              {pattern.length > 0 && (
-                <span style={{ fontSize: 12, color: '#C9A96E' }}>
-                  다음: {pattern[Math.min(currentIndex, pattern.length - 1)]}
-                </span>
-              )}
-            </div>
-          </div>
-
           {/* 케어 패턴 */}
           <div className="sm:col-span-2">
             <label style={labelStyle}>케어 패턴 (순서대로)</label>
@@ -398,6 +363,45 @@ export default function RecurringScheduleSection({ petId, guardianId, branchId }
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* 첫 방문 케어 — 몇 번째 케어부터 시작할지 선택 */}
+          <div className="sm:col-span-2">
+            <label style={labelStyle}>첫 방문 케어</label>
+            {pattern.length === 0 ? (
+              <p style={{ fontSize: 12, color: '#BBB' }}>케어 패턴을 먼저 추가해 주세요.</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {pattern.map((p, i) => {
+                  const selected = i === currentIndex
+                  return (
+                    <label
+                      key={`${p}-${i}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        border: `1px solid ${selected ? '#C9A96E' : '#E8E5E0'}`,
+                        background: selected ? '#FAF6EE' : '#FFFFFF',
+                        color: '#1A1A1A',
+                        fontSize: 12,
+                        padding: '6px 12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="first-care"
+                        checked={selected}
+                        onChange={() => setCurrentIndex(i)}
+                        style={{ accentColor: '#C9A96E' }}
+                      />
+                      {p}({i + 1}번째)
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* 미용 담당 선생님 */}
