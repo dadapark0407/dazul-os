@@ -70,6 +70,7 @@ const inputStyle: React.CSSProperties = {
 export default function RecurringScheduleSection({ petId, guardianId, branchId }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const [existingId, setExistingId] = useState<string | null>(null)
@@ -197,6 +198,37 @@ export default function RecurringScheduleSection({ petId, guardianId, branchId }
     }
     if (res.data?.id) setExistingId(String(res.data.id))
     setMessage({ type: 'ok', text: '저장되었습니다.' })
+  }
+
+  async function handleDelete() {
+    if (!existingId) return
+    if (!window.confirm('이 반려견의 반복 방문 설정을 삭제할까요?')) return
+    setMessage(null)
+    setDeleting(true)
+
+    const { error } = await supabase
+      .from('recurring_schedules')
+      .delete()
+      .eq('id', existingId)
+
+    setDeleting(false)
+
+    if (error) {
+      setMessage({ type: 'err', text: `삭제 실패: ${error.message}` })
+      return
+    }
+
+    // 폼 초기화 (신규 입력 상태로)
+    setExistingId(null)
+    setIsActive(false)
+    setFrequencyWeeks(4)
+    setDayOfWeek(1)
+    setTime('11:00')
+    setPattern([])
+    setCurrentIndex(0)
+    setStylistId('')
+    setNotes('')
+    setMessage({ type: 'ok', text: '반복 방문 설정을 삭제했습니다.' })
   }
 
   return (
@@ -450,7 +482,7 @@ export default function RecurringScheduleSection({ petId, guardianId, branchId }
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || deleting}
               style={{
                 background: '#1A1A1A',
                 color: '#FFFFFF',
@@ -459,12 +491,32 @@ export default function RecurringScheduleSection({ petId, guardianId, branchId }
                 fontSize: 11,
                 letterSpacing: '0.1em',
                 padding: '10px 24px',
-                cursor: saving ? 'not-allowed' : 'pointer',
-                opacity: saving ? 0.6 : 1,
+                cursor: saving || deleting ? 'not-allowed' : 'pointer',
+                opacity: saving || deleting ? 0.6 : 1,
               }}
             >
               {saving ? '저장 중…' : '저장'}
             </button>
+            {existingId && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving || deleting}
+                style={{
+                  background: '#FFFFFF',
+                  color: '#B23A3A',
+                  border: '1px solid #B23A3A',
+                  borderRadius: 0,
+                  fontSize: 11,
+                  letterSpacing: '0.1em',
+                  padding: '10px 20px',
+                  cursor: saving || deleting ? 'not-allowed' : 'pointer',
+                  opacity: saving || deleting ? 0.6 : 1,
+                }}
+              >
+                {deleting ? '삭제 중…' : '루틴 삭제'}
+              </button>
+            )}
             {message && (
               <span
                 style={{
