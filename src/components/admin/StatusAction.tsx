@@ -9,16 +9,14 @@ import { supabase } from '@/lib/supabase'
 /**
  * 범용 상태 관리 컴포넌트 (활성/비활성/아카이브)
  *
- * 스키마 방어 전략:
- *   1. `active` (boolean) — primary: 대부분의 테이블에서 사용
- *   2. `is_active` (boolean) — alternate: 일부 테이블에서 사용 가능
- *   3. `archived_at` (timestamp | null) — alternate: soft-delete 패턴
- *
- * Supabase는 존재하지 않는 컬럼 업데이트 시 에러를 반환하므로
- * 먼저 현재 레코드의 필드를 읽고 어떤 패턴인지 감지합니다.
+ * 테이블별 상태 컬럼 패턴:
+ *   1. `status` (text: 'active' | 'inactive') — pets
+ *   2. `active` (boolean)
+ *   3. `is_active` (boolean) — products
+ *   4. `archived_at` (timestamp | null) — soft-delete 패턴
  */
 
-type StatusSchemaType = 'active' | 'is_active' | 'archived_at' | 'unknown'
+type StatusSchemaType = 'status' | 'active' | 'is_active' | 'archived_at'
 
 type StatusActionProps = {
   /** Supabase 테이블 이름 */
@@ -32,22 +30,23 @@ type StatusActionProps = {
 }
 
 function detectSchema(record: Record<string, unknown>): StatusSchemaType {
+  if ('status' in record) return 'status'
   if ('active' in record) return 'active'
   if ('is_active' in record) return 'is_active'
   if ('archived_at' in record) return 'archived_at'
-  return 'unknown'
+  return 'status'
 }
 
 function isCurrentlyActive(record: Record<string, unknown>, schema: StatusSchemaType): boolean {
   switch (schema) {
+    case 'status':
+      return record.status !== 'inactive'
     case 'active':
       return record.active !== false
     case 'is_active':
       return record.is_active !== false
     case 'archived_at':
       return record.archived_at == null
-    default:
-      return true
   }
 }
 
@@ -80,6 +79,9 @@ export default function StatusAction({
     let payload: Record<string, unknown> = {}
 
     switch (schema) {
+      case 'status':
+        payload = { status: nextActive ? 'active' : 'inactive' }
+        break
       case 'active':
         payload = { active: nextActive }
         break
@@ -88,11 +90,6 @@ export default function StatusAction({
         break
       case 'archived_at':
         payload = { archived_at: nextActive ? null : new Date().toISOString() }
-        break
-      case 'unknown':
-        // 스키마에 상태 컬럼이 없으면 active를 시도
-        // Supabase가 컬럼 없으면 에러 반환 — 사용자에게 안내
-        payload = { active: nextActive }
         break
     }
 
@@ -104,16 +101,7 @@ export default function StatusAction({
     setLoading(false)
 
     if (updateError) {
-      if (
-        updateError.message.includes('does not exist') ||
-        updateError.message.includes('column')
-      ) {
-        setError(
-          `이 테이블에는 아직 상태 관리 컬럼이 없습니다. Supabase에 active (boolean) 컬럼을 추가해주세요.`
-        )
-      } else {
-        setError(`상태 변경 중 오류: ${updateError.message}`)
-      }
+      setError(`상태 변경 중 오류: ${updateError.message}`)
       return
     }
 
@@ -141,11 +129,6 @@ export default function StatusAction({
           {schema === 'archived_at' && !currentlyActive && record.archived_at != null && (
             <span className="text-xs text-neutral-400">
               아카이브됨
-            </span>
-          )}
-          {schema === 'unknown' && (
-            <span className="text-xs text-amber-500">
-              (상태 컬럼 미감지)
             </span>
           )}
         </div>

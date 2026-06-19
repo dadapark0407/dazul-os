@@ -22,7 +22,7 @@ const WEEKDAY_OPTIONS: { value: number; label: string }[] = [
 const FREQUENCY_OPTIONS = [1, 2, 3, 4, 5, 6] as const
 
 // 케어 패턴 태그 후보
-const SERVICE_TAGS = ['목욕', '목욕(부분)', '미용']
+const SERVICE_TAGS = ['목욕', '목욕(부분)', '미용', '빗질']
 
 // 미용 담당이 필요한(=담당 선생님 배정 대상) 서비스
 const GROOMING_SERVICES = ['미용', '가위컷', '스포팅']

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getDefaultBranchId } from '@/lib/branch'
 
 // 소프트 삭제 유지 기간 (일)
 const RETENTION_DAYS = 30
@@ -83,10 +84,14 @@ export default function TrashPage() {
         }))
       )
     } else if (activeTab === 'visit_records') {
-      const { data, error } = await supabase
+      // 케어 기록만 매장 귀속 — branch 미확인 시 기존 전체 조회 유지 (무중단)
+      const branchId = await getDefaultBranchId()
+      let recordsQuery = supabase
         .from('visit_records')
         .select('id, visit_date, pet_name, guardian_name, deleted_at')
         .not('deleted_at', 'is', null)
+      if (branchId) recordsQuery = recordsQuery.eq('branch_id', branchId)
+      const { data, error } = await recordsQuery
         .order('deleted_at', { ascending: false })
       if (error) setErrorMsg(error.message)
       setItems(

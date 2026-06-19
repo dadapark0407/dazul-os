@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
+import { getDefaultBranchId } from '@/lib/branch'
 
 // TODO: 역할 기반 인증 추가 필요
 // TODO: getCurrentUserRole() 연동 후 역할별 대시보드 표시 분기
@@ -28,7 +29,7 @@ async function safeCount(
   supabase: Awaited<ReturnType<typeof createClient>>,
   table: string,
   filter?: { column: string; value: string },
-  options?: { excludeDeleted?: boolean }
+  options?: { excludeDeleted?: boolean; branchId?: string | null }
 ): Promise<number | null> {
   let query = supabase.from(table).select('id', { count: 'exact', head: true })
   if (filter) {
@@ -37,6 +38,9 @@ async function safeCount(
   if (options?.excludeDeleted) {
     query = query.is('deleted_at', null)
   }
+  if (options?.branchId) {
+    query = query.eq('branch_id', options.branchId)
+  }
   const { count, error } = await query
   if (error) return null
   return count ?? 0
@@ -44,6 +48,8 @@ async function safeCount(
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient()
+  // 매장 필터 — branch 미확인 시 기존 전체 조회 유지 (무중단)
+  const branchId = await getDefaultBranchId()
 
   // ─── KPI 카운트 (병렬, 각각 독립 실패 안전) ───
   const [
@@ -56,17 +62,19 @@ export default async function AdminDashboardPage() {
   ] = await Promise.all([
     safeCount(supabase, 'pets'),
     safeCount(supabase, 'guardians'),
-    safeCount(supabase, 'visit_records', undefined, { excludeDeleted: true }),
+    safeCount(supabase, 'visit_records', undefined, { excludeDeleted: true, branchId }),
     safeCount(supabase, 'products'),
     safeCount(supabase, 'followups', { column: 'status', value: 'pending' }),
     safeCount(supabase, 'staff_profiles'),
   ])
 
   // ─── 최근 방문 기록 (7건) ───
-  const { data: recentRecords } = await supabase
+  let recentRecordsQuery = supabase
     .from('visit_records')
     .select('id, visit_date, service_type, pet_id, guardian_id')
     .is('deleted_at', null)
+  if (branchId) recentRecordsQuery = recentRecordsQuery.eq('branch_id', branchId)
+  const { data: recentRecords } = await recentRecordsQuery
     .order('visit_date', { ascending: false })
     .limit(7)
 
@@ -142,7 +150,7 @@ export default async function AdminDashboardPage() {
     supabase,
     'visit_records',
     { column: 'visit_date', value: today },
-    { excludeDeleted: true }
+    { excludeDeleted: true, branchId }
   )
 
   // ─── 통계: 재방문율 / 스파코스 선택률 / 이탈 위험 ───
@@ -158,17 +166,23 @@ export default async function AdminDashboardPage() {
     visit_date: string | null
   }
 
+  let thisMonthQuery = supabase
+    .from('visit_records')
+    .select('guardian_id, pet_id, spa_level, visit_date')
+    .is('deleted_at', null)
+  if (branchId) thisMonthQuery = thisMonthQuery.eq('branch_id', branchId)
+
+  let lastMonthQuery = supabase
+    .from('visit_records')
+    .select('guardian_id, pet_id, visit_date')
+    .is('deleted_at', null)
+  if (branchId) lastMonthQuery = lastMonthQuery.eq('branch_id', branchId)
+
   const [{ data: thisMonthVisits }, { data: lastMonthVisits }] = await Promise.all([
-    supabase
-      .from('visit_records')
-      .select('guardian_id, pet_id, spa_level, visit_date')
-      .is('deleted_at', null)
+    thisMonthQuery
       .gte('visit_date', thisMonthStart)
       .lt('visit_date', nextMonthStart),
-    supabase
-      .from('visit_records')
-      .select('guardian_id, pet_id, visit_date')
-      .is('deleted_at', null)
+    lastMonthQuery
       .gte('visit_date', lastMonthStart)
       .lt('visit_date', thisMonthStart),
   ])
@@ -223,11 +237,13 @@ export default async function AdminDashboardPage() {
   const sixWeeksAgo = new Date()
   sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42)
 
-  const { data: allVisits } = await supabase
+  let allVisitsQuery = supabase
     .from('visit_records')
     .select('pet_id, visit_date')
     .is('deleted_at', null)
     .not('pet_id', 'is', null)
+  if (branchId) allVisitsQuery = allVisitsQuery.eq('branch_id', branchId)
+  const { data: allVisits } = await allVisitsQuery
     .order('visit_date', { ascending: false })
 
   const latestVisitByPet: Record<string, string> = {}
