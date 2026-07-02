@@ -12,7 +12,7 @@ import type {
   Staff,
   StaffOff,
 } from '@/lib/booking/actions'
-import { updateAppointment, createStaffOff } from '@/lib/booking/actions'
+import { updateAppointment, createStaffOff, deleteStaffOff } from '@/lib/booking/actions'
 import { getSessionActor } from '@/lib/booking/actor-client'
 
 type Props = {
@@ -168,6 +168,8 @@ export default function TimelineGrid({
   const [resizeState, setResizeState] = useState<ResizeState | null>(null)
   // 시간 블락 추가 모달 대상 미용사 ID
   const [timeBlockTarget, setTimeBlockTarget] = useState<string | null>(null)
+  // 시간 블락 취소 팝업 대상
+  const [cancelBlockTarget, setCancelBlockTarget] = useState<StaffOff | null>(null)
 
   // refs (document mouse 핸들러에서 최신값 참조용)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -687,6 +689,7 @@ export default function TimelineGrid({
                         <div
                           key={`lunch-${item.id}`}
                           title={isTimeBlock && rawReason ? rawReason : undefined}
+                          onClick={isTimeBlock ? () => setCancelBlockTarget(item.off) : undefined}
                           style={{
                             position: 'absolute',
                             top,
@@ -699,7 +702,8 @@ export default function TimelineGrid({
                             fontSize: 11,
                             color: fg,
                             letterSpacing: '0.05em',
-                            pointerEvents: 'none',
+                            pointerEvents: isTimeBlock ? 'auto' : 'none',
+                            cursor: isTimeBlock ? 'pointer' : undefined,
                             overflow: 'hidden',
                             padding: '0 4px',
                             textAlign: 'center',
@@ -792,6 +796,18 @@ export default function TimelineGrid({
             </div>
           )}
         </div>
+      )}
+
+      {/* ─── 시간 블락 취소 팝업 ─── */}
+      {cancelBlockTarget && (
+        <TimeBlockCancelPopup
+          block={cancelBlockTarget}
+          onClose={() => setCancelBlockTarget(null)}
+          onDeleted={() => {
+            setCancelBlockTarget(null)
+            onChanged()
+          }}
+        />
       )}
 
       {/* ─── 시간 블락 추가 모달 ─── */}
@@ -1117,6 +1133,133 @@ function TimeBlockModal({
         >
           {saving ? '등록 중…' : '등록'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── 시간 블락 취소 팝업 ───
+
+function TimeBlockCancelPopup({
+  block,
+  onClose,
+  onDeleted,
+}: {
+  block: StaffOff
+  onClose: () => void
+  onDeleted: () => void
+}) {
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    if (deleting) return
+    const ok = window.confirm('이 시간 블락을 취소하시겠습니까?')
+    if (!ok) return
+    setDeleting(true)
+    setError(null)
+    const result = await deleteStaffOff(block.id)
+    setDeleting(false)
+    if (!result.ok) {
+      setError((result as { error?: string }).error ?? '삭제에 실패했습니다')
+      return
+    }
+    onDeleted()
+  }
+
+  const timeRange =
+    block.start_time && block.end_time
+      ? `${block.start_time.slice(0, 5)} – ${block.end_time.slice(0, 5)}`
+      : '시간 미상'
+  const reason = (block.reason ?? '').trim()
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.35)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF',
+          border: '1px solid #E8E5E0',
+          borderRadius: 0,
+          width: '100%',
+          maxWidth: 320,
+          padding: 24,
+        }}
+      >
+        <p
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.15em',
+            color: '#8A8A7A',
+            textTransform: 'uppercase',
+            marginBottom: 16,
+          }}
+        >
+          시간 블락
+        </p>
+
+        <p style={{ fontSize: 20, fontWeight: 600, color: '#1A1A1A', marginBottom: 6 }}>
+          {timeRange}
+        </p>
+        {reason && (
+          <p style={{ fontSize: 13, color: '#1A1A1A', marginBottom: 0 }}>{reason}</p>
+        )}
+
+        {error && (
+          <p style={{ fontSize: 12, color: '#B23A3A', marginTop: 12 }}>{error}</p>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            style={{
+              flex: 1,
+              background: deleting ? '#F0EDE8' : '#C9A96E',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: 0,
+              padding: '10px 0',
+              fontSize: 13,
+              letterSpacing: '0.1em',
+              cursor: deleting ? 'default' : 'pointer',
+              opacity: deleting ? 0.6 : 1,
+            }}
+          >
+            {deleting ? '처리 중…' : '블락 취소'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            style={{
+              flex: 1,
+              background: '#FFFFFF',
+              color: '#1A1A1A',
+              border: '1px solid #E8E5E0',
+              borderRadius: 0,
+              padding: '10px 0',
+              fontSize: 13,
+              letterSpacing: '0.1em',
+              cursor: deleting ? 'default' : 'pointer',
+            }}
+          >
+            닫기
+          </button>
+        </div>
       </div>
     </div>
   )
