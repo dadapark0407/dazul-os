@@ -142,7 +142,6 @@ export default function AdminSettlementPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<SettlementItem[]>([])
   const [itemsLoading, setItemsLoading] = useState(false)
-  const [showItems, setShowItems] = useState(false)
 
   // 지급 처리 폼
   const [payingId, setPayingId] = useState<string | null>(null)
@@ -233,18 +232,16 @@ export default function AdminSettlementPage() {
     if (expandedId === settlementId) {
       setExpandedId(null)
       setPayingId(null)
-      setShowItems(false)
       setExpandedItems([])
     } else {
       setExpandedId(settlementId)
       setPayingId(null)
-      setShowItems(false)
       setExpandedItems([])
+      loadItems(settlementId)
     }
   }
 
   async function loadItems(settlementId: string) {
-    setShowItems(true)
     setItemsLoading(true)
     const { data } = await supabase
       .from('freelance_settlement_items')
@@ -659,33 +656,21 @@ export default function AdminSettlementPage() {
 
                         {/* 스냅샷 명세 */}
                         <div style={{ background: '#FFFFFF', padding: '0 18px 16px' }}>
-                          {/* 내역 토글 버튼 */}
-                          <button
-                            onClick={() => showItems ? setShowItems(false) : loadItems(st.id)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 8px' }}
-                          >
-                            {showItems ? '내역 닫기 ▲' : '내역 보기 ▼'}
-                          </button>
-
-                          {showItems && (
-                            <>
-                              <div style={{ borderTop: '1px solid #F0EDE8', marginBottom: 8 }} />
-                              {itemsLoading ? (
-                                <p style={{ fontSize: 12, color: '#AAA', textAlign: 'center', padding: '12px 0' }}>불러오는 중…</p>
-                              ) : expandedItems.map(item => (
-                                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F5F2EE' }}>
-                                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                                    <span style={{ fontSize: 12, color: '#888' }}>{item.date_snapshot}</span>
-                                    <span style={{ fontSize: 12, color: '#1A1A1A' }}>{item.pet_name_snapshot}</span>
-                                    <span style={{ fontSize: 11, color: '#AAA' }}>{item.breed_snapshot}</span>
-                                  </div>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>{fmt(item.amount_snapshot)}원</span>
-                                </div>
-                              ))}
-                              {!itemsLoading && expandedItems.length === 0 && (
-                                <p style={{ fontSize: 12, color: '#BBB', textAlign: 'center', padding: '12px 0' }}>명세 없음</p>
-                              )}
-                            </>
+                          <div style={{ borderTop: '1px solid #F0EDE8', marginBottom: 8, marginTop: 4 }} />
+                          {itemsLoading ? (
+                            <p style={{ fontSize: 12, color: '#AAA', textAlign: 'center', padding: '12px 0' }}>불러오는 중…</p>
+                          ) : expandedItems.map(item => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F5F2EE' }}>
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <span style={{ fontSize: 12, color: '#888' }}>{item.date_snapshot}</span>
+                                <span style={{ fontSize: 12, color: '#1A1A1A' }}>{item.pet_name_snapshot}</span>
+                                <span style={{ fontSize: 11, color: '#AAA' }}>{item.breed_snapshot}</span>
+                              </div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>{fmt(item.amount_snapshot)}원</span>
+                            </div>
+                          ))}
+                          {!itemsLoading && expandedItems.length === 0 && (
+                            <p style={{ fontSize: 12, color: '#BBB', textAlign: 'center', padding: '12px 0' }}>명세 없음</p>
                           )}
 
                           {/* 상태 액션 영역 */}
