@@ -143,6 +143,7 @@ export default function AdminSettlementPage() {
   const [expandedItems, setExpandedItems] = useState<SettlementItem[]>([])
   const [itemsLoading, setItemsLoading] = useState(false)
   const [showItems, setShowItems] = useState(false)
+  const [showCalc, setShowCalc] = useState(false)
 
   // 지급 처리 폼
   const [payingId, setPayingId] = useState<string | null>(null)
@@ -234,11 +235,13 @@ export default function AdminSettlementPage() {
       setExpandedId(null)
       setPayingId(null)
       setShowItems(false)
+      setShowCalc(false)
       setExpandedItems([])
     } else {
       setExpandedId(settlementId)
       setPayingId(null)
       setShowItems(false)
+      setShowCalc(false)
       setExpandedItems([])
     }
   }
@@ -628,27 +631,44 @@ export default function AdminSettlementPage() {
 
                     {isExpanded && (
                       <div>
-                        {/* 금액 명세 — 블랙 배경 */}
-                        <div style={{ background: '#1A1A1A', padding: '20px 20px' }}>
-                          <p style={{ fontSize: 11, color: '#888', marginBottom: 16, letterSpacing: '0.08em' }}>
-                            {st.period_from} ~ {st.period_to} · 커미션 {Math.round(Number(st.commission_rate) * 100)}%
+                        {/* 계산 명세 카드 */}
+                        <div style={{ background: '#FAFAF8', border: '1px solid #E8E5E0', borderTop: 'none', padding: '18px 20px' }}>
+                          {/* 상단: 기간 매출 합계 */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                            <span style={{ fontSize: 13, color: '#4A463F' }}>기간 매출 합계</span>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>{fmt(st.total_amount)}원</span>
+                          </div>
+                          {/* 계산식 한 줄 */}
+                          <p style={{ fontSize: 12, color: '#9A9488', marginBottom: 10, lineHeight: 1.5 }}>
+                            ÷1.1 (공급가액)&nbsp;&nbsp;×&nbsp;{Math.round(Number(st.commission_rate) * 100)}% (커미션)&nbsp;&nbsp;×&nbsp;0.967 (원천징수 3.3%)
                           </p>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {[
-                              { label: '기간 매출 합계', value: fmt(st.total_amount) + '원', color: '#FFFFFF' },
-                              { label: '공급가액 (÷1.1)', value: fmt(st.supply_amount) + '원', color: '#FFFFFF' },
-                              { label: `커미션 적용액 (×${Math.round(Number(st.commission_rate) * 100)}%)`, value: fmt(st.before_tax_amount) + '원', color: '#FFFFFF' },
-                              { label: '원천징수 (×3.3%)', value: '−' + fmt(st.withholding_amount) + '원', color: '#C62828' },
-                            ].map(row => (
-                              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: 13, color: '#AAA' }}>{row.label}</span>
-                                <span style={{ fontSize: 14, color: row.color }}>{row.value}</span>
+                          {/* 계산 내역 토글 */}
+                          <button
+                            onClick={() => setShowCalc(v => !v)}
+                            style={{ fontSize: 12, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', marginBottom: showCalc ? 10 : 0 }}
+                          >
+                            {showCalc ? '계산 내역 닫기 ▴' : '계산 내역 보기 ▾'}
+                          </button>
+                          {showCalc && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: 12, color: '#9A9488' }}>공급가액</span>
+                                <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.supply_amount)}원</span>
                               </div>
-                            ))}
-                            <div style={{ borderTop: '1px solid #333', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: 14, fontWeight: 600, color: '#C9A96E' }}>최종 지급액</span>
-                              <span style={{ fontSize: 18, fontWeight: 700, color: '#C9A96E' }}>{fmt(st.payout_amount)}원</span>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: 12, color: '#9A9488' }}>커미션 (×{Math.round(Number(st.commission_rate) * 100)}%)</span>
+                                <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.before_tax_amount)}원</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: 12, color: '#9A9488' }}>원천징수 (−3.3%)</span>
+                                <span style={{ fontSize: 13, color: '#C62828' }}>−{fmt(st.withholding_amount)}원</span>
+                              </div>
                             </div>
+                          )}
+                          {/* 구분선 + 최종 지급액 */}
+                          <div style={{ borderTop: '1px solid #E8E5E0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#C9A96E' }}>최종 지급액</span>
+                            <span style={{ fontSize: 28, fontWeight: 700, color: '#1A1A1A', fontFamily: 'Georgia, serif', lineHeight: 1 }}>{fmt(st.payout_amount)}원</span>
                           </div>
                         </div>
 
