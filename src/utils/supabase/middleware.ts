@@ -31,6 +31,21 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // /admin/settlement/login, /admin/settlement/auth/* — 공개 (매직링크 흐름)
+  if (
+    pathname === '/admin/settlement/login' ||
+    pathname.startsWith('/admin/settlement/auth/')
+  ) {
+    return supabaseResponse
+  }
+
+  // /admin/settlement/* — 미인증 시 /admin/settlement/login 으로
+  if (pathname.startsWith('/admin/settlement') && !user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/admin/settlement/login'
+    return NextResponse.redirect(url)
+  }
+
   // /admin/* — 로그인 필요
   if (pathname.startsWith('/admin') && !user) {
     const url = request.nextUrl.clone()
@@ -49,6 +64,21 @@ export async function updateSession(request: NextRequest) {
   if (pathname === '/admin' && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/admin/booking'
+    return NextResponse.redirect(url)
+  }
+
+  // /settlement/login, /settlement/auth/* — 공개 (통과)
+  if (
+    pathname === '/settlement/login' ||
+    pathname.startsWith('/settlement/auth/')
+  ) {
+    return supabaseResponse
+  }
+
+  // /settlement/* — 로그인 필요 → /settlement/login으로
+  if (pathname.startsWith('/settlement') && !user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/settlement/login'
     return NextResponse.redirect(url)
   }
 
