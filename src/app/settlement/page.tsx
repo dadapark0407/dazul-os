@@ -244,19 +244,18 @@ export default function SettlementPage() {
   }
 
   function startEdit(s: Sale) {
-    setEditId(s.id); setEditDate(s.date); setEditBreed(s.breed)
-    setEditPetName(s.pet_name); setEditAmountStr(s.amount.toLocaleString('ko-KR'))
+    setEditId(s.id); setEditDate(s.date ?? ''); setEditBreed(s.breed ?? '')
+    setEditPetName(s.pet_name ?? ''); setEditAmountStr(s.amount.toLocaleString('ko-KR'))
     setEditMemo(s.memo ?? ''); setEditError('')
   }
 
   async function handleEditSave() {
     const amt = parseAmount(editAmountStr)
-    if (!editBreed.trim()) { setEditError('견종을 입력해 주세요.'); return }
     if (!editPetName.trim()) { setEditError('이름을 입력해 주세요.'); return }
     if (!amt || amt <= 0) { setEditError('금액을 입력해 주세요.'); return }
     setEditSaving(true); setEditError('')
     const updatePayload: Record<string, unknown> = {
-      date: editDate, breed: editBreed.trim(), pet_name: editPetName.trim(),
+      date: editDate, breed: editBreed.trim() || null, pet_name: editPetName.trim(),
       amount: amt, memo: editMemo.trim() || null,
     }
     const sale = sales.find(s => s.id === editId)
@@ -630,15 +629,9 @@ export default function SettlementPage() {
                           <label style={{ display: 'block', fontSize: 11, color: '#888', marginBottom: 4 }}>날짜</label>
                           <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={inputStyle} />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                          <div>
-                            <label style={{ display: 'block', fontSize: 11, color: '#888', marginBottom: 4 }}>견종</label>
-                            <input type="text" value={editBreed} onChange={e => setEditBreed(e.target.value)} style={inputStyle} />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: 11, color: '#888', marginBottom: 4 }}>이름</label>
-                            <input type="text" value={editPetName} onChange={e => setEditPetName(e.target.value)} style={inputStyle} />
-                          </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <label style={{ display: 'block', fontSize: 11, color: '#888', marginBottom: 4 }}>이름</label>
+                          <input type="text" value={editPetName} onChange={e => setEditPetName(e.target.value)} style={inputStyle} />
                         </div>
                         <div style={{ marginBottom: 8 }}>
                           <label style={{ display: 'block', fontSize: 11, color: '#888', marginBottom: 4 }}>금액 (원)</label>
