@@ -139,10 +139,9 @@ export default function AdminSettlementPage() {
   const [createError, setCreateError] = useState('')
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [settlementsLoading, setSettlementsLoading] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [expandedItems, setExpandedItems] = useState<SettlementItem[]>([])
-  const [itemsLoading, setItemsLoading] = useState(false)
-  const [showItems, setShowItems] = useState(false)
+  const [showItemsSet, setShowItemsSet] = useState<Set<string>>(new Set())
+  const [expandedItemsMap, setExpandedItemsMap] = useState<Map<string, SettlementItem[]>>(new Map())
+  const [loadingItemsSet, setLoadingItemsSet] = useState<Set<string>>(new Set())
 
   // 지급 처리 폼
   const [payingId, setPayingId] = useState<string | null>(null)
@@ -229,30 +228,24 @@ export default function AdminSettlementPage() {
   useEffect(() => { if (tab === 'settlement') fetchSettlements() }, [fetchSettlements, tab])
 
   // ── 정산 상세 items ──
-  function toggleExpand(settlementId: string) {
-    if (expandedId === settlementId) {
-      setExpandedId(null)
-      setPayingId(null)
-      setShowItems(false)
-      setExpandedItems([])
-    } else {
-      setExpandedId(settlementId)
-      setPayingId(null)
-      setShowItems(false)
-      setExpandedItems([])
-    }
-  }
-
   async function loadItems(settlementId: string) {
-    setShowItems(true)
-    setItemsLoading(true)
+    setShowItemsSet(prev => new Set(prev).add(settlementId))
+    setLoadingItemsSet(prev => new Set(prev).add(settlementId))
     const { data } = await supabase
       .from('freelance_settlement_items')
       .select('id, sale_id, date_snapshot, pet_name_snapshot, breed_snapshot, amount_snapshot')
       .eq('settlement_id', settlementId)
       .order('date_snapshot', { ascending: true })
-    setExpandedItems((data as SettlementItem[]) ?? [])
-    setItemsLoading(false)
+    setExpandedItemsMap(prev => new Map(prev).set(settlementId, (data as SettlementItem[]) ?? []))
+    setLoadingItemsSet(prev => { const next = new Set(prev); next.delete(settlementId); return next })
+  }
+
+  function toggleItems(settlementId: string) {
+    if (showItemsSet.has(settlementId)) {
+      setShowItemsSet(prev => { const next = new Set(prev); next.delete(settlementId); return next })
+    } else {
+      loadItems(settlementId)
+    }
   }
 
   async function handleLogout() {
@@ -609,137 +602,108 @@ export default function AdminSettlementPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {settlements.map(st => {
-                const isExpanded = expandedId === st.id
                 const stBadge = SETTLEMENT_STATUS_LABEL[st.status] ?? { label: st.status, bg: '#F5F2EE', color: '#888' }
                 const isPaid = st.status === 'paid'
                 const isThisPaying = payingId === st.id
+                const itemsShown = showItemsSet.has(st.id)
+                const itemsLoading = loadingItemsSet.has(st.id)
+                const items = expandedItemsMap.get(st.id) ?? []
                 return (
                   <div key={st.id} style={{ border: '1px solid #E8E5E0', overflow: 'hidden' }}>
-                    <button onClick={() => toggleExpand(st.id)} style={{
-                      width: '100%', background: '#FFFFFF', border: 'none', cursor: 'pointer',
-                      padding: '16px 18px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-                    }}>
+                    {/* 정산 요약 헤더 */}
+                    <div style={{ background: '#FFFFFF', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>{groomerName(st.groomer_id)}</span>
                       <span style={{ fontSize: 12, color: '#888' }}>{st.period_from} ~ {st.period_to}</span>
                       <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', background: stBadge.bg, color: stBadge.color }}>{stBadge.label}</span>
                       <span style={{ marginLeft: 'auto', fontSize: 15, fontWeight: 700, color: '#C9A96E' }}>{fmt(st.payout_amount)}원</span>
-                      <span style={{ fontSize: 12, color: '#AAA' }}>{isExpanded ? '▲' : '▼'}</span>
-                    </button>
+                    </div>
 
-                    {isExpanded && (
-                      <div>
-                        {/* 계산 명세 카드 */}
-                        <div style={{ background: '#FAFAF8', border: '1px solid #E8E5E0', borderTop: 'none', padding: '18px 20px' }}>
-                          {/* 상단: 기간 매출 합계 */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                            <span style={{ fontSize: 13, color: '#4A463F' }}>기간 매출 합계</span>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>{fmt(st.total_amount)}원</span>
-                          </div>
-                          {/* 세부 금액 — 항상 표시 */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, color: '#9A9488' }}>공급가액 (÷1.1)</span>
-                              <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.supply_amount)}원</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, color: '#9A9488' }}>커미션 (×{Math.round(Number(st.commission_rate) * 100)}%)</span>
-                              <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.before_tax_amount)}원</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, color: '#9A9488' }}>원천징수 (−3.3%)</span>
-                              <span style={{ fontSize: 13, color: '#C62828' }}>−{fmt(st.withholding_amount)}원</span>
-                            </div>
-                          </div>
-                          {/* 구분선 + 최종 지급액 */}
-                          <div style={{ borderTop: '1px solid #E8E5E0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#C9A96E' }}>최종 지급액</span>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: '#C9A96E' }}>{fmt(st.payout_amount)}원</span>
-                          </div>
+                    {/* 계산 명세 — 항상 표시 */}
+                    <div style={{ background: '#FAFAF8', borderTop: '1px solid #E8E5E0', padding: '18px 20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, color: '#4A463F' }}>기간 매출 합계</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>{fmt(st.total_amount)}원</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: '#9A9488' }}>공급가액 (÷1.1)</span>
+                          <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.supply_amount)}원</span>
                         </div>
-
-                        {/* 스냅샷 명세 */}
-                        <div style={{ background: '#FFFFFF', padding: '0 18px 16px' }}>
-                          <button
-                            onClick={() => showItems ? setShowItems(false) : loadItems(st.id)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 8px' }}
-                          >
-                            {showItems ? '매출 내역 닫기 ▲' : '매출 내역 보기 ▼'}
-                          </button>
-
-                          {showItems && (
-                            <>
-                              <div style={{ borderTop: '1px solid #F0EDE8', marginBottom: 8 }} />
-                              {itemsLoading ? (
-                                <p style={{ fontSize: 12, color: '#AAA', textAlign: 'center', padding: '12px 0' }}>불러오는 중…</p>
-                              ) : expandedItems.map(item => (
-                                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F5F2EE' }}>
-                                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                                    <span style={{ fontSize: 12, color: '#888' }}>{item.date_snapshot}</span>
-                                    <span style={{ fontSize: 12, color: '#1A1A1A' }}>{item.pet_name_snapshot}</span>
-                                    <span style={{ fontSize: 11, color: '#AAA' }}>{item.breed_snapshot}</span>
-                                  </div>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>{fmt(item.amount_snapshot)}원</span>
-                                </div>
-                              ))}
-                              {!itemsLoading && expandedItems.length === 0 && (
-                                <p style={{ fontSize: 12, color: '#BBB', textAlign: 'center', padding: '12px 0' }}>명세 없음</p>
-                              )}
-                            </>
-                          )}
-
-                          {/* 상태 액션 영역 */}
-                          <div style={{ borderTop: '1px solid #F0EDE8', paddingTop: 16, marginTop: 8 }}>
-                            {isPaid ? (
-                              /* paid: 지급 정보 표시, 버튼 없음 (최종 잠금) */
-                              <div style={{ background: '#F5F2EE', padding: '12px 14px' }}>
-                                <p style={{ fontSize: 12, fontWeight: 600, color: '#2E7D32', marginBottom: 6 }}>지급완료</p>
-                                {st.paid_at && <p style={{ fontSize: 12, color: '#888' }}>지급일: {st.paid_at.slice(0, 10)}</p>}
-                                {st.payment_method && <p style={{ fontSize: 12, color: '#888' }}>지급 방식: {st.payment_method}</p>}
-                                {st.payment_reference && <p style={{ fontSize: 12, color: '#888' }}>메모: {st.payment_reference}</p>}
-                              </div>
-                            ) : (
-                              /* draft: 정산완료 처리 */
-                              isThisPaying ? (
-                                <div>
-                                  <p style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>지급 정보 입력 (선택)</p>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                                    <input
-                                      type="text" value={payMethod} onChange={e => setPayMethod(e.target.value)}
-                                      placeholder="지급 방식 (예: 계좌이체)"
-                                      style={{ ...inputStyle, width: '100%' }}
-                                    />
-                                    <input
-                                      type="text" value={payRef} onChange={e => setPayRef(e.target.value)}
-                                      placeholder="메모 (예: 하나은행 110-xxx)"
-                                      style={{ ...inputStyle, width: '100%' }}
-                                    />
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 8 }}>
-                                    <button
-                                      onClick={() => handleMarkPaid(st.id)}
-                                      disabled={payProcessing}
-                                      style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 600, background: payProcessing ? '#E8E5E0' : '#1A1A1A', color: payProcessing ? '#AAA' : '#FFFFFF', border: 'none', borderRadius: 0, cursor: payProcessing ? 'default' : 'pointer' }}
-                                    >
-                                      {payProcessing ? '처리 중…' : '정산완료 확정'}
-                                    </button>
-                                    <button onClick={() => { setPayingId(null); setPayMethod(''); setPayRef('') }} style={{ padding: '10px 16px', fontSize: 13, color: '#888', background: 'none', border: '1px solid #E8E5E0', borderRadius: 0, cursor: 'pointer' }}>
-                                      취소
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setPayingId(st.id)}
-                                  style={{ width: '100%', padding: '11px', fontSize: 13, fontWeight: 600, background: '#C9A96E', color: '#FFFFFF', border: 'none', borderRadius: 0, cursor: 'pointer' }}
-                                >
-                                  정산완료 처리
-                                </button>
-                              )
-                            )}
-                          </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: '#9A9488' }}>커미션 (×{Math.round(Number(st.commission_rate) * 100)}%)</span>
+                          <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.before_tax_amount)}원</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: '#9A9488' }}>원천징수 (−3.3%)</span>
+                          <span style={{ fontSize: 13, color: '#C62828' }}>−{fmt(st.withholding_amount)}원</span>
                         </div>
                       </div>
-                    )}
+                      <div style={{ borderTop: '1px solid #E8E5E0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#C9A96E' }}>최종 지급액</span>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: '#C9A96E' }}>{fmt(st.payout_amount)}원</span>
+                      </div>
+                    </div>
+
+                    {/* 매출 내역 접기 + 액션 */}
+                    <div style={{ background: '#FFFFFF', padding: '0 18px 16px' }}>
+                      <button
+                        onClick={() => toggleItems(st.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 8px' }}
+                      >
+                        {itemsShown ? '매출 내역 닫기 ▲' : '매출 내역 보기 ▼'}
+                      </button>
+
+                      {itemsShown && (
+                        <>
+                          <div style={{ borderTop: '1px solid #F0EDE8', marginBottom: 8 }} />
+                          {itemsLoading ? (
+                            <p style={{ fontSize: 12, color: '#AAA', textAlign: 'center', padding: '12px 0' }}>불러오는 중…</p>
+                          ) : items.map(item => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F5F2EE' }}>
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <span style={{ fontSize: 12, color: '#888' }}>{item.date_snapshot}</span>
+                                <span style={{ fontSize: 12, color: '#1A1A1A' }}>{item.pet_name_snapshot}</span>
+                                <span style={{ fontSize: 11, color: '#AAA' }}>{item.breed_snapshot}</span>
+                              </div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>{fmt(item.amount_snapshot)}원</span>
+                            </div>
+                          ))}
+                          {!itemsLoading && items.length === 0 && (
+                            <p style={{ fontSize: 12, color: '#BBB', textAlign: 'center', padding: '12px 0' }}>명세 없음</p>
+                          )}
+                        </>
+                      )}
+
+                      {/* 상태 액션 영역 */}
+                      <div style={{ borderTop: '1px solid #F0EDE8', paddingTop: 16, marginTop: 8 }}>
+                        {isPaid ? (
+                          <div style={{ background: '#F5F2EE', padding: '12px 14px' }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: '#2E7D32', marginBottom: 6 }}>지급완료</p>
+                            {st.paid_at && <p style={{ fontSize: 12, color: '#888' }}>지급일: {st.paid_at.slice(0, 10)}</p>}
+                            {st.payment_method && <p style={{ fontSize: 12, color: '#888' }}>지급 방식: {st.payment_method}</p>}
+                            {st.payment_reference && <p style={{ fontSize: 12, color: '#888' }}>메모: {st.payment_reference}</p>}
+                          </div>
+                        ) : isThisPaying ? (
+                          <div>
+                            <p style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>지급 정보 입력 (선택)</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                              <input type="text" value={payMethod} onChange={e => setPayMethod(e.target.value)} placeholder="지급 방식 (예: 계좌이체)" style={{ ...inputStyle, width: '100%' }} />
+                              <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="메모 (예: 하나은행 110-xxx)" style={{ ...inputStyle, width: '100%' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => handleMarkPaid(st.id)} disabled={payProcessing} style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 600, background: payProcessing ? '#E8E5E0' : '#1A1A1A', color: payProcessing ? '#AAA' : '#FFFFFF', border: 'none', borderRadius: 0, cursor: payProcessing ? 'default' : 'pointer' }}>
+                                {payProcessing ? '처리 중…' : '정산완료 확정'}
+                              </button>
+                              <button onClick={() => { setPayingId(null); setPayMethod(''); setPayRef('') }} style={{ padding: '10px 16px', fontSize: 13, color: '#888', background: 'none', border: '1px solid #E8E5E0', borderRadius: 0, cursor: 'pointer' }}>취소</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => setPayingId(st.id)} style={{ width: '100%', padding: '11px', fontSize: 13, fontWeight: 600, background: '#C9A96E', color: '#FFFFFF', border: 'none', borderRadius: 0, cursor: 'pointer' }}>
+                            정산완료 처리
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )
               })}

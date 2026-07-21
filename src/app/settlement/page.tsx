@@ -139,10 +139,9 @@ export default function SettlementPage() {
   // ── 정산 상태 ──
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [settlementsLoading, setSettlementsLoading] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [expandedItems, setExpandedItems] = useState<SettlementItem[]>([])
-  const [itemsLoading, setItemsLoading] = useState(false)
-  const [showItems, setShowItems] = useState(false)
+  const [showItemsSet, setShowItemsSet] = useState<Set<string>>(new Set())
+  const [expandedItemsMap, setExpandedItemsMap] = useState<Map<string, SettlementItem[]>>(new Map())
+  const [loadingItemsSet, setLoadingItemsSet] = useState<Set<string>>(new Set())
 
   // paid 정산 하드락용 맵 (본인 정산만 RLS로 내려옴)
   // 미래에 draft 정산 취소 기능 추가 시 — paid 정산은 취소 대상에서 반드시 제외할 것.
@@ -198,28 +197,24 @@ export default function SettlementPage() {
     if (tab === 'settlement' && groomer) fetchSettlements()
   }, [tab, groomer, fetchSettlements])
 
-  function toggleExpand(settlementId: string) {
-    if (expandedId === settlementId) {
-      setExpandedId(null)
-      setShowItems(false)
-      setExpandedItems([])
-    } else {
-      setExpandedId(settlementId)
-      setShowItems(false)
-      setExpandedItems([])
-    }
-  }
-
   async function loadItems(settlementId: string) {
-    setShowItems(true)
-    setItemsLoading(true)
+    setShowItemsSet(prev => new Set(prev).add(settlementId))
+    setLoadingItemsSet(prev => new Set(prev).add(settlementId))
     const { data } = await supabase
       .from('freelance_settlement_items')
       .select('id, date_snapshot, pet_name_snapshot, breed_snapshot, amount_snapshot')
       .eq('settlement_id', settlementId)
       .order('date_snapshot', { ascending: true })
-    setExpandedItems((data as SettlementItem[]) ?? [])
-    setItemsLoading(false)
+    setExpandedItemsMap(prev => new Map(prev).set(settlementId, (data as SettlementItem[]) ?? []))
+    setLoadingItemsSet(prev => { const next = new Set(prev); next.delete(settlementId); return next })
+  }
+
+  function toggleItems(settlementId: string) {
+    if (showItemsSet.has(settlementId)) {
+      setShowItemsSet(prev => { const next = new Set(prev); next.delete(settlementId); return next })
+    } else {
+      loadItems(settlementId)
+    }
   }
 
   async function handleLogout() {
@@ -468,8 +463,7 @@ export default function SettlementPage() {
             {/* 안내 */}
             <div style={{ background: '#F5F2EE', border: '1px solid #E8E5E0', padding: '12px 16px', marginBottom: 20 }}>
               <p style={{ fontSize: 12, color: '#888', lineHeight: 1.7 }}>
-                검토 대기 · 매장 월말 확인 예정<br />
-                입력하신 매출은 매장에서 월 1회 POS와 대조 후 승인됩니다.
+                검토 대기 · 매장 확인 후 승인 예정
               </p>
             </div>
 
@@ -686,15 +680,14 @@ export default function SettlementPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {settlements.map(st => {
-                const isExpanded = expandedId === st.id
                 const stBadge = SETTLEMENT_STATUS_LABEL[st.status] ?? { label: st.status, bg: '#F5F2EE', color: '#888' }
+                const itemsShown = showItemsSet.has(st.id)
+                const itemsLoading = loadingItemsSet.has(st.id)
+                const items = expandedItemsMap.get(st.id) ?? []
                 return (
                   <div key={st.id} style={{ border: '1px solid #E8E5E0', overflow: 'hidden' }}>
-                    {/* 정산 요약 카드 */}
-                    <button
-                      onClick={() => toggleExpand(st.id)}
-                      style={{ width: '100%', background: '#FFFFFF', border: 'none', cursor: 'pointer', padding: '16px 18px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
-                    >
+                    {/* 정산 요약 헤더 */}
+                    <div style={{ background: '#FFFFFF', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>
@@ -710,84 +703,75 @@ export default function SettlementPage() {
                         <div style={{ fontSize: 16, fontWeight: 700, color: '#C9A96E' }}>{fmt(st.payout_amount)}원</div>
                         <div style={{ fontSize: 11, color: '#AAA' }}>최종 지급액</div>
                       </div>
-                      <span style={{ fontSize: 12, color: '#CCC' }}>{isExpanded ? '▲' : '▼'}</span>
-                    </button>
+                    </div>
 
-                    {/* 명세 상세 */}
-                    {isExpanded && (
-                      <div>
-                        {/* 계산 명세 카드 */}
-                        <div style={{ background: '#FAFAF8', border: '1px solid #E8E5E0', borderTop: 'none', padding: '18px 20px' }}>
-                          {/* 상단: 기간 매출 합계 */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                            <span style={{ fontSize: 13, color: '#4A463F' }}>기간 매출 합계</span>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>{fmt(st.total_amount)}원</span>
-                          </div>
-                          {/* 세부 금액 — 항상 표시 */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, color: '#9A9488' }}>공급가액 (÷1.1)</span>
-                              <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.supply_amount)}원</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, color: '#9A9488' }}>커미션 (×{Math.round(Number(st.commission_rate) * 100)}%)</span>
-                              <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.before_tax_amount)}원</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, color: '#9A9488' }}>원천징수 (−3.3%)</span>
-                              <span style={{ fontSize: 13, color: '#C62828' }}>−{fmt(st.withholding_amount)}원</span>
-                            </div>
-                          </div>
-                          {/* 구분선 + 최종 지급액 */}
-                          <div style={{ borderTop: '1px solid #E8E5E0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#C9A96E' }}>최종 지급액</span>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: '#C9A96E' }}>{fmt(st.payout_amount)}원</span>
-                          </div>
+                    {/* 계산 명세 — 항상 표시 */}
+                    <div style={{ background: '#FAFAF8', borderTop: '1px solid #E8E5E0', padding: '18px 20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, color: '#4A463F' }}>기간 매출 합계</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>{fmt(st.total_amount)}원</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: '#9A9488' }}>공급가액 (÷1.1)</span>
+                          <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.supply_amount)}원</span>
                         </div>
-
-                        {/* 스냅샷 명세 목록 */}
-                        <div style={{ background: '#FFFFFF', padding: '0 18px 16px' }}>
-                          <button
-                            onClick={() => showItems ? setShowItems(false) : loadItems(st.id)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 8px' }}
-                          >
-                            {showItems ? '매출 내역 닫기 ▲' : '매출 내역 보기 ▼'}
-                          </button>
-
-                          {showItems && (
-                            <>
-                              <div style={{ borderTop: '1px solid #F0EDE8', marginBottom: 8 }} />
-                              {itemsLoading ? (
-                                <p style={{ fontSize: 12, color: '#AAA', textAlign: 'center', padding: '12px 0' }}>불러오는 중…</p>
-                              ) : expandedItems.map(item => (
-                                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F5F2EE' }}>
-                                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                                    <span style={{ fontSize: 12, color: '#888' }}>{item.date_snapshot}</span>
-                                    <span style={{ fontSize: 12, color: '#1A1A1A' }}>{item.pet_name_snapshot}</span>
-                                    <span style={{ fontSize: 11, color: '#AAA' }}>{item.breed_snapshot}</span>
-                                  </div>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>{fmt(item.amount_snapshot)}원</span>
-                                </div>
-                              ))}
-                              {!itemsLoading && expandedItems.length === 0 && (
-                                <p style={{ fontSize: 12, color: '#BBB', textAlign: 'center', padding: '12px 0' }}>명세 없음</p>
-                              )}
-                            </>
-                          )}
-
-                          {/* 지급완료 시 지급 정보 표시 (읽기 전용) */}
-                          {st.status === 'paid' && (
-                            <div style={{ borderTop: '1px solid #F0EDE8', paddingTop: 12, marginTop: 8 }}>
-                              <div style={{ background: '#EAF4EC', padding: '10px 14px' }}>
-                                <p style={{ fontSize: 12, fontWeight: 600, color: '#2E7D32', marginBottom: 4 }}>지급완료</p>
-                                {st.paid_at && <p style={{ fontSize: 12, color: '#555' }}>지급일: {st.paid_at.slice(0, 10)}</p>}
-                                {st.payment_method && <p style={{ fontSize: 12, color: '#555' }}>지급 방식: {st.payment_method}</p>}
-                              </div>
-                            </div>
-                          )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: '#9A9488' }}>커미션 (×{Math.round(Number(st.commission_rate) * 100)}%)</span>
+                          <span style={{ fontSize: 13, color: '#4A463F' }}>{fmt(st.before_tax_amount)}원</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: '#9A9488' }}>원천징수 (−3.3%)</span>
+                          <span style={{ fontSize: 13, color: '#C62828' }}>−{fmt(st.withholding_amount)}원</span>
                         </div>
                       </div>
-                    )}
+                      <div style={{ borderTop: '1px solid #E8E5E0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#C9A96E' }}>최종 지급액</span>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: '#C9A96E' }}>{fmt(st.payout_amount)}원</span>
+                      </div>
+                    </div>
+
+                    {/* 매출 내역 접기 */}
+                    <div style={{ background: '#FFFFFF', padding: '0 18px 16px' }}>
+                      <button
+                        onClick={() => toggleItems(st.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 8px' }}
+                      >
+                        {itemsShown ? '매출 내역 닫기 ▲' : '매출 내역 보기 ▼'}
+                      </button>
+
+                      {itemsShown && (
+                        <>
+                          <div style={{ borderTop: '1px solid #F0EDE8', marginBottom: 8 }} />
+                          {itemsLoading ? (
+                            <p style={{ fontSize: 12, color: '#AAA', textAlign: 'center', padding: '12px 0' }}>불러오는 중…</p>
+                          ) : items.map(item => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F5F2EE' }}>
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <span style={{ fontSize: 12, color: '#888' }}>{item.date_snapshot}</span>
+                                <span style={{ fontSize: 12, color: '#1A1A1A' }}>{item.pet_name_snapshot}</span>
+                                <span style={{ fontSize: 11, color: '#AAA' }}>{item.breed_snapshot}</span>
+                              </div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>{fmt(item.amount_snapshot)}원</span>
+                            </div>
+                          ))}
+                          {!itemsLoading && items.length === 0 && (
+                            <p style={{ fontSize: 12, color: '#BBB', textAlign: 'center', padding: '12px 0' }}>명세 없음</p>
+                          )}
+                        </>
+                      )}
+
+                      {/* 지급완료 시 지급 정보 표시 (읽기 전용) */}
+                      {st.status === 'paid' && (
+                        <div style={{ borderTop: '1px solid #F0EDE8', paddingTop: 12, marginTop: 8 }}>
+                          <div style={{ background: '#EAF4EC', padding: '10px 14px' }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: '#2E7D32', marginBottom: 4 }}>지급완료</p>
+                            {st.paid_at && <p style={{ fontSize: 12, color: '#555' }}>지급일: {st.paid_at.slice(0, 10)}</p>}
+                            {st.payment_method && <p style={{ fontSize: 12, color: '#555' }}>지급 방식: {st.payment_method}</p>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )
               })}
