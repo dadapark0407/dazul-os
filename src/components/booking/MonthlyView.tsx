@@ -414,13 +414,12 @@ export default function MonthlyView({
                         title={fullList}
                         style={{
                           display: 'flex',
-                          alignItems: 'center',
+                          alignItems: 'flex-start',
                           gap: 4,
                           marginTop: 2,
                           marginBottom: 4,
                           minWidth: 0,
                           overflow: 'hidden',
-                          whiteSpace: 'nowrap',
                         }}
                       >
                         <span
@@ -428,6 +427,7 @@ export default function MonthlyView({
                             display: 'inline-block',
                             width: 4,
                             height: 4,
+                            marginTop: 4,
                             background: '#C9A96E',
                             flexShrink: 0,
                           }}
@@ -436,9 +436,13 @@ export default function MonthlyView({
                           style={{
                             fontSize: 11,
                             color: '#1A1A1A',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
-                            whiteSpace: 'nowrap',
-                            textOverflow: 'ellipsis',
+                            lineHeight: 1.35,
+                            wordBreak: 'keep-all',
+                            overflowWrap: 'break-word',
                             flex: 1,
                             minWidth: 0,
                           }}
@@ -473,13 +477,12 @@ export default function MonthlyView({
                         title={label}
                         style={{
                           display: 'flex',
-                          alignItems: 'center',
+                          alignItems: 'flex-start',
                           gap: 4,
                           marginTop: 2,
                           marginBottom: 4,
                           minWidth: 0,
                           overflow: 'hidden',
-                          whiteSpace: 'nowrap',
                         }}
                       >
                         <span
@@ -487,6 +490,7 @@ export default function MonthlyView({
                             display: 'inline-block',
                             width: 4,
                             height: 4,
+                            marginTop: 4,
                             background: '#B4B2A9',
                             flexShrink: 0,
                           }}
@@ -495,9 +499,13 @@ export default function MonthlyView({
                           style={{
                             fontSize: 11,
                             color: '#888780',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
-                            whiteSpace: 'nowrap',
-                            textOverflow: 'ellipsis',
+                            lineHeight: 1.35,
+                            wordBreak: 'keep-all',
+                            overflowWrap: 'break-word',
                             flex: 1,
                             minWidth: 0,
                           }}
