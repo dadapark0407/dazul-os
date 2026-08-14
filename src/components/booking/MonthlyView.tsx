@@ -163,16 +163,33 @@ export default function MonthlyView({
 
   useEffect(() => { setLocalAppts(appointments) }, [appointments])
 
-  /** 해당 날짜의 예약을 시간순 텍스트로 클립보드에 복사 */
+  /** 해당 날짜의 예약을 시간순 텍스트로 클립보드에 복사 (휴무자 포함) */
   async function handleCopyDay(
     e: React.MouseEvent,
     dateStr: string,
     dayAppts: Appointment[],
+    dayoffStaff: { id: string; name: string }[],
   ) {
     e.stopPropagation()
-    const sorted = [...dayAppts].sort((a, b) => a.start_at.localeCompare(b.start_at))
 
     const lines: string[] = [formatDateHeader(dateStr)]
+
+    // 개인 휴무 줄 — filterGroomerId 적용, 이름 오름차순
+    const dayoffFiltered = filterGroomerId
+      ? dayoffStaff.filter((s) => s.id === filterGroomerId)
+      : dayoffStaff
+    if (dayoffFiltered.length > 0) {
+      const names = [...dayoffFiltered]
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+        .map((s) => givenName(s.name) ?? s.name)
+        .join(', ')
+      lines.push(`휴무: ${names}`)
+    }
+
+    // 예약 줄 — 기존 로직 그대로
+    const sorted = [...dayAppts].sort((a, b) =>
+      a.start_at.localeCompare(b.start_at),
+    )
     for (const a of sorted) {
       const time = isoToKstHHMM(a.start_at)
       const staffMember = staff.find((s) => s.id === a.staff_id)
@@ -189,6 +206,7 @@ export default function MonthlyView({
       if (noteTrim) line += ` (${noteTrim})`
       lines.push(line)
     }
+
     const text = lines.join('\n')
 
     try {
@@ -444,14 +462,10 @@ export default function MonthlyView({
                       ? raw.filter((s) => s.id === filterGroomerId)
                       : raw
                     if (names.length === 0) return null
-                    const fullList = names.map((s) => s.name).join(', ')
-                    const label =
-                      names.length === 1
-                        ? names[0].name
-                        : `${names[0].name} 외 ${names.length - 1}`
+                    const label = `${names.map((s) => s.name).join(', ')} 휴무`
                     return (
                       <div
-                        title={fullList}
+                        title={label}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -518,11 +532,19 @@ export default function MonthlyView({
                     </button>
                   )}
 
-                  {/* 복사 버튼 — 예약 있을 때만, 우측 상단 */}
-                  {dayAppts.length > 0 && (
+                  {/* 복사 버튼 — 예약 있거나 (필터 반영) 개인 휴무자가 있으면 노출 */}
+                  {(() => {
+                    const rawDayoff = dayoffStaffByDate[calDay.date] ?? []
+                    const dayoffFiltered = filterGroomerId
+                      ? rawDayoff.filter((s) => s.id === filterGroomerId)
+                      : rawDayoff
+                    if (dayAppts.length === 0 && dayoffFiltered.length === 0) {
+                      return null
+                    }
+                    return (
                     <button
                       type="button"
-                      onClick={(e) => handleCopyDay(e, calDay.date, dayAppts)}
+                      onClick={(e) => handleCopyDay(e, calDay.date, dayAppts, rawDayoff)}
                       aria-label="이 날짜의 예약 복사"
                       title="이 날짜의 예약 복사"
                       style={{
@@ -562,7 +584,8 @@ export default function MonthlyView({
                         </svg>
                       )}
                     </button>
-                  )}
+                    )
+                  })()}
 
                   {/* 예약 목록 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
