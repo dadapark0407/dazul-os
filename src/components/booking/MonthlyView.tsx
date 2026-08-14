@@ -118,7 +118,9 @@ function buildCalendarDays(year: number, month: number): CalendarDay[] {
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const
 
 // 월~일 컬럼 너비 비율 — 휴무일(수/일)은 좁게.
-const GRID_COLUMNS = '1.4fr 1.4fr 0.5fr 1.4fr 1.4fr 1.4fr 0.5fr'
+// minmax(0, ...) — 자식(긴 메모/휴무 텍스트)이 열 폭을 늘리지 않도록 강제
+const GRID_COLUMNS =
+  'minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,0.5fr) minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,0.5fr)'
 
 // 일=0 ~ 토=6 (UTCDay 기준)
 const KO_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const
@@ -359,6 +361,8 @@ export default function MonthlyView({
                   style={{
                     position: 'relative',
                     minHeight: 120,
+                    minWidth: 0,
+                    overflow: 'hidden',
                     borderRight: '1px solid #E8E5E0',
                     borderBottom: '1px solid #E8E5E0',
                     padding: '6px 6px 10px',
@@ -414,6 +418,7 @@ export default function MonthlyView({
                           gap: 4,
                           marginTop: 2,
                           marginBottom: 4,
+                          minWidth: 0,
                           overflow: 'hidden',
                           whiteSpace: 'nowrap',
                         }}
@@ -472,6 +477,7 @@ export default function MonthlyView({
                           gap: 4,
                           marginTop: 2,
                           marginBottom: 4,
+                          minWidth: 0,
                           overflow: 'hidden',
                           whiteSpace: 'nowrap',
                         }}
@@ -492,6 +498,8 @@ export default function MonthlyView({
                             overflow: 'hidden',
                             whiteSpace: 'nowrap',
                             textOverflow: 'ellipsis',
+                            flex: 1,
+                            minWidth: 0,
                           }}
                         >
                           {label}
