@@ -10,12 +10,14 @@ import BookingInput from './BookingInput'
 import SlotFinder from './SlotFinder'
 import TimelineGrid from './TimelineGrid'
 import MonthlyView from './MonthlyView'
+import DailyMemoModal from './DailyMemoModal'
 import RecurringGenerateButton from './RecurringGenerateButton'
 import SidePanelOverlay from './SidePanelOverlay'
 import AuditHistoryModal from './AuditHistoryModal'
 import { pickActor } from './ActorPicker'
 import { getSessionActor } from '@/lib/booking/actor-client'
 import {
+  deleteDailyMemo,
   getBookingData,
   getMonthlyData,
   type Appointment,
@@ -35,6 +37,8 @@ type DailyCacheEntry = {
 type MonthlyCacheEntry = {
   staff: Staff[]
   appointments: Appointment[]
+  dayoffStaffByDate: Record<string, { id: string; name: string }[]>
+  memosByDate: Record<string, { id: string; content: string }[]>
   fetchedAt: number
 }
 
@@ -133,6 +137,12 @@ export default function BookingCalendar({
   const [viewYear, setViewYear] = useState(() => parseInt(initialDate.slice(0, 4)))
   const [viewMonth, setViewMonth] = useState(() => parseInt(initialDate.slice(5, 7)))
   const [monthlyAppts, setMonthlyAppts] = useState<Appointment[]>([])
+  const [monthlyDayoffStaffByDate, setMonthlyDayoffStaffByDate] = useState<
+    Record<string, { id: string; name: string }[]>
+  >({})
+  const [monthlyMemosByDate, setMonthlyMemosByDate] = useState<
+    Record<string, { id: string; content: string }[]>
+  >({})
 
   // ── BookingInput 외부 prefill (SlotFinder에서 트리거) ──
   const [prefillText, setPrefillText] = useState('')
@@ -148,6 +158,9 @@ export default function BookingCalendar({
 
   // ── 변경 이력 모달 ──
   const [auditOpen, setAuditOpen] = useState(false)
+
+  // ── 메모 모달 ──
+  const [memoModalDate, setMemoModalDate] = useState<string | null>(null)
 
   // ── 현재 세션 처리자 (UI 표시용) ──
   const [actorLabel, setActorLabel] = useState<string | null>(() => {
@@ -347,6 +360,14 @@ export default function BookingCalendar({
       setMonthlyAppts(
         mergeAppointments(cachedA?.appointments ?? [], cachedB?.appointments ?? []),
       )
+      setMonthlyDayoffStaffByDate({
+        ...(cachedA?.dayoffStaffByDate ?? {}),
+        ...(cachedB?.dayoffStaffByDate ?? {}),
+      })
+      setMonthlyMemosByDate({
+        ...(cachedA?.memosByDate ?? {}),
+        ...(cachedB?.memosByDate ?? {}),
+      })
       setMonthlyLoading(false)
       // 두 달 모두 fresh면 fetch 생략
       if (freshA && freshB) return
@@ -387,6 +408,14 @@ export default function BookingCalendar({
       setMonthlyAppts(
         mergeAppointments(dataA?.appointments ?? [], dataB?.appointments ?? []),
       )
+      setMonthlyDayoffStaffByDate({
+        ...(dataA?.dayoffStaffByDate ?? {}),
+        ...(dataB?.dayoffStaffByDate ?? {}),
+      })
+      setMonthlyMemosByDate({
+        ...(dataA?.memosByDate ?? {}),
+        ...(dataB?.memosByDate ?? {}),
+      })
       setMonthlyLoading(false)
     })
   }
@@ -709,15 +738,22 @@ export default function BookingCalendar({
           {dailyLoading ? (
             <TimelineSkeleton />
           ) : (
-            <TimelineGrid
-              date={date}
-              staff={staff}
-              appointments={appointments}
-              staffOff={staffOff}
-              onChanged={() => refresh(undefined, { skipCache: true })}
-              onDateChange={(d) => setDate(d)}
-              onGroomerNameClick={handleGroomerFilter}
-            />
+            <>
+              <DailyMemoStrip
+                memos={monthlyMemosByDate[date] ?? []}
+                onDeleted={() => refreshMonthly({ skipCache: true })}
+                onAdd={() => setMemoModalDate(date)}
+              />
+              <TimelineGrid
+                date={date}
+                staff={staff}
+                appointments={appointments}
+                staffOff={staffOff}
+                onChanged={() => refresh(undefined, { skipCache: true })}
+                onDateChange={(d) => setDate(d)}
+                onGroomerNameClick={handleGroomerFilter}
+              />
+            </>
           )}
         </>
       )}
@@ -820,6 +856,9 @@ export default function BookingCalendar({
               month={viewMonth}
               staff={staff}
               appointments={monthlyAppts}
+              dayoffStaffByDate={monthlyDayoffStaffByDate}
+              memosByDate={monthlyMemosByDate}
+              onAddMemo={(d) => setMemoModalDate(d)}
               filterGroomerId={filterGroomerId}
               onDateSelect={(d) => {
                 setDate(d)
@@ -838,6 +877,15 @@ export default function BookingCalendar({
 
     {/* ─── 변경 이력 모달 ─── */}
     <AuditHistoryModal open={auditOpen} onClose={() => setAuditOpen(false)} />
+
+    {/* ─── 메모 입력 모달 ─── */}
+    <DailyMemoModal
+      open={memoModalDate !== null}
+      initialDate={memoModalDate ?? date}
+      existingMemos={memoModalDate ? (monthlyMemosByDate[memoModalDate] ?? []) : []}
+      onClose={() => setMemoModalDate(null)}
+      onChanged={() => refreshMonthly({ skipCache: true })}
+    />
 
     {/* ─── 사이드 패널 오버레이 (토글 + 드로어) ─── */}
     <SidePanelOverlay
@@ -904,6 +952,156 @@ function MonthlySkeleton() {
           />
         ))}
       </div>
+    </div>
+  )
+}
+
+
+// =============================================================
+// 일간 메모 스트립
+// =============================================================
+
+function DailyMemoStrip({
+  memos,
+  onDeleted,
+  onAdd,
+}: {
+  memos: { id: string; content: string }[]
+  onDeleted: () => void
+  onAdd: () => void
+}) {
+  const [hoverId, setHoverId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDelete(id: string, content: string) {
+    if (deletingId) return
+    const preview = content.length > 30 ? content.slice(0, 30) + '…' : content
+    if (!window.confirm(`이 메모를 삭제할까요?\n\n"${preview}"`)) return
+    setDeletingId(id)
+    const res = await deleteDailyMemo(id)
+    setDeletingId(null)
+    if (!res.ok) {
+      window.alert(`삭제 실패: ${res.error ?? '알 수 없는 오류'}`)
+      return
+    }
+    onDeleted()
+  }
+
+  const hasMemos = memos.length > 0
+
+  return (
+    <div
+      style={{
+        background: '#FAFAF8',
+        borderBottom: '1px solid #E8E5E0',
+        padding: '12px 18px',
+        borderRadius: 0,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 7,
+          minHeight: hasMemos ? undefined : 22,
+          justifyContent: 'center',
+        }}
+      >
+        {hasMemos ? (
+          memos.map((m) => (
+            <div
+              key={m.id}
+              onMouseEnter={() => setHoverId(m.id)}
+              onMouseLeave={() =>
+                setHoverId((cur) => (cur === m.id ? null : cur))
+              }
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderLeft: '2px solid #C9A96E',
+                paddingLeft: 9,
+                minHeight: 20,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  color: '#1A1A1A',
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  flex: 1,
+                }}
+              >
+                {m.content}
+              </div>
+              {hoverId === m.id && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(m.id, m.content)}
+                  disabled={deletingId === m.id}
+                  aria-label="메모 삭제"
+                  title="메모 삭제"
+                  style={{
+                    marginLeft: 12,
+                    width: 22,
+                    height: 22,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: deletingId === m.id ? 'wait' : 'pointer',
+                    color: '#8B7355',
+                    fontSize: 14,
+                    lineHeight: 1,
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  {deletingId === m.id ? '…' : '×'}
+                </button>
+              )}
+            </div>
+          ))
+        ) : (
+          <span
+            style={{
+              fontSize: 11,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              fontWeight: 600,
+              color: '#8B7355',
+            }}
+          >
+            메모
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        style={{
+          fontSize: 11,
+          letterSpacing: '0.05em',
+          padding: '6px 12px',
+          background: '#FFFFFF',
+          color: '#1A1A1A',
+          border: '1px solid #E8E5E0',
+          borderRadius: 0,
+          cursor: 'pointer',
+          flexShrink: 0,
+          fontFamily: 'inherit',
+        }}
+      >
+        메모
+      </button>
     </div>
   )
 }

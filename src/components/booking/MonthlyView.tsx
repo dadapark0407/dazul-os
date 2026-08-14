@@ -17,6 +17,9 @@ type Props = {
   month: number
   staff: Staff[]
   appointments: Appointment[]
+  dayoffStaffByDate: Record<string, { id: string; name: string }[]>
+  memosByDate: Record<string, { id: string; content: string }[]>
+  onAddMemo: (date: string) => void       // 메모 추가 모달 열기
   onDateSelect: (date: string) => void   // 날짜 클릭 → 일간 뷰 전환
   onChanged: () => void                   // 예약 수정/삭제 후 새로고침
   onDateChange: (date: string) => void    // 예약 날짜 변경 후 일간 뷰 전환
@@ -143,6 +146,9 @@ export default function MonthlyView({
   month,
   staff,
   appointments,
+  dayoffStaffByDate,
+  memosByDate,
+  onAddMemo,
   onDateSelect,
   onChanged,
   onDateChange,
@@ -153,6 +159,7 @@ export default function MonthlyView({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
   const [copiedDate, setCopiedDate] = useState<string | null>(null)
+  const [hoverDate, setHoverDate] = useState<string | null>(null)
 
   useEffect(() => { setLocalAppts(appointments) }, [appointments])
 
@@ -323,6 +330,10 @@ export default function MonthlyView({
                 <div
                   key={calDay.date}
                   onClick={() => onDateSelect(calDay.date)}
+                  onMouseEnter={() => setHoverDate(calDay.date)}
+                  onMouseLeave={() =>
+                    setHoverDate((cur) => (cur === calDay.date ? null : cur))
+                  }
                   onDragOver={(e) => { e.preventDefault(); setDragOverDate(calDay.date) }}
                   onDragLeave={() => setDragOverDate(null)}
                   onDrop={(e) => handleMonthlyDrop(e, calDay.date)}
@@ -367,6 +378,144 @@ export default function MonthlyView({
                     >
                       휴무
                     </span>
+                  )}
+
+                  {/* 일일 메모 — 셀 최상단, 첫 메모 + '+N' */}
+                  {(() => {
+                    const memos = memosByDate[calDay.date] ?? []
+                    if (memos.length === 0) return null
+                    const first = memos[0]
+                    const extra = memos.length - 1
+                    const fullList = memos.map((m) => m.content).join('\n')
+                    return (
+                      <div
+                        title={fullList}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginTop: 2,
+                          marginBottom: 4,
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 4,
+                            height: 4,
+                            background: '#C9A96E',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: '#1A1A1A',
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis',
+                            flex: 1,
+                            minWidth: 0,
+                          }}
+                        >
+                          {first.content}
+                        </span>
+                        {extra > 0 && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: '#8B7355',
+                              flexShrink: 0,
+                            }}
+                          >
+                            +{extra}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })()}
+
+                  {/* 미용사 개인 휴무 — 매장 고정 휴무(수/일)에는 표시하지 않음 */}
+                  {!isClosed && (() => {
+                    const raw = dayoffStaffByDate[calDay.date] ?? []
+                    const names = filterGroomerId
+                      ? raw.filter((s) => s.id === filterGroomerId)
+                      : raw
+                    if (names.length === 0) return null
+                    const fullList = names.map((s) => s.name).join(', ')
+                    const label =
+                      names.length === 1
+                        ? names[0].name
+                        : `${names[0].name} 외 ${names.length - 1}`
+                    return (
+                      <div
+                        title={fullList}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginTop: 2,
+                          marginBottom: 4,
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 4,
+                            height: 4,
+                            background: '#B4B2A9',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: '#888780',
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                    )
+                  })()}
+
+                  {/* + 메모 추가 — hover 시 우측 상단 (복사 버튼과 겹치지 않게 좌측으로 배치) */}
+                  {hoverDate === calDay.date && calDay.currentMonth && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onAddMemo(calDay.date)
+                      }}
+                      aria-label="메모 추가"
+                      title="메모 추가"
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: dayAppts.length > 0 ? 26 : 4,
+                        width: 18,
+                        height: 18,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#8B7355',
+                        fontSize: 14,
+                        lineHeight: 1,
+                        padding: 0,
+                      }}
+                    >
+                      +
+                    </button>
                   )}
 
                   {/* 복사 버튼 — 예약 있을 때만, 우측 상단 */}

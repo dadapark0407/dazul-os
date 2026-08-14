@@ -105,6 +105,8 @@ export type BookingData = {
 export type MonthlyData = {
   staff: Staff[]
   appointments: Appointment[]
+  dayoffStaffByDate: Record<string, { id: string; name: string }[]>
+  memosByDate: Record<string, { id: string; content: string }[]>
 }
 
 
@@ -227,18 +229,36 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
     .is('deleted_at', null)
   if (branchId) apptQuery = apptQuery.eq('branch_id', branchId)
 
-  // 2개 쿼리 병렬 실행
-  const [staffRes, apptRes] = await Promise.all([
+  // 미용사 개인 종일 휴무 조회 범위 — 해당 월의 1일~말일 (KST 날짜, 그리드 패딩 제외)
+  const monthStartStr = `${year}-${mo}-01`
+  const monthEndStr = `${year}-${mo}-${String(lastDayNum).padStart(2, '0')}`
+
+  // 4개 쿼리 병렬 실행
+  const [staffRes, apptRes, offRes, memoRes] = await Promise.all([
     supabase
       .from('staff')
       .select('id, name, signature_color, display_order, is_active, branch_id')
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
     apptQuery.order('start_at', { ascending: true }),
+    supabase
+      .from('staff_off')
+      .select('off_date, staff_id, staff:staff_id ( name )')
+      .eq('off_type', 'dayoff')
+      .gte('off_date', monthStartStr)
+      .lte('off_date', monthEndStr),
+    supabase
+      .from('daily_memos')
+      .select('id, memo_date, content, created_at')
+      .gte('memo_date', monthStartStr)
+      .lte('memo_date', monthEndStr)
+      .order('created_at', { ascending: true }),
   ])
 
   const staffRows = staffRes.data
   const apptRows = apptRes.data
+  const offRows = offRes.data
+  const memoRows = memoRes.data
 
   const appointments: Appointment[] = (apptRows ?? []).map((row: any) => ({
     id: row.id,
@@ -260,9 +280,32 @@ export async function getMonthlyData(year: number, month: number): Promise<Month
     cancelled_at: row.cancelled_at ?? null,
   }))
 
+  // 날짜별 dayoff 스태프 그룹핑 — 같은 날짜 내 name 오름차순
+  const dayoffStaffByDate: Record<string, { id: string; name: string }[]> = {}
+  for (const row of (offRows ?? []) as any[]) {
+    const key: string = row.off_date
+    const arr = dayoffStaffByDate[key] ?? []
+    arr.push({ id: row.staff_id, name: row.staff?.name ?? '' })
+    dayoffStaffByDate[key] = arr
+  }
+  for (const key of Object.keys(dayoffStaffByDate)) {
+    dayoffStaffByDate[key].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  }
+
+  // 날짜별 메모 그룹핑 — created_at 오름차순 (쿼리에서 이미 정렬됨)
+  const memosByDate: Record<string, { id: string; content: string }[]> = {}
+  for (const row of (memoRows ?? []) as any[]) {
+    const key: string = row.memo_date
+    const arr = memosByDate[key] ?? []
+    arr.push({ id: row.id, content: row.content })
+    memosByDate[key] = arr
+  }
+
   return {
     staff: (staffRows ?? []) as Staff[],
     appointments,
+    dayoffStaffByDate,
+    memosByDate,
   }
 }
 
@@ -678,6 +721,49 @@ export async function createStaffOffs(
 }
 
 export type StaffOffWithStaff = StaffOff & { staff_name: string }
+
+
+// ─── 일일 메모 ───
+
+export async function createDailyMemo(
+  dates: string[],
+  content: string,
+): Promise<{ ok: boolean; error?: string; insertedCount?: number }> {
+  const trimmed = content.trim()
+  if (!trimmed) return { ok: false, error: '메모 내용을 입력해 주세요' }
+  if (!dates || dates.length === 0) {
+    return { ok: false, error: '날짜를 선택해 주세요' }
+  }
+
+  // 날짜 형식 검증
+  const validDates: string[] = []
+  for (const d of dates) {
+    const parts = d.split('-').map(Number)
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) continue
+    validDates.push(d)
+  }
+  if (validDates.length === 0) {
+    return { ok: false, error: '유효한 날짜가 없습니다' }
+  }
+
+  const supabase = await createClient()
+  const rows = validDates.map((d) => ({
+    memo_date: d,
+    content: trimmed,
+  }))
+  const { error } = await supabase.from('daily_memos').insert(rows)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/booking')
+  return { ok: true, insertedCount: validDates.length }
+}
+
+export async function deleteDailyMemo(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('daily_memos').delete().eq('id', id)
+  if (error) return { ok: false as const, error: error.message }
+  revalidatePath('/admin/booking')
+  return { ok: true as const }
+}
 
 
 // ─── 고정(정기) 예약 ───

@@ -427,17 +427,30 @@ function RecordCard({ rec, expanded, onToggle, lang, productSummaryMap, productC
                               </span>
                               <div style={{ flex: 1 }}>
                                 {items.map((p, i) => (
-                                  <p
-                                    key={i}
-                                    style={{
-                                      fontSize: 12,
-                                      color: C.gold,
-                                      lineHeight: 1.7,
-                                      marginBottom: i < items.length - 1 ? 2 : 0,
-                                    }}
-                                  >
-                                    {tr(p.label, trMap, lang)}
-                                  </p>
+                                  <div key={i} style={{ marginBottom: i < items.length - 1 ? 6 : 0 }}>
+                                    <p
+                                      style={{
+                                        fontSize: 12,
+                                        color: C.gold,
+                                        lineHeight: 1.7,
+                                      }}
+                                    >
+                                      {tr(p.label, trMap, lang)}
+                                    </p>
+                                    {p.summary && (
+                                      <p
+                                        style={{
+                                          fontSize: 11,
+                                          color: C.sub,
+                                          lineHeight: 1.6,
+                                          fontWeight: 300,
+                                          marginTop: 2,
+                                        }}
+                                      >
+                                        {tr(p.summary, trMap, lang)}
+                                      </p>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             </div>
