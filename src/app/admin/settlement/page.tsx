@@ -18,7 +18,7 @@ interface Sale {
   id: string
   date: string
   groomer_id: string
-  breed: string
+  breed: string | null
   pet_name: string
   amount: number
   service_type: ServiceType
@@ -295,18 +295,18 @@ export default function AdminSettlementPage() {
   // ── 수정 저장 ──
   async function handleEditSave() {
     const amt = parseAmount(editAmountStr)
-    if (!editBreed.trim()) { setEditError('견종을 입력해 주세요.'); return }
     if (!editPetName.trim()) { setEditError('이름을 입력해 주세요.'); return }
     if (!amt || amt <= 0) { setEditError('금액을 입력해 주세요.'); return }
     setEditSaving(true); setEditError('')
     const original = sales.find(s => s.id === editId)!
+    const breedNext = editBreed.trim() || null
     const changes: Record<string, { before: unknown; after: unknown }> = {}
     if (original.date !== editDate) changes.date = { before: original.date, after: editDate }
-    if (original.breed !== editBreed.trim()) changes.breed = { before: original.breed, after: editBreed.trim() }
+    if ((original.breed ?? null) !== breedNext) changes.breed = { before: original.breed, after: breedNext }
     if (original.pet_name !== editPetName.trim()) changes.pet_name = { before: original.pet_name, after: editPetName.trim() }
     if (original.amount !== amt) changes.amount = { before: original.amount, after: amt }
     await supabase.from('freelance_sales').update({
-      date: editDate, breed: editBreed.trim(), pet_name: editPetName.trim(), amount: amt,
+      date: editDate, breed: breedNext, pet_name: editPetName.trim(), amount: amt,
     }).eq('id', editId!)
     if (Object.keys(changes).length > 0) {
       const logRows = Object.entries(changes).map(([field, { before, after }]) => ({
@@ -362,7 +362,7 @@ export default function AdminSettlementPage() {
   }
 
   function startEdit(s: Sale) {
-    setEditId(s.id); setEditDate(s.date); setEditBreed(s.breed)
+    setEditId(s.id); setEditDate(s.date); setEditBreed(s.breed ?? '')
     setEditPetName(s.pet_name); setEditAmountStr(s.amount.toLocaleString('ko-KR')); setEditError('')
   }
   function groomerName(id: string) { return groomers.find(g => g.id === id)?.name ?? id.slice(0, 8) }
