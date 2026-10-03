@@ -25,6 +25,7 @@ import {
   type StaffOff,
 } from '@/lib/booking/actions'
 import { isClosedDow } from '@/lib/booking/constants'
+import { buildDayScheduleText, copyableAppointments } from '@/lib/booking/copyDay'
 
 // ─── 캐시 헬퍼 ───
 
@@ -150,6 +151,7 @@ export default function BookingCalendar({
 
   // ── 월간 뷰 미용사 필터 ──
   const [filterGroomerId, setFilterGroomerId] = useState<string | null>(null)
+  const [dailyCopied, setDailyCopied] = useState(false)
 
   // ── 월간 헤더 연월 피커 ──
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -240,6 +242,30 @@ export default function BookingCalendar({
     prefetchAdjacent(initialDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 일간 뷰 하루 스케줄 복사 — 월간 뷰 복사와 같은 형식 (휴무자 포함, 취소/노쇼 제외)
+  const dailyDayoffStaff = staffOff
+    .filter((o) => o.off_date === date && o.off_type === 'dayoff')
+    .map((o) => ({ id: o.staff_id, name: staff.find((s) => s.id === o.staff_id)?.name ?? '' }))
+  const canCopyDaily =
+    copyableAppointments(appointments).some((a) => isoToKstDate(a.start_at) === date) ||
+    dailyDayoffStaff.length > 0
+
+  async function handleCopyDaily() {
+    const text = buildDayScheduleText({
+      date,
+      appointments: appointments.filter((a) => isoToKstDate(a.start_at) === date),
+      staff,
+      dayoffStaff: dailyDayoffStaff,
+    })
+    try {
+      await navigator.clipboard.writeText(text)
+      setDailyCopied(true)
+      setTimeout(() => setDailyCopied(false), 1500)
+    } catch {
+      // 클립보드 권한 없으면 무시
+    }
+  }
 
   function handleGroomerFilter(groomerId: string) {
     setFilterGroomerId(groomerId)
@@ -629,6 +655,49 @@ export default function BookingCalendar({
               >
                 →
               </button>
+              {/* 하루 스케줄 복사 — 예약 또는 휴무자가 있을 때만 */}
+              {canCopyDaily && !dailyLoading && (
+                <button
+                  type="button"
+                  onClick={handleCopyDaily}
+                  aria-label="이 날짜의 예약 복사"
+                  title="이 날짜의 예약 복사"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 30,
+                    height: 30,
+                    marginLeft: 4,
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                    color: '#C9A96E',
+                    fontSize: 13,
+                    padding: 0,
+                  }}
+                >
+                  {dailyCopied ? (
+                    <span style={{ fontWeight: 700 }}>✓</span>
+                  ) : (
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
           ) : (
             <div

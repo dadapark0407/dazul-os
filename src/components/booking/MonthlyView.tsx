@@ -11,6 +11,7 @@ import type { Appointment, Staff } from '@/lib/booking/actions'
 import { updateAppointment } from '@/lib/booking/actions'
 import { getSessionActor } from '@/lib/booking/actor-client'
 import { isClosedDow } from '@/lib/booking/constants'
+import { buildDayScheduleText } from '@/lib/booking/copyDay'
 
 type Props = {
   year: number
@@ -122,22 +123,6 @@ const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const
 const GRID_COLUMNS =
   'minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,0.5fr) minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,0.5fr)'
 
-// 일=0 ~ 토=6 (UTCDay 기준)
-const KO_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const
-
-/** 한국 성씨 1자 가정 — "강수진" → "수진" */
-function givenName(fullName: string | null | undefined): string | null {
-  if (!fullName) return null
-  return fullName.length >= 2 ? fullName.slice(1) : fullName
-}
-
-/** "5/13(화)" 형태로 포맷 */
-function formatDateHeader(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
-  return `${m}/${d}(${KO_WEEKDAYS[dow]})`
-}
-
 function nextYM(year: number, month: number): { year: number; month: number } {
   if (month === 12) return { year: year + 1, month: 1 }
   return { year, month: month + 1 }
@@ -174,42 +159,13 @@ export default function MonthlyView({
   ) {
     e.stopPropagation()
 
-    const lines: string[] = [formatDateHeader(dateStr)]
-
-    // 개인 휴무 줄 — filterGroomerId 적용, 이름 오름차순
-    const dayoffFiltered = filterGroomerId
-      ? dayoffStaff.filter((s) => s.id === filterGroomerId)
-      : dayoffStaff
-    if (dayoffFiltered.length > 0) {
-      const names = [...dayoffFiltered]
-        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-        .map((s) => givenName(s.name) ?? s.name)
-        .join(', ')
-      lines.push(`휴무: ${names}`)
-    }
-
-    // 예약 줄 — 기존 로직 그대로
-    const sorted = [...dayAppts].sort((a, b) =>
-      a.start_at.localeCompare(b.start_at),
-    )
-    for (const a of sorted) {
-      const time = isoToKstHHMM(a.start_at)
-      const staffMember = staff.find((s) => s.id === a.staff_id)
-      const staffShort = givenName(staffMember?.name ?? null)
-
-      const parts: string[] = [time]
-      if (a.pet_name) parts.push(a.pet_name)
-      if (a.pet_breed) parts.push(a.pet_breed)
-      if (a.service) parts.push(a.service)
-      let line = parts.join(' ')
-      if (staffShort) line += ` - ${staffShort}`
-      if (a.assign_type === 'random') line += ' (자동)'
-      const noteTrim = a.note?.trim()
-      if (noteTrim) line += ` (${noteTrim})`
-      lines.push(line)
-    }
-
-    const text = lines.join('\n')
+    const text = buildDayScheduleText({
+      date: dateStr,
+      appointments: dayAppts,
+      staff,
+      dayoffStaff,
+      filterGroomerId,
+    })
 
     try {
       await navigator.clipboard.writeText(text)
