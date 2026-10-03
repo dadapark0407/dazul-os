@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { EMPTY_GROOMING_STYLE, fetchLatestGroomingStyle } from '@/lib/groomingStyle'
 import { buildSiteUrl } from '@/lib/siteUrl'
 import { getDefaultBranchId } from '@/lib/branch'
 
@@ -918,6 +919,7 @@ function SessionForm() {
 
   // ─── 반려견 선택 → 이름 자동완성 + 이전 미용 스타일 불러오기 ───
   const petAutoFilled = useRef(false)
+  const lastStylePetId = useRef<string | null>(null)
   useEffect(() => {
     const p = pets.find((p) => p.id === petId)
     if (p) {
@@ -928,30 +930,32 @@ function SessionForm() {
         setGuardianId(p.guardian_id)
       }
     }
-    // 이전 방문 기록의 grooming_style 조회 — 항상 가져와서 prevGroomingStyle에 저장
-    if (petId) {
-      (async () => {
-        const { data } = await supabase
-          .from('visit_records')
-          .select('grooming_style')
-          .eq('pet_id', petId)
-          .order('visit_date', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        if (data?.grooming_style && typeof data.grooming_style === 'object') {
-          const gs = data.grooming_style as Record<string, string>
-          const filled = { face: gs.face ?? '', body: gs.body ?? '', legs: gs.legs ?? '', tail: gs.tail ?? '', sanitary: gs.sanitary ?? '' }
-          if (Object.values(filled).some((v) => v)) {
-            setPrevGroomingStyle(filled)
-            // 전체미용일 때만 자동 적용. 목욕관리는 사용자가 버튼으로 직접 불러오기.
-            if (mainService === '전체미용') {
-              setGroomingStyle(filled)
-              setGroomingPrefilled(true)
-            }
-          }
-        }
-        // 몸무게 프리필 제거 — 매 방문마다 직접 입력
-      })()
+    // 반려견이 바뀌면 이전 반려견에서 불러온 스타일 초기화 (직접 입력한 값은 유지)
+    if (lastStylePetId.current !== petId) {
+      lastStylePetId.current = petId
+      setPrevGroomingStyle(null)
+      if (groomingPrefilled) {
+        setGroomingStyle(EMPTY_GROOMING_STYLE)
+        setGroomingPrefilled(false)
+      }
+    }
+    // 스타일이 입력된 가장 최근 방문 기록 → prevGroomingStyle
+    if (!petId) return
+    let cancelled = false
+    ;(async () => {
+      const filled = await fetchLatestGroomingStyle(petId)
+      // 그 사이 반려견이 바뀌었으면 늦게 온 결과는 버림
+      if (cancelled || !filled) return
+      setPrevGroomingStyle(filled)
+      // 전체미용일 때만 자동 적용. 목욕관리는 사용자가 버튼으로 직접 불러오기.
+      if (mainService === '전체미용') {
+        setGroomingStyle(filled)
+        setGroomingPrefilled(true)
+      }
+      // 몸무게 프리필 제거 — 매 방문마다 직접 입력
+    })()
+    return () => {
+      cancelled = true
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [petId, pets])

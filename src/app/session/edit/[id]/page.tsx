@@ -1118,27 +1118,8 @@ function EditRecordForm() {
       setPetName(p.name ?? '')
       petAutoFilled.current = true
     }
-    // 이전 방문 기록에서 grooming_style 자동 채우기
-    if (petId) {
-      (async () => {
-        const { data } = await supabase
-          .from('visit_records')
-          .select('grooming_style')
-          .eq('pet_id', petId)
-          .order('visit_date', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        if (data?.grooming_style && typeof data.grooming_style === 'object') {
-          const gs = data.grooming_style as Record<string, string>
-          const filled = { face: gs.face ?? '', body: gs.body ?? '', legs: gs.legs ?? '', tail: gs.tail ?? '', sanitary: gs.sanitary ?? '' }
-          if (Object.values(filled).some((v) => v)) {
-            setGroomingStyle(filled)
-            setGroomingPrefilled(true)
-          }
-        }
-        // 몸무게 프리필 제거 — 레코드 본인 weight 는 line 902 에서 복원됨
-      })()
-    }
+    // 수정 화면은 이 기록에 저장된 grooming_style 만 표시한다.
+    // (다른 방문 기록으로 자동 채우면 예전 기록을 열었을 때 최신 스타일로 덮어써지는 문제가 있었음)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [petId, pets])
 
