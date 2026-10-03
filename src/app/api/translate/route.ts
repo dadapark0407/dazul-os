@@ -43,12 +43,8 @@ export async function POST(req: NextRequest) {
       if (!token) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      const { data: guardian } = await supabase
-        .from('guardians')
-        .select('id')
-        .eq('share_token', token)
-        .maybeSingle()
-      if (!guardian) {
+      const { data: valid } = await supabase.rpc('is_valid_report_token', { p_token: token })
+      if (valid !== true) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }

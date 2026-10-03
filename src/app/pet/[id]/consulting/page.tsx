@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { createClient } from "@supabase/supabase-js"
+// 로그인 세션 쿠키를 쓰는 브라우저 클라이언트 (anon 정책에 의존하지 않음)
+import { supabase } from "@/lib/supabase"
 
 type ConsultingVisitRecord = {
   id?: string
@@ -377,9 +378,6 @@ function generateConsultingMent(
   }
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export default function PetConsultingPage() {
   const params = useParams()

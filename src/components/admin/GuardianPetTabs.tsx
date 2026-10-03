@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import CareHistoryTable from './CareHistoryTable'
 import RecurringScheduleSection from './RecurringScheduleSection'
+import PetTransferModal from './PetTransferModal'
 
 type R = Record<string, unknown>
 
@@ -147,14 +148,18 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
     router.refresh()
   }
 
+  // ─── 보호자 이전 모달 ───
+  const [transferOpen, setTransferOpen] = useState(false)
+
+  // 이전 등으로 선택된 반려견이 목록에서 빠지면 첫 번째 반려견으로
   const activePet = useMemo(
-    () => pets.find((p) => String(p.id) === activePetId) ?? null,
+    () => pets.find((p) => String(p.id) === activePetId) ?? pets[0] ?? null,
     [pets, activePetId]
   )
 
   const petRecords = useMemo(
-    () => records.filter((r) => String(r.pet_id) === activePetId),
-    [records, activePetId]
+    () => records.filter((r) => String(r.pet_id) === String(activePet?.id)),
+    [records, activePet]
   )
 
   if (pets.length === 0) {
@@ -406,7 +411,7 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
         >
           {pets.map((p) => {
             const pid = String(p.id)
-            const active = pid === activePetId
+            const active = pid === String(activePet?.id)
             return (
               <button
                 key={pid}
@@ -445,6 +450,16 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
                 >
                   상세 →
                 </Link>
+                {guardianId && (
+                  <button
+                    type="button"
+                    onClick={() => setTransferOpen(true)}
+                    className="text-xs text-neutral-400 hover:text-neutral-600"
+                    style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+                  >
+                    보호자 이전
+                  </button>
+                )}
               </div>
               <p className="text-sm text-neutral-500">
                 {[
@@ -469,6 +484,16 @@ export default function GuardianPetTabs({ pets, records, productCategoryMap = {}
               )}
             </div>
           </div>
+
+          {guardianId && (
+            <PetTransferModal
+              open={transferOpen}
+              onClose={() => setTransferOpen(false)}
+              petId={String(activePet.id)}
+              petName={petName}
+              guardianId={guardianId}
+            />
+          )}
 
           {/* 반복 방문 설정 */}
           {guardianId && (

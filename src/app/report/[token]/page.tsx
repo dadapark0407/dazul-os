@@ -1,14 +1,39 @@
-import { Suspense } from 'react'
+import { Suspense, type ComponentProps } from 'react'
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import ReportClient from './ReportClient'
 
 type PageProps = { params: Promise<{ token: string }> }
 
+type ReportPayload = {
+  guardian: { name: string | null }
+  pets: { id: string; name: string | null; breed: string | null }[]
+  records: ComponentProps<typeof ReportClient>['records']
+}
+
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+}
+
+function EmptyReport() {
+  return (
+    <div style={{ minHeight: '100vh', background: '#FAFAF8' }}>
+      <div className="mx-auto max-w-[480px] text-center" style={{ padding: '96px 24px' }}>
+        <p style={{ fontSize: 10, letterSpacing: '0.4em', fontWeight: 300, color: '#8A8A7A' }}>
+          SALON DE DAZUL
+        </p>
+        <div style={{ width: 32, height: 1, background: '#C9A96E', margin: '16px auto' }} />
+        <p style={{ fontSize: 12, fontStyle: 'italic', letterSpacing: '0.2em', color: '#8A8A7A' }}>
+          Wellness Care Journal
+        </p>
+        <p style={{ fontSize: 14, fontWeight: 300, letterSpacing: '0.05em', color: '#1A1A1A', marginTop: 48 }}>
+          아직 등록된 케어 기록이 없습니다
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -18,23 +43,14 @@ export default async function ReportPage({ params }: PageProps) {
 
   const supabase = getSupabase()
 
-  // 보호자 조회
-  const { data: guardian } = await supabase
-    .from('guardians').select('id, name').eq('share_token', token).maybeSingle()
-  if (!guardian) notFound()
+  // 토큰에 해당하는 보호자 1명 + 현재 반려견 + 그 반려견들의 케어 기록(pet_id 기준, 최신순).
+  // anon 키로 테이블을 직접 읽지 않고 security definer RPC 로만 조회한다.
+  const { data: report } = await supabase.rpc('get_report_by_token', { p_token: token })
+  if (!report) notFound()
 
-  // 반려견 목록
-  const { data: pets } = await supabase
-    .from('pets').select('id, name, breed').eq('guardian_id', guardian.id).order('name')
+  const { guardian, pets, records } = report as ReportPayload
 
-  // 전체 방문 기록 (최신순)
-  const { data: records } = await supabase
-    .from('visit_records')
-    .select('id, pet_id, pet_name, visit_date, weight, service, service_type, spa_level, skin_status, coat_status, condition_status, care_actions, next_care_guide, next_visit_date, next_visit_recommendation, comment')
-    .eq('guardian_id', guardian.id)
-    .order('visit_date', { ascending: false })
-
-  if (!records || records.length === 0) notFound()
+  if (!records || records.length === 0) return <EmptyReport />
 
   // 제품 매핑
   // care_actions 는 "이름 (브랜드), 이름2 (브랜드2)" 형식
